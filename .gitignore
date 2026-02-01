@@ -1,24 +1,27 @@
-# Databases
+# Logs
+logs/
+test_logs/
+*.log
+
+# Databases and Data
 *.db
 *.db-shm
 *.db-wal
+wallet-json/
+address.txt
+proxies.txt
 
 # Secrets
 .env
-proxies.txt
 
 # IDEs and OS files
 .vscode/
 .trae/
 .agent/
 .cargo/
-core-logic/logs/
-test_logs/
 target/
 target_analyzer/
 target-temp/
-*.log
-
 node_modules/
 solc.exe
 
