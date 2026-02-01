@@ -11,6 +11,7 @@
 .trae/
 .agent/
 .cargo/
+core-logic/logs/
 test_logs/
 target/
 target_analyzer/
