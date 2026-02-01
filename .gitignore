@@ -23,7 +23,6 @@ target/
 target_analyzer/
 target-temp/
 node_modules/
-solc.exe
 
 # Windows Reserved
 nul
