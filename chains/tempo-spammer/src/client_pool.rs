@@ -294,6 +294,7 @@ impl ClientPool {
         config: Config,
         db: Arc<core_logic::database::DatabaseManager>,
         wallet_password: Option<String>,
+        connection_semaphore_size: usize,
     ) -> Result<Self> {
         let wallet_manager = Arc::new(WalletManager::new()?);
 
@@ -302,7 +303,7 @@ impl ClientPool {
         let robust_nonce_manager = Some(Arc::new(crate::RobustNonceManager::new()));
 
         // Initialize proxy banlist
-        let proxy_banlist = Some(crate::proxy_health::ProxyBanlist::new(30)); // 30 min ban
+        let proxy_banlist = Some(crate::proxy_health::ProxyBanlist::new(10)); // 10 min ban
 
         // Initialize O(1) wallet selection structures
         let total_wallets = wallet_manager.count();
@@ -327,7 +328,7 @@ impl ClientPool {
             proxy_cache: RwLock::new(HashMap::new()),
             // Proxy rotation counter for even distribution
             proxy_rotation_counter: AtomicUsize::new(0),
-            connection_semaphore: Arc::new(tokio::sync::Semaphore::new(1000)), // Limit to 100 concurrent connections
+            connection_semaphore: Arc::new(tokio::sync::Semaphore::new(connection_semaphore_size)),
         })
     }
 
@@ -587,30 +588,110 @@ impl ClientPool {
         let proxy_config = proxy_idx.map(|idx| &self.proxies[idx]);
 
         // Get or create HTTP client for this proxy configuration
-        let reqwest_client = self
-            .get_or_create_http_client(proxy_config.map(|p| p.url.clone()))
-            .await?;
+        // Try to create client with proxy first, fallback to direct connection
+        let (client, used_proxy_idx) = match self
+            .try_create_client_with_fallback(
+                wallet_idx,
+                &wallet.evm_private_key,
+                proxy_idx,
+                proxy_config,
+            )
+            .await
+        {
+            Ok((c, idx)) => (c, idx),
+            Err(e) => {
+                tracing::error!(
+                    "Failed to create TempoClient for wallet {}: {:?}. RPC: {}, Proxy: {:?}",
+                    wallet_idx,
+                    e,
+                    self.config.rpc_url,
+                    proxy_config.map(|p| &p.url)
+                );
+                return Err(e).with_context(|| {
+                    format!("Failed to create TempoClient for wallet {}", wallet_idx)
+                });
+            }
+        };
 
-        // Create the TempoClient with the same proxy_idx (atomic, no race condition)
-        let proxy_idx_for_client = proxy_idx;
-
-        let client = TempoClient::new_from_reqwest(
-            &self.config.rpc_url,
-            &wallet.evm_private_key,
-            reqwest_client,
-            proxy_config.cloned(),
-            proxy_idx_for_client,
-            self.nonce_manager.clone(),
-            self.robust_nonce_manager.clone(),
-        )
-        .await
-        .with_context(|| format!("Failed to create TempoClient for wallet {}", wallet_idx))?;
+        // Update proxy_idx_for_client to reflect what was actually used
+        let proxy_idx_for_client = used_proxy_idx;
 
         // Cache the client
         let mut clients = self.clients.write().await;
         clients.insert(wallet_idx, client.clone());
 
         Ok(client)
+    }
+
+    /// Try to create client with proxy, fallback to direct connection on failure
+    async fn try_create_client_with_fallback(
+        &self,
+        wallet_idx: usize,
+        private_key: &str,
+        proxy_idx: Option<usize>,
+        proxy_config: Option<&crate::tasks::ProxyConfig>,
+    ) -> Result<(TempoClient, Option<usize>)> {
+        // First attempt: Try with proxy if available
+        if let Some(config) = proxy_config {
+            match self
+                .get_or_create_http_client(Some(config.url.clone()))
+                .await
+            {
+                Ok(reqwest_client) => {
+                    match TempoClient::new_from_reqwest(
+                        &self.config.rpc_url,
+                        private_key,
+                        reqwest_client,
+                        Some(config.clone()),
+                        proxy_idx,
+                        self.nonce_manager.clone(),
+                        self.robust_nonce_manager.clone(),
+                    )
+                    .await
+                    {
+                        Ok(client) => return Ok((client, proxy_idx)),
+                        Err(e) => {
+                            // Proxy failed, ban it and try direct connection
+                            tracing::warn!(
+                                "Proxy {:?} failed for wallet {}, trying direct connection. Error: {:?}",
+                                config.url,
+                                wallet_idx,
+                                e
+                            );
+                            if let Some(idx) = proxy_idx {
+                                if let Some(ref banlist) = self.proxy_banlist {
+                                    banlist.ban(idx).await;
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to create HTTP client for proxy {:?}: {:?}. Trying direct connection.",
+                        config.url,
+                        e
+                    );
+                }
+            }
+        }
+
+        // Second attempt: Direct connection (no proxy)
+        tracing::info!("Using direct connection for wallet {}", wallet_idx);
+        let direct_client = self.get_or_create_http_client(None).await?;
+        let client = TempoClient::new_from_reqwest(
+            &self.config.rpc_url,
+            private_key,
+            direct_client,
+            None,
+            None,
+            self.nonce_manager.clone(),
+            self.robust_nonce_manager.clone(),
+        )
+        .await
+        .context("Failed to create TempoClient with direct connection")?;
+
+        Ok((client, None))
     }
 
     /// Gets or creates an HTTP client for a proxy configuration

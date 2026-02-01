@@ -1,3 +1,0 @@
-    Checking rise-project v0.1.0 (C:\My Script\testnet-framework\chains\risechain)
-    Checking tempo-project v0.1.0 (C:\My Script\testnet-framework\chains\tempo)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.23s

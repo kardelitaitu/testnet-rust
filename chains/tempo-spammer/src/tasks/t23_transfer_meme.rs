@@ -102,7 +102,8 @@ impl TransferMemeTask {
                         });
                     } else if err_str.contains("unauthorized") || err_str.contains("82b42900") {
                         tracing::debug!("Cannot mint token (unauthorized), using existing balance");
-                        // Continue with existing balance instead of failing
+                        // Continue with existing balance - if it's insufficient, the check below will handle it
+                        // The caller (run function) will retry with another token if this fails
                     } else {
                         anyhow::bail!("Mint submission failed: {}", e);
                     }
@@ -241,9 +242,35 @@ impl TempoTask for TransferMemeTask {
                         balance,
                         amount_wei
                     );
-                    return self
-                        .execute_transfer(ctx, token_addr, symbol, decimals, balance, amount_wei)
-                        .await;
+                    match self
+                        .execute_transfer(
+                            ctx,
+                            token_addr,
+                            symbol.clone(),
+                            decimals,
+                            balance,
+                            amount_wei,
+                        )
+                        .await
+                    {
+                        Ok(result) => {
+                            // If insufficient balance, try another token
+                            if !result.success && result.message.contains("Insufficient balance") {
+                                tracing::warn!(
+                                    "Token {} has insufficient balance after mint attempt. Trying another...",
+                                    symbol
+                                );
+                                if meme_tokens.len() > 1 {
+                                    meme_tokens.retain(|t| t != &token_addr_str);
+                                    if attempts < max_attempts {
+                                        continue;
+                                    }
+                                }
+                            }
+                            return Ok(result);
+                        }
+                        Err(e) => return Err(e),
+                    }
                 }
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();

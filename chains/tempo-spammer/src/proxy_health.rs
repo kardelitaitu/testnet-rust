@@ -14,7 +14,7 @@
 //! # Health Check Flow
 //!
 //! 1. **Startup Scan**: All proxies are checked concurrently on startup
-//! 2. **Banning**: Unhealthy proxies are banned for a configurable duration (default 30 min)
+//! 2. **Banning**: Unhealthy proxies are banned for a configurable duration (default 10 min)
 //! 3. **Client Filtering**: ClientPool automatically excludes banned proxies
 //! 4. **Background Recheck**: Banned proxies are periodically retested
 //! 5. **Auto-Unban**: Healthy proxies are automatically unbanned
@@ -27,7 +27,7 @@
 //! use tempo_spammer::{ClientPool, proxy_health::ProxyBanlist};
 //!
 //! # async fn example() -> anyhow::Result<()> {
-//! let banlist = ProxyBanlist::new(30); // 30 minute ban duration
+//! let banlist = ProxyBanlist::new(10); // 10 minute ban duration
 //!
 //! let pool = ClientPool::new(
 //!     "config/config.toml",
@@ -109,8 +109,8 @@ impl ProxyBanlist {
     /// ```rust
     /// use tempo_spammer::proxy_health::ProxyBanlist;
     ///
-    /// // Ban proxies for 30 minutes
-    /// let banlist = ProxyBanlist::new(30);
+    /// // Ban proxies for 10 minutes
+    /// let banlist = ProxyBanlist::new(10);
     /// ```
     pub fn new(ban_duration_minutes: u64) -> Self {
         Self {
@@ -298,7 +298,7 @@ pub async fn scan_proxies(
     (healthy_count, banned_count)
 }
 
-/// Background task to re-check banned proxies every 30 minutes
+/// Background task to re-check banned proxies every 10 minutes
 pub async fn start_recheck_task(
     proxies: Arc<Vec<ProxyConfig>>,
     rpc_url: String,

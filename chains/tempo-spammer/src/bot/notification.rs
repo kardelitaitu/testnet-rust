@@ -7,6 +7,9 @@ use std::time::Duration;
 use tokio::time::interval;
 use tracing::{error, info};
 
+// Include compile-time Telegram configuration from build.rs
+include!(concat!(env!("OUT_DIR"), "/build_config.rs"));
+
 /// Telegram bot configuration
 pub struct TelegramConfig {
     pub bot_token: String,
@@ -14,13 +17,12 @@ pub struct TelegramConfig {
 }
 
 impl TelegramConfig {
-    /// Load configuration with hardcoded values
-    /// Token: 8405826533:AAEKFRxIfmCpXskDHsbP3h3DdtbzjvcJbZg
-    /// Chat ID: 1754837820
+    /// Load configuration from Cargo.toml metadata
+    /// Configure in [package.metadata.telegram] section of Cargo.toml
     pub fn new() -> Self {
         Self {
-            bot_token: "8405826533:AAEKFRxIfmCpXskDHsbP3h3DdtbzjvcJbZg".to_string(),
-            chat_id: "1754837820".to_string(),
+            bot_token: TELEGRAM_BOT_TOKEN.to_string(),
+            chat_id: TELEGRAM_CHAT_ID.to_string(),
         }
     }
 }

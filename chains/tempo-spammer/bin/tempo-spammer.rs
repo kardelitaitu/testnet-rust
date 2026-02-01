@@ -19,6 +19,7 @@ use tempo_spammer::bot::notification::spawn_notification_service;
 use tempo_spammer::config::TempoSpammerConfig as Config;
 use tempo_spammer::tasks::{TaskContext, TempoTask, load_proxies};
 use tracing::{error, info, warn};
+use zeroize::Zeroizing;
 
 // Include compile-time configuration from build.rs
 include!(concat!(env!("OUT_DIR"), "/build_config.rs"));
@@ -120,15 +121,7 @@ async fn main() -> Result<()> {
         config.task_interval_min, config.task_interval_max
     );
 
-    // Get password priority: env var > compile-time > interactive prompt
-    let mut wallet_password = env::var("WALLET_PASSWORD").ok().or_else(|| {
-        if !COMPILE_TIME_PASSWORD.is_empty() {
-            Some(COMPILE_TIME_PASSWORD.to_string())
-        } else {
-            None
-        }
-    });
-
+    // Prompt for wallet password at runtime (never stored in binary)
     let wallet_manager = WalletManager::new()?;
     let total_wallets = wallet_manager.count();
 
@@ -137,33 +130,53 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Test password decryption with first wallet
-    if let Err(_) = wallet_manager
-        .get_wallet(0, wallet_password.as_deref())
-        .await
-    {
-        if !is_quiet {
-            println!("\n⚠️  Wallet decryption failed (password not set or invalid).");
-        }
-        let input = Password::with_theme(&ColorfulTheme::default())
-            .with_prompt("Enter wallet password")
-            .interact()?;
-        wallet_password = Some(input);
+    // Prompt for password immediately at startup
+    if !is_quiet {
+        println!("\n🔐 Wallet Configuration:");
+        println!("   Found {} wallets", total_wallets);
+    }
 
-        // Validate again
-        if let Err(e) = wallet_manager
-            .get_wallet(0, wallet_password.as_deref())
-            .await
-        {
-            error!("Decryption failed with provided password: {}", e);
-            return Ok(());
-        }
-        if !is_quiet {
-            println!("✅ Password accepted.");
-        }
+    let password_input = Password::with_theme(&ColorfulTheme::default())
+        .with_prompt("Enter wallet password")
+        .report(true) // Show asterisks (*****) when typing
+        .interact()?;
+
+    // Wrap password in Zeroizing to ensure it's cleared from memory when dropped
+    let wallet_password = Zeroizing::new(password_input);
+
+    // Validate password with first wallet
+    if let Err(e) = wallet_manager.get_wallet(0, Some(&wallet_password)).await {
+        error!("Decryption failed with provided password: {}", e);
+        return Ok(());
+    }
+
+    if !is_quiet {
+        println!("✅ Password accepted.");
     }
 
     info!("Found {} wallets", total_wallets);
+
+    // Prompt for number of workers BEFORE proxy health check
+    let runtime_workers = if !is_quiet {
+        println!("\n👷 Worker Configuration:");
+        println!("   Available wallets: {}", total_wallets);
+        println!("   Config default: {}", config.worker_count);
+
+        let workers_input: String = Input::with_theme(&ColorfulTheme::default())
+            .with_prompt(format!(
+                "Number of workers [default: {}]",
+                config.worker_count
+            ))
+            .default(config.worker_count.to_string())
+            .interact()
+            .unwrap_or_else(|_| config.worker_count.to_string());
+
+        let workers: u64 = workers_input.parse().unwrap_or(config.worker_count);
+        println!("✅ Using {} workers", workers);
+        workers
+    } else {
+        config.worker_count
+    };
 
     // Get the directory containing the config file to find proxies.txt
     let config_path_obj = std::path::Path::new(&config_path);
@@ -198,8 +211,18 @@ async fn main() -> Result<()> {
 
     // Proxy Health Check (if proxies enabled)
     let proxy_banlist = if !proxies.is_empty() {
-        info!(target: "task_result", "🔍 Starting proxy health check for {} proxies...", proxies.len());
-        let banlist = ProxyBanlist::new(30); // 30-minute ban
+        if !is_quiet {
+            info!(target: "task_result", "🔍 Starting proxy health check for {} proxies...", proxies.len());
+        }
+
+        // Start banner animation concurrently
+        let banner_handle = if !is_quiet {
+            Some(tokio::spawn(display_animated_banner()))
+        } else {
+            None
+        };
+
+        let banlist = ProxyBanlist::new(10); // 10-minute ban
         let (healthy, banned) = tempo_spammer::proxy_health::scan_proxies(
             &proxies,
             &config.rpc_url,
@@ -208,7 +231,12 @@ async fn main() -> Result<()> {
         )
         .await;
 
-        info!(target: "task_result", "✅ {}/{} proxies healthy, ⏱️ {} temporarily banned (30min)", 
+        // Ensure banner finishes before summary
+        if let Some(handle) = banner_handle {
+            let _ = handle.await;
+        }
+
+        info!(target: "task_result", "✅ {}/{} proxies healthy, ⏱️ {} temporarily banned (10min)", 
             healthy, proxies.len(), banned);
 
         // Spawn background re-check task
@@ -220,13 +248,17 @@ async fn main() -> Result<()> {
                 proxies_arc,
                 rpc_url_clone,
                 banlist_clone,
-                30, // Re-check every 30 minutes
+                10, // Re-check every 10 minutes
             )
             .await;
         });
 
         Some(banlist)
     } else {
+        // No proxies, but still show banner if not quiet
+        if !is_quiet {
+            display_animated_banner().await;
+        }
         None
     };
 
@@ -247,16 +279,21 @@ async fn main() -> Result<()> {
         .await?,
     );
 
+    // Create ClientPool with cloned password and configurable connection semaphore
+    // The original Zeroizing password will be cleared after this scope
     let client_pool = Arc::new(
         tempo_spammer::ClientPool::new(
             config.clone(),
-            db_manager.clone(), // Use same instance
-            wallet_password,
+            db_manager.clone(),                // Use same instance
+            Some(wallet_password.to_string()), // Clone for ClientPool
+            config.connection_semaphore,       // Use configurable semaphore size from config
         )
         .context("Failed to create client pool")?
         .with_proxies(proxies)
-        .with_proxy_banlist(proxy_banlist.unwrap_or_else(|| ProxyBanlist::new(30))),
+        .with_proxy_banlist(proxy_banlist.unwrap_or_else(|| ProxyBanlist::new(10))),
     );
+
+    // wallet_password (Zeroizing<String>) is dropped here and automatically zeroized from memory
 
     let total_wallets = client_pool.count();
     info!("Found {} wallets", total_wallets);
@@ -327,32 +364,10 @@ async fn main() -> Result<()> {
         Box::new(tempo_spammer::tasks::t50_deploy_storm::DeployStormTask::new()),
     ];
 
-    // Determine effective worker count: CLI arg > compile-time > config > interactive
-    let compile_time_workers = if COMPILE_TIME_WORKERS > 0 {
-        COMPILE_TIME_WORKERS
-    } else {
-        config.worker_count
-    };
-
     match args.command {
         Some(Commands::Spammer { workers, .. }) => {
-            let worker_count = workers.unwrap_or_else(|| {
-                // Use compile-time workers as default, prompt if user wants to override
-                if !is_quiet {
-                    println!("\n👷 Worker Configuration:");
-                    println!("   Build default: {}", compile_time_workers);
-                    println!("   Available wallets: {}", total_wallets);
-                }
-                let input: String = Input::with_theme(&ColorfulTheme::default())
-                    .with_prompt(format!(
-                        "Number of workers [default: {}]",
-                        compile_time_workers
-                    ))
-                    .default(compile_time_workers.to_string())
-                    .interact()
-                    .unwrap_or_else(|_| compile_time_workers.to_string());
-                input.parse().unwrap_or(compile_time_workers)
-            });
+            // Use CLI workers if provided, otherwise use runtime_workers (already prompted)
+            let worker_count = workers.unwrap_or(runtime_workers);
             run_spammer(client_pool, tasks, &config, db_manager, worker_count).await;
         }
         Some(Commands::Run { task }) => {
@@ -370,26 +385,39 @@ async fn main() -> Result<()> {
             }
         }
         None => {
-            // Interactive prompt for workers when no subcommand provided
-            if !is_quiet {
-                println!("\n👷 Worker Configuration:");
-                println!("   Build default: {}", compile_time_workers);
-                println!("   Available wallets: {}", total_wallets);
-            }
-            let input: String = Input::with_theme(&ColorfulTheme::default())
-                .with_prompt(format!(
-                    "Number of workers [default: {}]",
-                    compile_time_workers
-                ))
-                .default(compile_time_workers.to_string())
-                .interact()
-                .unwrap_or_else(|_| compile_time_workers.to_string());
-            let worker_count = input.parse().unwrap_or(compile_time_workers);
-            run_spammer(client_pool, tasks, &config, db_manager, worker_count).await;
+            // Use runtime_workers (already prompted before proxy health check)
+            run_spammer(client_pool, tasks, &config, db_manager, runtime_workers).await;
         }
     }
 
     Ok(())
+}
+
+async fn display_animated_banner() {
+    let lines = [
+        "\n",
+        "    ╔══════════════════════════════════════════════════════════════════╗",
+        "    ║                                                                  ║",
+        "    ║  ██████  █████   ███    ██ ████████ ███████ ███    ██  ██████    ║",
+        "    ║  ██      ██   ██ ████   ██    ██    ██      ████   ██ ██         ║",
+        "    ║  ██   ██ ███████ ██ ██  ██    ██    █████   ██ ██  ██ ██   ███   ║",
+        "    ║  ██   ██ ██   ██ ██  ██ ██    ██    ██      ██  ██ ██ ██    ██   ║",
+        "    ║   ██████ ██   ██ ██   ████    ██    ███████ ██   ████  ██████    ║",
+        "    ║                                                                  ║",
+        "    ║  ███    ███  █████  ██   ██ ███████ ██ ███    ███  █████  ██     ║",
+        "    ║  ████  ████ ██   ██ ██  ██  ██      ██ ████  ████ ██   ██ ██     ║",
+        "    ║  ██ ████ ██ ███████ █████   ███████ ██ ██ ████ ██ ███████ ██     ║",
+        "    ║  ██  ██  ██ ██   ██ ██  ██       ██ ██ ██  ██  ██ ██   ██ ██     ║",
+        "    ║  ██      ██ ██   ██ ██   ██ ███████ ██ ██      ██ ██   ██ █████  ║",
+        "    ║                                                                  ║",
+        "    ╚══════════════════════════════════════════════════════════════════╝",
+        "\n",
+    ];
+
+    for line in lines {
+        println!("{}", line);
+        tokio::time::sleep(Duration::from_millis(300)).await;
+    }
 }
 
 async fn run_spammer(

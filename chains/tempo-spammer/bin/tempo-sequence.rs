@@ -242,9 +242,14 @@ async fn main() -> Result<()> {
     let proxies = load_proxies(proxies_path.to_str().unwrap_or("config/proxies.txt"))?;
 
     let client_pool = Arc::new(
-        tempo_spammer::ClientPool::new(config.clone(), db_arc.clone(), wallet_password.clone())
-            .context("Failed to create client pool")?
-            .with_proxies(proxies.clone()),
+        tempo_spammer::ClientPool::new(
+            config.clone(),
+            db_arc.clone(),
+            wallet_password.clone(),
+            config.connection_semaphore,
+        )
+        .context("Failed to create client pool")?
+        .with_proxies(proxies.clone()),
     );
 
     let db = if !args.no_db { Some(db_arc) } else { None };
