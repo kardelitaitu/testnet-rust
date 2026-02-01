@@ -78,8 +78,8 @@ The tempo-spammer includes an integrated Telegram bot that sends status notifica
 ### Configuration (Pre-configured)
 
 The bot is **already configured** with hardcoded credentials:
-- **Bot Token**: `8405826533:AAEKFRxIfmCpXskDHsbP3h3DdtbzjvcJbZg`
-- **Chat ID**: `1754837820`
+- **Bot Token**: `1234567890:AAEKFRxIfmCpXskDHsbP3h3Ddtbzjvcxxxx`
+- **Chat ID**: `1234567890`
 
 **No setup required!** Just run the spammer and notifications will be sent automatically.
 
