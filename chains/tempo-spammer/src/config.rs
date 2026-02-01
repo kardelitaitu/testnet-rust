@@ -35,6 +35,9 @@ pub struct TempoSpammerConfig {
     /// Maximum concurrent connections (semaphore limit)
     #[serde(default = "default_connection_semaphore")]
     pub connection_semaphore: usize,
+    /// Per-worker concurrent request limit (prevents burst patterns)
+    #[serde(default = "default_worker_semaphore")]
+    pub worker_semaphore: usize,
     /// Default gas limit for transactions
     #[serde(deserialize_with = "deserialize_u128")]
     pub default_gas_limit: u128,
@@ -54,6 +57,10 @@ pub struct TempoSpammerConfig {
 
 fn default_connection_semaphore() -> usize {
     500
+}
+
+fn default_worker_semaphore() -> usize {
+    5
 }
 
 fn deserialize_u128<'de, D>(deserializer: D) -> Result<u128, D::Error>

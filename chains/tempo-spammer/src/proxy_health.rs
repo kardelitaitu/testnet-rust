@@ -298,6 +298,121 @@ pub async fn scan_proxies(
     (healthy_count, banned_count)
 }
 
+/// Scan proxies with early return - starts workers when minimum healthy proxies reached
+/// Continues checking remaining proxies in background
+///
+/// # Arguments
+/// * `proxies` - List of proxy configurations
+/// * `rpc_url` - RPC endpoint URL for health checks
+/// * `banlist` - Proxy banlist to update
+/// * `concurrent_limit` - Max concurrent health checks
+/// * `min_healthy` - Minimum healthy proxies needed before returning (e.g., 50)
+///
+/// # Returns
+/// (healthy_count, banned_count, background_handle) - Handle to continue checking in background
+pub async fn scan_proxies_partial(
+    proxies: Arc<Vec<ProxyConfig>>,
+    rpc_url: String,
+    banlist: ProxyBanlist,
+    concurrent_limit: usize,
+    min_healthy: usize,
+) -> (usize, usize, tokio::task::JoinHandle<(usize, usize)>) {
+    tracing::info!(
+        "🔍 Fast-start: Checking {} proxies, will start when {} are healthy...",
+        proxies.len(),
+        min_healthy
+    );
+
+    // Clone for foreground checks (we need to use these after spawning background task)
+    let banlist_fg = banlist.clone();
+    let proxies_fg = proxies.clone();
+    let rpc_url_fg = rpc_url.clone();
+
+    // Spawn background task to check ALL proxies
+    let background_handle = tokio::spawn(async move {
+        scan_proxies_with_progress(proxies, rpc_url, banlist, concurrent_limit).await
+    });
+
+    // Wait for minimum healthy proxies
+    let mut healthy_count = 0;
+    let mut banned_count = 0;
+    let mut checked_count = 0;
+
+    // Check proxies one by one until we have enough
+    for (idx, proxy) in proxies_fg.iter().enumerate() {
+        if healthy_count >= min_healthy {
+            tracing::info!(
+                "✅ Fast-start: {} healthy proxies reached! Starting workers while checking remaining {}...",
+                healthy_count,
+                proxies_fg.len() - checked_count
+            );
+            break;
+        }
+
+        let is_healthy = check_proxy_health(proxy, &rpc_url_fg).await;
+        checked_count += 1;
+
+        if is_healthy {
+            healthy_count += 1;
+            banlist_fg.unban(idx).await;
+        } else {
+            banned_count += 1;
+            banlist_fg.ban(idx).await;
+        }
+    }
+
+    (healthy_count, banned_count, background_handle)
+}
+
+/// Internal function to scan all proxies and update banlist
+async fn scan_proxies_with_progress(
+    proxies: Arc<Vec<ProxyConfig>>,
+    rpc_url: String,
+    banlist: ProxyBanlist,
+    concurrent_limit: usize,
+) -> (usize, usize) {
+    // Convert to owned vector to avoid lifetime issues
+    let proxy_vec: Vec<(usize, ProxyConfig)> = proxies
+        .iter()
+        .enumerate()
+        .map(|(idx, proxy)| (idx, proxy.clone()))
+        .collect();
+
+    let results: Vec<(usize, bool)> = stream::iter(proxy_vec)
+        .map(|(idx, proxy)| {
+            let rpc_url = rpc_url.clone();
+            async move {
+                let is_healthy = check_proxy_health(&proxy, &rpc_url).await;
+                (idx, is_healthy)
+            }
+        })
+        .buffer_unordered(concurrent_limit)
+        .collect()
+        .await;
+
+    let mut healthy_count = 0;
+    let mut banned_count = 0;
+
+    for (idx, is_healthy) in results {
+        if is_healthy {
+            healthy_count += 1;
+            banlist.unban(idx).await;
+        } else {
+            banned_count += 1;
+            banlist.ban(idx).await;
+        }
+    }
+
+    tracing::info!(
+        "✅ Background proxy check complete: {}/{} healthy, {} banned",
+        healthy_count,
+        proxies.len(),
+        banned_count
+    );
+
+    (healthy_count, banned_count)
+}
+
 /// Background task to re-check banned proxies every 10 minutes
 pub async fn start_recheck_task(
     proxies: Arc<Vec<ProxyConfig>>,

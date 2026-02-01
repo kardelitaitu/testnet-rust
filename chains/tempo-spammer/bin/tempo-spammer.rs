@@ -223,35 +223,29 @@ async fn main() -> Result<()> {
         };
 
         let banlist = ProxyBanlist::new(10); // 10-minute ban
-        let (healthy, banned) = tempo_spammer::proxy_health::scan_proxies(
-            &proxies,
-            &config.rpc_url,
-            &banlist,
-            10, // 10 concurrent checks to prevent rate limits
-        )
-        .await;
 
-        // Ensure banner finishes before summary
+        // Start partial scan with background continuation
+        let (partial_healthy, partial_banned, background_handle) =
+            tempo_spammer::proxy_health::scan_proxies_partial(
+                Arc::new(proxies.clone()),
+                config.rpc_url.clone(),
+                banlist.clone(),
+                10, // 10 concurrent checks to prevent rate limits
+                50, // min_healthy = 50 - stop early once we have 50 healthy proxies
+            )
+            .await;
+
+        // Log partial results immediately and continue with startup
+        info!(target: "task_result", "✅ {}/{} proxies healthy (partial scan), ⏱️ {} temporarily banned (10min) - continuing startup...", 
+            partial_healthy, proxies.len(), partial_banned);
+
+        // Ensure banner finishes before continuing
         if let Some(handle) = banner_handle {
             let _ = handle.await;
         }
 
-        info!(target: "task_result", "✅ {}/{} proxies healthy, ⏱️ {} temporarily banned (10min)", 
-            healthy, proxies.len(), banned);
-
-        // Spawn background re-check task
-        let proxies_arc = Arc::new(proxies.clone());
-        let banlist_clone = banlist.clone();
-        let rpc_url_clone = config.rpc_url.clone();
-        tokio::spawn(async move {
-            tempo_spammer::proxy_health::start_recheck_task(
-                proxies_arc,
-                rpc_url_clone,
-                banlist_clone,
-                10, // Re-check every 10 minutes
-            )
-            .await;
-        });
+        // Store background handle to keep it alive until end of main
+        let _proxy_scan_handle = background_handle;
 
         Some(banlist)
     } else {
@@ -428,6 +422,7 @@ async fn run_spammer(
     worker_count: u64,
 ) {
     info!(target: "task_result", "Starting spammer with {} workers...", worker_count);
+    info!(target: "task_result", "Per-worker semaphore: {} concurrent requests", config.worker_semaphore);
 
     let task_weights: Vec<u32> = tasks
         .iter()
@@ -453,6 +448,9 @@ async fn run_spammer(
         let config = config.clone();
         let dist = dist.clone();
 
+        // Per-worker semaphore to prevent burst patterns
+        let worker_semaphore = Arc::new(tokio::sync::Semaphore::new(config.worker_semaphore));
+
         let handle = tokio::spawn(async move {
             let mut rng = StdRng::from_entropy();
             let initial_sleep = rng.gen_range(0..2000);
@@ -461,6 +459,15 @@ async fn run_spammer(
             let mut backoff_ms = 10u64; // Start with 10ms backoff
 
             loop {
+                // Acquire per-worker permit (prevents burst patterns)
+                let _worker_permit = match worker_semaphore.clone().try_acquire_owned() {
+                    Ok(permit) => permit,
+                    Err(_) => {
+                        // Worker at capacity, wait briefly
+                        tokio::time::sleep(Duration::from_millis(50)).await;
+                        continue;
+                    }
+                };
                 // Check for cancellation
                 if false {
                     break;

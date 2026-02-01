@@ -10,8 +10,9 @@ rpc_url = "https://rpc.moderato.tempo.xyz"
 chain_id = 42431
 
 # Worker Settings
-worker_count = 50
-connection_semaphore = 800  # Max concurrent connections (default: 100)
+worker_count = 20
+connection_semaphore = 300  # Max concurrent connections (default: 100)
+worker_semaphore = 2        # Per-worker concurrent limit (prevents burst patterns)
 
 # Gas Settings (Fee AMM)
 default_gas_limit = 1000000
