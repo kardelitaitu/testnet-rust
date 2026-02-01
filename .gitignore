@@ -5,6 +5,7 @@
 
 # Secrets
 .env
+proxies.txt
 
 # IDEs and OS files
 .vscode/
