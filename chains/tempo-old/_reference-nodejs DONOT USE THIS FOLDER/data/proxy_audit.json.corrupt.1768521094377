@@ -1,0 +1,103 @@
+{
+  "92.113.241.15:6100:KingAirdrop:kiNgdom77": {
+    "ip": "92.113.241.15",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.282Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.21.231.175:7489:KingAirdrop:kiNgdom77": {
+    "ip": "82.21.231.175",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.292Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "142.111.48.253:7030:atmajacreative2:atmajacreative2": {
+    "ip": "142.111.48.253",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.301Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "104.252.149.185:5599:KingAirdrop:kiNgdom77": {
+    "ip": "104.252.149.185",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.310Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "45.39.75.185:6099:KingAirdrop:kiNgdom77": {
+    "ip": "45.39.75.185",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.320Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "45.39.75.221:6135:KingAirdrop:kiNgdom77": {
+    "ip": "45.39.75.221",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.330Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.21.231.47:7361:KingAirdrop:kiNgdom77": {
+    "ip": "82.21.231.47",
+    "attempts": 2,
+    "successes": 2,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.349Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.21.231.202:7516:KingAirdrop:kiNgdom77": {
+    "ip": "82.21.231.202",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.358Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "92.113.246.9:5594:KingAirdrop:kiNgdom77": {
+    "ip": "92.113.246.9",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.368Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  }
+}: "OK"
+  }
+}

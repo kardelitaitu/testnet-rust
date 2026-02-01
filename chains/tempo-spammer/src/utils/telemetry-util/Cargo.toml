@@ -1,0 +1,12 @@
+[package]
+name = "tempo-telemetry-util"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+eyre = "0.6"
+jiff = { version = "0.1", features = ["std"] }
+tracing = "0.1"

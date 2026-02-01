@@ -1,0 +1,21 @@
+fn main() {
+    let impl_bytecode = "0x608060405234801561001057600080fd5b5060d48061001f6000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c8063368b8772146037578063d06d67df146068575b600080fd5b606660048036038101906062919060ba565b600055565b60005460749060d6565b60405180910390f35b600080fd5b609e8160eb565b811460a857600080fd5b50565b6000813590506100bc565b600080fd5b600080fd5b6000601f19601f83011690549093919060d6565b6040519080825280601f01601f19166020018201604052801561010f57816000f55b50505056";
+    let hex_str = impl_bytecode.trim_start_matches("0x");
+    let bytes = hex::decode(hex_str).unwrap();
+    
+    let offset = 0xbc;
+    println!("Total length: {}", bytes.len());
+    println!("Checking offset 0x{:x} ({})", offset, offset);
+    
+    if offset < bytes.len() {
+        let opcode = bytes[offset];
+        println!("Opcode at offset: {:02x}", opcode);
+        if opcode == 0x5b {
+            println!("Confirmed: JUMPDEST");
+        } else {
+            println!("ERROR: Not JUMPDEST");
+        }
+    } else {
+        println!("Offset out of bounds");
+    }
+}

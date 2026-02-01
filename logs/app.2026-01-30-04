@@ -1,0 +1,417 @@
+2026-01-30 11:56:17 [INFO] Target RPC: https://rpc.moderato.tempo.xyz
+2026-01-30 11:56:17 [INFO] Target Chain ID: 42431
+2026-01-30 11:56:17 [INFO] Workers: 20
+2026-01-30 11:56:17 [INFO] Interval: 100ms - 200ms
+2026-01-30 11:56:17 [INFO] Starting spammer with 20 workers...
+2026-01-30 11:56:20 [INFO] [WK:012][WL:369][P:206] SUCCESS [42_distribute_shares_meme] TxHash: 0xe3fc78af5261357fcf5afa6d3e4b51b49130468d3dfa3487cb689243796f5346 t:2.0s
+2026-01-30 11:56:20 [INFO] [WK:007][WL:236][P:248] SUCCESS [38_transfer_later_stable] TxHash: 0x46473fd201c00f3353d39475f9ec52f4a462cf832ae27d7f2cb47d9f7f1745c4 t:2.2s
+2026-01-30 11:56:20 [INFO] [WK:016][WL:085][P:135] SUCCESS [02_claim_faucet] TxHash: 0xefbab21d211d90c76fe8bfbc26f7a1897490fc5a34c1e70efaa304b4a2ca7ac2 t:1.5s
+2026-01-30 11:56:20 [INFO] [WK:010][WL:083][P:204] SUCCESS [01_deploy_contract] TxHash: 0x83c80f2f4a71d7696278e46294792cc9955732cd8a21207dab1db0529ba63f40 t:1.3s
+2026-01-30 11:56:20 [INFO] [WK:011][WL:152][P:155] SUCCESS [20_wallet_activity] Wallet Activity: 3178 on-chain tx, 0.00 pathUSD t:1.6s
+2026-01-30 11:56:20 [INFO] [WK:013][WL:211][P:012] SUCCESS [49_time_bomb] TxHash: 0xd87e8f32ae78b93fef631554f02aafd0fe684d16744cb86d44350059f9622ca8 t:2.0s
+2026-01-30 11:56:21 [INFO] [WK:002][WL:182][P:124] SUCCESS [39_transfer_later_meme] TxHash: 0x12290338542c4b1de8490354df5b79d6cf68b92270737eee1d6cc4d4b9c08e31 t:2.6s
+2026-01-30 11:56:23 [INFO] [WK:007][WL:408][P:026] SUCCESS [44_batch_mint_meme] TxHash: 0x8786c8528ec80bfff483b338ae05e2f49ae0acec30772b452b84df3196e8715e t:3.0s
+2026-01-30 11:56:23 [INFO] [WK:005][WL:000][P:292] SUCCESS [47_deploy_viral_nft] TxHash: 0x2f50949ed3d7f3cab0cde07375210fbb3b66851af5a2d07f61d5a95b875877e0 t:5.5s
+2026-01-30 11:56:23 [INFO] [WK:016][WL:026][P:070] SUCCESS [41_distribute_shares_stable] TxHash: 0x9185aaffa35298c240351c96b6d3d67ed82ee550be873636c8de67bc1961d5a1 t:3.2s
+2026-01-30 11:56:24 [INFO] [WK:017][WL:099][P:287] SUCCESS [10_transfer_memo] TxHash: 0x04b14c8fd596a9082e1ea07a43806e35ef42b82f1b8b13e269c0ddcb8e8f358c t:6.1s
+2026-01-30 11:56:24 [INFO] [WK:004][WL:063][P:086] SUCCESS [46_claim_viral_faucet] TxHash: 0xbc0be55c5328848903a7cc30e58113d676865ffa4a5580f8dcb1b808badcd753 t:5.9s
+2026-01-30 11:56:26 [INFO] [WK:017][WL:093][P:079] SUCCESS [49_time_bomb] TxHash: 0xe5b9af8a8cfbca9d0de2be7291a6a1f39052287323b2dc9678761405017546b6 t:1.9s
+2026-01-30 11:56:27 [INFO] [WK:002][WL:030][P:172] SUCCESS [36_batch_send_transaction_meme] TxHash: 0x7095b95ec9795ab0cfa72053344334b99ad201cbfd96ae21b3e42707e2995620 t:5.7s
+2026-01-30 11:56:27 [INFO] [WK:015][WL:378][P:154] SUCCESS [11_limit_order] TxHash: 0xd968c3e121df4d6b7d69976dd5c891d565b50299e44212f0de19a918b1f65d86 t:8.2s
+2026-01-30 11:56:27 [INFO] [WK:018][WL:315][P:349] SUCCESS [25_batch_system_token] TxHash: 0xe98c67ab99a0d833e17b596cdbab60875736960771e9743138fa8612b79c6025 t:7.5s
+2026-01-30 11:56:27 [INFO] [WK:012][WL:389][P:322] SUCCESS [11_limit_order] TxHash: 0xc8bf1cb2195daef95d7e3d292640cd89e35dc21a304cbdebd0fab369c5815719 t:6.9s
+2026-01-30 11:56:27 [INFO] [WK:014][WL:212][P:043] SUCCESS [32_multi_send_concurrent_stable] TxHash: 0x2ad9c8338899c9ad824c1142a33eb32976daa291393829ff13e59cd447891645 t:8.8s
+2026-01-30 11:56:27 [INFO] [WK:009][WL:375][P:095] SUCCESS [05_swap_stable] TxHash: 0x559469c3716afa0b592ea718f3ca407174e10cc51559ce646c8afc2f31dc34f9 t:9.0s
+2026-01-30 11:56:27 [INFO] [WK:008][WL:006][P:018] SUCCESS [21_create_meme] TxHash: 0xb262a7ea8e8395162db52d9d5dab9d452adc1f4285443dbd037a1f5a11232b80 t:9.5s
+2026-01-30 11:56:28 [INFO] [WK:018][WL:233][P:115] SUCCESS [01_deploy_contract] TxHash: 0xe7b21a7a8a9799adccabe124e223c6d623df47b6cff54f436b83d113cb5a9bee t:1.4s
+2026-01-30 11:56:30 [INFO] [WK:001][WL:243][P:007] SUCCESS [30_multi_send_disperse_meme] TxHash: 0x861b9adff47cc0525719437dcf0e6c398f4e5357172f22000264a63fc84f2982 t:10.6s
+2026-01-30 11:56:30 [INFO] [WK:003][WL:135][P:368] SUCCESS [21_create_meme] TxHash: 0xab1ea0dccea515a7fe56789d3c91ab819ece47328b4de8a11b491c07869d8f4e t:10.6s
+2026-01-30 11:56:30 [INFO] [WK:014][WL:417][P:331] SUCCESS [41_distribute_shares_stable] TxHash: 0x19947e8a71fc1e7bcdfe46cbb380d38413aedd9fc1d0adb1f1d16c8db9dfcb00 t:2.9s
+2026-01-30 11:56:30 [INFO] [WK:013][WL:065][P:378] SUCCESS [31_multi_send_concurrent] TxHash: 0xecc11a547567d34849a673290a4c0af11b4306dacd076fefdac145fbf58979d6 t:9.4s
+2026-01-30 11:56:30 [INFO] [WK:010][WL:257][P:140] SUCCESS [11_limit_order] TxHash: 0xff0984892efd59eba8865ab31ad72ed681470525356eadc82ec4dad014477f2e t:9.6s
+2026-01-30 11:56:30 [INFO] [WK:000][WL:407][P:061] SUCCESS [07_mint_stable] TxHash: 0xaae9ffd058972e04d45b330a3d6e65f9b41bb3165a806e51b25ef2e522269063 t:12.3s
+2026-01-30 11:56:31 [INFO] [WK:019][WL:478][P:225] SUCCESS [07_mint_stable] TxHash: 0x9ed3ef84c9d996940358daf92ec4f0c894e534141fad9d158236b0f2cb7f07f7 t:12.1s
+2026-01-30 11:56:31 [INFO] [WK:002][WL:134][P:348] SUCCESS [09_transfer_token] TxHash: 0x5db4cda0d48d7100a7224239f1be4de0d562838d7350d66d7ae94f7c9fb50063 t:4.0s
+2026-01-30 11:56:31 [INFO] [WK:008][WL:120][P:054] SUCCESS [26_batch_stable_token] TxHash: 0xefef5de96201bc494dccbcc02cb8f4dc1be1b0f5ee8bfeea37134fd5b68bf68f t:3.5s
+2026-01-30 11:56:32 [INFO] [WK:007][WL:338][P:119] SUCCESS [28_multi_send_disperse] TxHash: 0x5abef4cb1fafaea2fbc68e9f99939719683dd8353206d18e077181e3af094ffa t:8.5s
+2026-01-30 11:56:32 [INFO] [WK:016][WL:476][P:014] SUCCESS [33_multi_send_concurrent_meme] TxHash: 0x9f2f3295622b31c738a5c4e6a41c50fd99ccb7659b0d1022ba8aefe66f11d209 t:8.1s
+2026-01-30 11:56:32 [INFO] [WK:015][WL:484][P:127] SUCCESS [22_mint_meme] TxHash: 0x29744313409bb8656402ea1d6fdefe636c8d3cacb7e38c1610f87f09c6e91714 t:4.9s
+2026-01-30 11:56:32 [INFO] [WK:004][WL:344][P:269] SUCCESS [15_mint_domain] TxHash: 0x811457b578a5927dfe5853e78d86396becc639e88275549487fdccdc33de1952 t:7.8s
+2026-01-30 11:56:32 [INFO] [WK:017][WL:498][P:179] SUCCESS [32_multi_send_concurrent_stable] TxHash: 0xae7a8466a4bc99fd33c6339d9311de119987a9e700f403bc959b57aaf6e713c6 t:6.3s
+2026-01-30 11:56:32 [INFO] [WK:005][WL:129][P:222] SUCCESS [16_mint_random_nft] TxHash: 0x8da2caee294eb17b3c86ee9c122584a9357027e6cef9d638503677aceb630a21 t:9.0s
+2026-01-30 11:56:32 [INFO] [WK:003][WL:161][P:328] SUCCESS [18_tip403_policies] TxHash: 0xff54d75830d0aff076ca5abdf53855e3e96cdb6aac898ddd2674894c7f612a23 t:2.3s
+2026-01-30 11:56:33 [INFO] [WK:006][WL:280][P:181] SUCCESS [14_nft_create_mint] TxHash: 0xfabc3222aa0ee66c984fa16aafcaff07d0d273f2fe45d9a56dd72f9b8f0ab1e1 t:14.5s
+2026-01-30 11:56:34 [INFO] [WK:015][WL:487][P:284] SUCCESS [42_distribute_shares_meme] TxHash: 0x6b3f61be13a3d0152b88fe24d4502acfbc5c8b39f7c6545214b9684039d32063 t:1.6s
+2026-01-30 11:56:34 [ERROR] Task error: Failed to send transfer with memo  Caused by:     server returned an error response: error code -32000: nonce too low: next nonce 3316, tx nonce 3315
+2026-01-30 11:56:34 [INFO] [WK:002][WL:047][P:330] SUCCESS [26_batch_stable_token] TxHash: 0x78a32ab2386fce2f5e903984bed7914da550948bdc7f7359134907942dd303f4 t:3.4s
+2026-01-30 11:56:36 [INFO] [WK:013][WL:427][P:233] SUCCESS [10_transfer_memo] TxHash: 0x796f041ac78db5547b03f835639bda1e9b2d0bb0acb856b8cb290f72b65cbe6b t:5.7s
+2026-01-30 11:56:37 [INFO] [WK:019][WL:110][P:199] SUCCESS [24_batch_swap] TxHash: 0xe5b4d7d72fdeb4561956fbdd3c20f1185719b276a71d2538644d20a85f9b76f7 t:6.6s
+2026-01-30 11:56:37 [INFO] [WK:001][WL:392][P:072] SUCCESS [34_batch_send_transaction] TxHash: 0xc1388810acce8a1dc67d509deef2641963214551dec4c2ab8f17a6bc781e916e t:7.4s
+2026-01-30 11:56:38 [INFO] [WK:004][WL:092][P:267] SUCCESS [39_transfer_later_meme] TxHash: 0xa623c74493011b97671debbfa22855242ec393c767bc0aa91f51ff8a5cbc63d5 t:3.2s
+2026-01-30 11:56:38 [INFO] [WK:017][WL:121][P:334] SUCCESS [19_wallet_analytics] Analytics for 0x133afd120c8e7fe7fa444793b210d3fb2e0b0dfe: Native Balances: (PathUSD: 3610446.454769, AlphaUSD: 17223380.675394, BetaUSD: 16567181.745556, ThetaUSD: 19843088.682906), Assets: (Stables: 9, Memes: 7), TXs: 214 (Success: 90.7%) t:5.4s
+2026-01-30 11:56:39 [INFO] [WK:016][WL:319][P:250] SUCCESS [13_grant_role] TxHash: 0x94a7d6d9b0d8f92d1047904937df78125ff455ff6ce1d0f077ba83d2e12e6adb t:6.7s
+2026-01-30 11:56:39 [INFO] [WK:009][WL:062][P:292] SUCCESS [04_create_stable] TxHash: 0xa876bc0a1dae43138c852dd1ab747f8785ac9fcaf1e6659d10a8c9a0d9548545 t:11.7s
+2026-01-30 11:56:39 [INFO] [WK:013][WL:337][P:077] SUCCESS [39_transfer_later_meme] TxHash: 0x459582c29e82e301e7f1e9d90473fcfa4ebd1403734217bd5687ed312e5a7136 t:2.7s
+2026-01-30 11:56:39 [INFO] [WK:010][WL:225][P:211] SUCCESS [25_batch_system_token] TxHash: 0xb793173f73eb2480aad06ba3ef2e46696fb9248664076b9c55585963a4fb29dc t:8.7s
+2026-01-30 11:56:39 [INFO] [WK:007][WL:467][P:125] SUCCESS [36_batch_send_transaction_meme] TxHash: 0xccecd0fb740277a4d2deb033320a4a2aa74695f0685128847d6ea4aa5b730db5 t:7.2s
+2026-01-30 11:56:39 [INFO] [WK:015][WL:401][P:114] SUCCESS [47_deploy_viral_nft] TxHash: 0x69c3e397655a01b19d8666ff92108bbec4f707c12d543bed8cc0552efaf29cf2 t:5.5s
+2026-01-30 11:56:40 [INFO] [WK:017][WL:074][P:181] SUCCESS [49_time_bomb] TxHash: 0x5fc564ad65dd9d688a43b8ecd378a0c6f0d17cb96346480bc7d7bba659274e18 t:1.2s
+2026-01-30 11:56:40 [INFO] [WK:001][WL:058][P:058] SUCCESS [41_distribute_shares_stable] TxHash: 0xaf0da2c8d90716770b86144a5d57174ae048f379140e5aabce3f299790005e9e t:2.5s
+2026-01-30 11:56:41 [INFO] [WK:014][WL:119][P:243] SUCCESS [36_batch_send_transaction_meme] TxHash: 0x9bc9abb16d28986b67a6dfc8b5de36f390a3195fd9e75a87caab5199e9b66f46 t:10.3s
+2026-01-30 11:56:41 [INFO] [WK:008][WL:250][P:352] SUCCESS [15_mint_domain] TxHash: 0x275efdd96cc5dd76a360fdbc67d77d02812c79d40660d5412f405753e5c02e95 t:9.6s
+2026-01-30 11:56:41 [INFO] [WK:000][WL:060][P:121] SUCCESS [07_mint_stable] TxHash: 0x301b782b3c4b5488b274fdb8ed05b750348dd54b85c2ddecfa87e391688aeb97 t:10.8s
+2026-01-30 11:56:42 [INFO] [WK:007][WL:013][P:110] SUCCESS [42_distribute_shares_meme] TxHash: 0x56a2f5805b0a417dad574a0025040cd15adc88f1998f7355d763611ef1798eb1 t:2.2s
+2026-01-30 11:56:43 [INFO] [WK:014][WL:246][P:270] SUCCESS [39_transfer_later_meme] TxHash: 0x9854b7812deae39e573ded99451f1bf8df67590ba122674ac8b0e419cd1a2d72 t:2.2s
+2026-01-30 11:56:43 [INFO] [WK:001][WL:288][P:026] SUCCESS [43_batch_mint_stable] TxHash: 0xad1aa262bd44219341709ecec03f1abf6725ffa80376fad5583803f61a2415ba t:2.8s
+2026-01-30 11:56:44 [INFO] [WK:016][WL:267][P:258] SUCCESS [46_claim_viral_faucet] TxHash: 0x31f51b15ddf152de1bee9d1b5c04266839aed1a71018bf2e9dae5f1a80bbed3a t:4.5s
+2026-01-30 11:56:44 [INFO] [WK:007][WL:292][P:256] SUCCESS [49_time_bomb] TxHash: 0x46e3bfbd44fcbd843e6e5d2c79c763297b904ea39d393f7804442e2f3c876db8 t:1.8s
+2026-01-30 11:56:44 [INFO] [WK:008][WL:232][P:273] SUCCESS [49_time_bomb] TxHash: 0xa166d9bd18fc117127bd7521bbb8969357a8114169484b6cf5fdf916da912395 t:2.5s
+2026-01-30 11:56:44 [INFO] [WK:010][WL:023][P:357] SUCCESS [23_transfer_meme] TxHash: 0xbd0b681edf31f351cfaf7544b04879cbcf136190bdb028a710aa84b9dfa5f0d1 t:4.2s
+2026-01-30 11:56:45 [INFO] [WK:008][WL:161][P:292] SUCCESS [02_claim_faucet] TxHash: 0x86b81c92b90e1bcc036f4cadd7747e0e54deb3730dc84b318e2868cac4adb2ab t:0.7s
+2026-01-30 11:56:46 [INFO] [WK:008][WL:006][P:233] SUCCESS [49_time_bomb] TxHash: 0x02e30d5084aee1d3910257e2a10c2489b9f5d6fd0534527300b3e2fd07a5f76b t:1.5s
+2026-01-30 11:56:46 [INFO] [WK:005][WL:000][P:121] SUCCESS [14_nft_create_mint] TxHash: 0x3c9e000490ffde64605fa1b497dcb5567b578269107a5e8ad82bd5b830d87c95 t:13.7s
+2026-01-30 11:56:47 [INFO] [WK:004][WL:189][P:156] SUCCESS [27_batch_meme_token] TxHash: 0x42f9dfa2d4b1583274c411b29167d7dab879416e9d059ee5bdb7a95f8d227ccb t:9.3s
+2026-01-30 11:56:48 [INFO] [WK:019][WL:128][P:308] SUCCESS [35_batch_send_transaction_stable] TxHash: 0x1eeac586bba5ec6da50698e4ce32be90b883c1c227479cdc35d7e9d4c280b9c8 t:10.0s
+2026-01-30 11:56:48 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:56:49 [INFO] [WK:002][WL:463][P:276] SUCCESS [04_create_stable] TxHash: 0x79488410e57001a1bdcbcfba7f01e251ae916ad8cc39414e63112e7c0ff71201 t:14.6s
+2026-01-30 11:56:50 [INFO] [WK:001][WL:210][P:063] SUCCESS [25_batch_system_token] TxHash: 0xde4c6ae60eeef16220530b8a85d12c75df7825aedb25c705f561d543e1931dc9 t:6.0s
+2026-01-30 11:56:50 [INFO] [WK:015][WL:213][P:341] SUCCESS [27_batch_meme_token] TxHash: 0xd24c26760155e73bca42aa4ad172ba50d87e7ce06724c471d878c4e9a02aa2a7 t:10.7s
+2026-01-30 11:56:50 [ERROR] Task timed out
+2026-01-30 11:56:51 [INFO] [WK:008][WL:146][P:033] SUCCESS [26_batch_stable_token] TxHash: 0x55dc8d957d2589af06969b4978526175af22464627eec8557295970cf8b5170a t:4.2s
+2026-01-30 11:56:51 [INFO] [WK:005][WL:019][P:224] SUCCESS [26_batch_stable_token] TxHash: 0x5806c5ad5d9fc7de6ecc01c02cce91bf1a517832bfe4e901a174d69664df8737 t:4.3s
+2026-01-30 11:56:51 [INFO] [WK:013][WL:305][P:144] FAILED  [06_add_liquidity] Order failed: ErrorResp(ErrorPayload { code: 3, message: "execution reverted: TIP20 token error: InsufficientAllowance(InsufficientAllowance)", data: Some(RawValue("0x13be252b")) }) t:11.6s
+2026-01-30 11:56:51 [INFO] [WK:019][WL:412][P:246] SUCCESS [39_transfer_later_meme] TxHash: 0x8ad8774b4d72af27ec2c00927a10a3d54b16c41e2241586b0b14ea2c6ae32c70 t:3.1s
+2026-01-30 11:56:52 [INFO] [WK:017][WL:252][P:064] SUCCESS [07_mint_stable] TxHash: 0x1ad4238170002ffaaf05083c0d749818f4b8a00080d584029d97b72844e9dc42 t:11.8s
+2026-01-30 11:56:52 [INFO] [WK:014][WL:079][P:294] SUCCESS [04_create_stable] TxHash: 0xc6cd80463f4a89908ace80a5c2543857883d877799ca12627f66619dfdab16b9 t:9.1s
+2026-01-30 11:56:53 [INFO] [WK:002][WL:198][P:040] SUCCESS [41_distribute_shares_stable] TxHash: 0xa3cc37b535d4568fec4510dd87256924fb04514588d201547b4574c4bc1c4b34 t:3.1s
+2026-01-30 11:56:54 [ERROR] Task error: Failed to send createPolicy  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: error sending request for url (https://rpc.moderato.tempo.xyz/)     2: client error (Connect)     3: tunnel error: failed to create underlying connection     4: tcp connect error     5: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:56:55 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:56:55 [INFO] [WK:015][WL:136][P:100] SUCCESS [41_distribute_shares_stable] TxHash: 0x303e1131a34c15bc10756c945efa3e5f4eb6e549e11d173a8688c22eea90c0df t:4.2s
+2026-01-30 11:56:55 [INFO] [WK:016][WL:397][P:284] SUCCESS [33_multi_send_concurrent_meme] TxHash: 0x9938ea43db8fc496f3a14fd60e96b0d08fc726645e54e1c5e75afe1afd69953b t:11.0s
+2026-01-30 11:56:55 [INFO] [WK:004][WL:447][P:270] SUCCESS [35_batch_send_transaction_stable] TxHash: 0xca397413918fc61baff049aa1fc89ee4d05649b8b479eaa68940dcd00b31f748 t:7.4s
+2026-01-30 11:56:55 [INFO] [WK:010][WL:219][P:050] SUCCESS [25_batch_system_token] TxHash: 0x10176f6d9920e09b63213844f4d539422cee8f098cb6a5d564307fd00ceb5daa t:10.9s
+2026-01-30 11:56:59 [ERROR] Task timed out
+2026-01-30 11:56:59 [INFO] [WK:000][WL:174][P:125] SUCCESS [29_multi_send_disperse_stable] TxHash: 0x8bc3ae39e453d26d22e433772f91845173cc6ca79c51f6401ef189b6a5738f68 t:17.6s
+2026-01-30 11:56:59 [INFO] [WK:019][WL:357][P:009] SUCCESS [09_transfer_token] TxHash: 0xb978afddd5c898c0be081e5549f4946a8d75ba5a7378bbde21c617dbf46d5308 t:7.8s
+2026-01-30 11:56:59 [INFO] [WK:001][WL:394][P:110] SUCCESS [46_claim_viral_faucet] TxHash: 0xa4586aa66712a576b0d7e71867f272cc9ce07bb3c425433b2d9aa710c9bf2a65 t:9.5s
+2026-01-30 11:57:00 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:01 [INFO] [WK:013][WL:211][P:276] SUCCESS [15_mint_domain] TxHash: 0xb74663770b85891d1a904677680343262142995ecfa3e4e3fde53ef389a6fb0c t:9.8s
+2026-01-30 11:57:01 [INFO] [WK:003][WL:243][P:058] SUCCESS [15_mint_domain] TxHash: 0xb0411574fe09f6c2aede9717189fe2cc45bc4578333983810c3b59c53637ba10 t:7.0s
+2026-01-30 11:57:01 [INFO] [WK:010][WL:070][P:388] SUCCESS [15_mint_domain] TxHash: 0x13accab6e0cee775d2ee431ec54b77b40cdc3b305899795017f0b8bddb47687e t:6.0s
+2026-01-30 11:57:01 [INFO] [WK:005][WL:359][P:090] SUCCESS [31_multi_send_concurrent] TxHash: 0xf607b4487d92a013f0477a364a55c281afb46f667bb5f742563ed396b501dbaf t:10.3s
+2026-01-30 11:57:02 [INFO] [WK:012][WL:131][P:115] SUCCESS [28_multi_send_disperse] TxHash: 0xce234c856844456285be31bba390faa0d32b2293e21d84bf9a04ca1fdfe32450 t:13.4s
+2026-01-30 11:57:02 [INFO] [WK:019][WL:334][P:073] SUCCESS [38_transfer_later_stable] TxHash: 0x36f0e020c7c596365b0540c6fd99474db1b13cf4aa41cced37297966858a8d99 t:2.6s
+2026-01-30 11:57:03 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: client error (Connect)     1: tunnel error: failed to create underlying connection     2: tcp connect error     3: deadline has elapsed
+2026-01-30 11:57:04 [ERROR] Task error: server returned an error response: error code -32000: replacement transaction underpriced
+2026-01-30 11:57:04 [INFO] [WK:008][WL:120][P:174] SUCCESS [04_create_stable] TxHash: 0x15e9ed7ef44406c1b5060f3d9fddb50a84e1e174115c8a9b21682167069f1226 t:13.3s
+2026-01-30 11:57:04 [INFO] [WK:011][WL:109][P:022] SUCCESS [22_mint_meme] TxHash: 0x27d2dad85fe5a2205e4e9a95c60a66f67ae4af43cb2a54455af909b2f9d9a611 t:13.5s
+2026-01-30 11:57:05 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:05 [INFO] [WK:001][WL:377][P:107] SUCCESS [16_mint_random_nft] TxHash: 0x8c1d2b1d09789074b829e083b24ab2cfc32a6d47d40acc9bcc7160d46786cf7a t:6.0s
+2026-01-30 11:57:06 [INFO] [WK:013][WL:464][P:069] SUCCESS [26_batch_stable_token] TxHash: 0xcbb3ce8082b231eed5ff01f88528a4c02e121997a6ad2ddf17f11cbd83079ab5 t:4.8s
+2026-01-30 11:57:07 [INFO] [WK:006][WL:019][P:221] SUCCESS [07_mint_stable] TxHash: 0xf315029d77565e3c145435a84521bf9bacf4d473547c17f626efb38d17e55b2b t:12.5s
+2026-01-30 11:57:07 [INFO] [WK:014][WL:043][P:011] SUCCESS [29_multi_send_disperse_stable] TxHash: 0x2edd6dad97e9206b4d885419c87e439821be0ac5faf845504cb370903a719ec5 t:14.6s
+2026-01-30 11:57:07 [INFO] [WK:003][WL:465][P:014] SUCCESS [09_transfer_token] TxHash: 0x2302fedc14e63bfbb3626999b1fcf8ab9ac1a34e1808db1f08d525b4915b518a t:6.3s
+2026-01-30 11:57:07 [INFO] [WK:019][WL:123][P:204] SUCCESS [18_tip403_policies] TxHash: 0xde9d0b0de51df41d46bcf492ce9aa4f3dd6863aa39ba143265140bd420fb980a t:5.2s
+2026-01-30 11:57:08 [INFO] [WK:016][WL:316][P:026] SUCCESS [06_add_liquidity] TxHash: 0xc0a5b0792d945552d261a8a1eab1a444ddaadbef156b9ae43c469733cf52e2cc t:12.4s
+2026-01-30 11:57:08 [INFO] [WK:002][WL:292][P:007] SUCCESS [48_mint_viral_nft] TxHash: 0xea9db622e361bbc13c551a69bd556941de1e452d95ddf3939aa0217bee7ea04c t:4.7s
+2026-01-30 11:57:08 [INFO] [WK:004][WL:419][P:131] SUCCESS [28_multi_send_disperse] TxHash: 0xfbef2b9e853b04869abcc56c2cb45fe1978bde5cd61fc623fea943856a2f44c3 t:12.6s
+2026-01-30 11:57:08 [INFO] [WK:018][WL:094][P:061] SUCCESS [32_multi_send_concurrent_stable] TxHash: 0xc8b560ae93911f384726d6053cd53c09f6b02de396508f4e726e6b48649b1107 t:9.3s
+2026-01-30 11:57:09 [INFO] [WK:010][WL:209][P:165] SUCCESS [24_batch_swap] TxHash: 0x2d82bed06ff601fec20d4d491707be9dbb42d4e779446e018169da994c1f7fe3 t:7.3s
+2026-01-30 11:57:09 [INFO] [WK:011][WL:084][P:375] SUCCESS [10_transfer_memo] TxHash: 0xd849749adb401f4e61d33edfe30da519234197f9983713717bb933cb23d29ffc t:4.9s
+2026-01-30 11:57:10 [INFO] [WK:016][WL:015][P:044] SUCCESS [42_distribute_shares_meme] TxHash: 0xef15290cd7c3f6cdaa6e4d6043af391f71b72f0c8794427ebe24d63e08538338 t:2.2s
+2026-01-30 11:57:10 [INFO] [WK:003][WL:163][P:341] SUCCESS [13_grant_role] TxHash: 0xbbccf47194e0cbeea3af5bffdb1e36e454c1062b4e9671a37cf585f7fa271abf t:2.5s
+2026-01-30 11:57:11 [INFO] [WK:012][WL:066][P:288] SUCCESS [46_claim_viral_faucet] TxHash: 0x1be7a416d5d5180f04fc554f740dba26b1847f581c9c5731a23a6707d0e9f333 t:8.6s
+2026-01-30 11:57:11 [INFO] [WK:014][WL:445][P:318] SUCCESS [41_distribute_shares_stable] TxHash: 0x740622607dd56bface6388b9754233aa1b122375485fd8923dda652734f90177 t:3.1s
+2026-01-30 11:57:11 [INFO] [WK:002][WL:125][P:041] SUCCESS [26_batch_stable_token] TxHash: 0x5b1e19119436228197e36a6f2c9ece73b43d8300d277ae50fcc9897dbae9851c t:3.1s
+2026-01-30 11:57:11 [INFO] [WK:010][WL:044][P:382] SUCCESS [42_distribute_shares_meme] TxHash: 0x5d4ba66f9f37b0f253eaa0fdd5a00edf85c21a5cb7e08c5f1a01c335a1ba5b31 t:2.2s
+2026-01-30 11:57:11 [INFO] [WK:007][WL:278][P:091] SUCCESS [15_mint_domain] TxHash: 0x0f450a41f04cbd1d257cff49bc1e60ef4b25298f5e3cab50c0725b780abbee0b t:6.0s
+2026-01-30 11:57:11 [INFO] [WK:008][WL:136][P:112] FAILED  [06_add_liquidity] Order failed: ErrorResp(ErrorPayload { code: -32000, message: "nonce too low: next nonce 3347, tx nonce 3344", data: None }) t:7.0s
+2026-01-30 11:57:13 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:15 [INFO] [WK:002][WL:470][P:033] SUCCESS [19_wallet_analytics] Analytics for 0x01ff0a17f3b6fa47d134fcb718fe72f3929a1ea2: Native Balances: (PathUSD: 30812938.518321, AlphaUSD: 28191077.755277, BetaUSD: 28544758.28456, ThetaUSD: 27668930.721881), Assets: (Stables: 8, Memes: 7), TXs: 194 (Success: 93.8%) t:3.4s
+2026-01-30 11:57:15 [INFO] [WK:019][WL:362][P:230] SUCCESS [15_mint_domain] TxHash: 0xa24a7a743b1874fb5b0f9dbaf91556af56e58d04803e5bf62cb19d9d16f9a1cd t:7.0s
+2026-01-30 11:57:16 [INFO] [WK:016][WL:294][P:038] SUCCESS [48_mint_viral_nft] TxHash: 0x51feb3a18ab9247e9208088a0a554176c547ebedbdb6736437468a07fac2d763 t:5.4s
+2026-01-30 11:57:16 [INFO] [WK:009][WL:092][P:206] SUCCESS [07_mint_stable] TxHash: 0x5a1f6d6520959b0ef6d07c08e39f1db14aa327a31f8976f31bbc0c723a77adc7 t:12.0s
+2026-01-30 11:57:16 [INFO] [WK:013][WL:427][P:041] SUCCESS [31_multi_send_concurrent] TxHash: 0x513234ac47e1be96e7846be4cbd62a29d88ce0b2d6efef4a36ac53186612539a t:9.9s
+2026-01-30 11:57:17 [INFO] [WK:019][WL:147][P:182] SUCCESS [38_transfer_later_stable] TxHash: 0x6ba3c46900d95b8dfaf37ee4642a24ac44a97581e399d5015d658012ac42310c t:1.9s
+2026-01-30 11:57:18 [INFO] [WK:005][WL:379][P:016] SUCCESS [14_nft_create_mint] TxHash: 0x56927021428210cdbf2bed0fe5bf329cc5eac87fcd00ce4a75451e388bd1a2e0 t:16.2s
+2026-01-30 11:57:18 [INFO] [WK:007][WL:070][P:142] SUCCESS [25_batch_system_token] TxHash: 0x535c2484e00ca39f6bfae9251821c8ff0c7acb1732ff78d22aa23f111d07ca28 t:6.6s
+2026-01-30 11:57:18 [INFO] [WK:004][WL:380][P:090] SUCCESS [11_limit_order] TxHash: 0x61a00ebf08bc13044024ccd56406dd630ea3683426432200e6a07655b80879ec t:10.0s
+2026-01-30 11:57:18 [INFO] [WK:010][WL:218][P:069] SUCCESS [32_multi_send_concurrent_stable] TxHash: 0x4dd41d1c9651835cb7b6c63c30428b0034e5b82bf6a5aada07a73635eb7b20d4 t:6.8s
+2026-01-30 11:57:18 [INFO] [WK:009][WL:232][P:207] SUCCESS [39_transfer_later_meme] TxHash: 0x122bb158d7520449a3428b34af8698ff49b0c18707325d0eebf670a91e4703ed t:2.3s
+2026-01-30 11:57:18 [INFO] [WK:003][WL:302][P:188] SUCCESS [25_batch_system_token] TxHash: 0x857432a7b435761aa6a4b9d1ec3d798c5b80bb7cfe612e7a44a493ca3da92756 t:7.9s
+2026-01-30 11:57:20 [INFO] [WK:004][WL:438][P:011] FAILED  [33_multi_send_concurrent_meme] Insufficient balance for 0x20c000 even after mint attempt t:1.2s
+2026-01-30 11:57:20 [INFO] [WK:007][WL:240][P:298] SUCCESS [02_claim_faucet] TxHash: 0x72fcc50a942946af8be3107c5b23ecb9c62357d94784e2b2035072469b5e7735 t:1.5s
+2026-01-30 11:57:21 [INFO] [WK:017][WL:101][P:024] SUCCESS [35_batch_send_transaction_stable] TxHash: 0x2b2f7387740fdcd131688c57c0c4a8bc394201e979c4f26442f6a14cc455b2f9 t:7.4s
+2026-01-30 11:57:21 [INFO] [WK:019][WL:127][P:073] SUCCESS [19_wallet_analytics] Analytics for 0xef2f2e9cd8ad2b8666f29d3be1fe2e3573ba219f: Native Balances: (PathUSD: 12808051.172113, AlphaUSD: 31159776.003988, BetaUSD: 28810271.3361, ThetaUSD: 31536947.564338), Assets: (Stables: 8, Memes: 5), TXs: 167 (Success: 91.6%) t:3.4s
+2026-01-30 11:57:22 [INFO] [WK:004][WL:036][P:141] SUCCESS [03_send_token] TxHash: 0xb24d7215e2d91838bfcf761b9f9306302122fa4c0892adfaacce84b442c97fda t:2.1s
+2026-01-30 11:57:22 [INFO] [WK:016][WL:108][P:172] SUCCESS [35_batch_send_transaction_stable] TxHash: 0x65285d09fa16a9f53afc30de6f3c174eee8f7b4f6cfecfd3fe50d56dd210425e t:6.3s
+2026-01-30 11:57:22 [INFO] [WK:011][WL:330][P:122] SUCCESS [04_create_stable] TxHash: 0xa6315c514b09a011344ead912bc7c163e3167b33798fa637fb3505b6cd80b39d t:12.8s
+2026-01-30 11:57:23 [INFO] [WK:013][WL:385][P:199] SUCCESS [33_multi_send_concurrent_meme] TxHash: 0x169771899e8b15cd4e5dfcd4166599e5c6185446051ee419128d826cdb6cc0da t:6.6s
+2026-01-30 11:57:23 [INFO] [WK:012][WL:126][P:287] SUCCESS [08_burn_stable] TxHash: 0x4dba1b77fcd2f8a71e8faeb64b3880971bced907c20ffdfbed2f4689c77cbdda t:12.0s
+2026-01-30 11:57:24 [INFO] [WK:004][WL:485][P:285] SUCCESS [49_time_bomb] TxHash: 0x8c5557fc52e2998170178c31c0bf436d3a8c1ee55f3adc7bdf59d05ae64c014b t:1.9s
+2026-01-30 11:57:25 [ERROR] Task timed out
+2026-01-30 11:57:25 [INFO] [WK:010][WL:358][P:124] SUCCESS [11_limit_order] TxHash: 0x35639a8ca4891122f2179c503166c6286ad3fc148808f87582770da6aa3e1373 t:6.6s
+2026-01-30 11:57:26 [INFO] [WK:003][WL:273][P:207] SUCCESS [32_multi_send_concurrent_stable] TxHash: 0x852b19701bb43c9323b08fda1965138ed9b4da7da8ddf109cf07f82d6873eb4d t:6.8s
+2026-01-30 11:57:27 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:27 [INFO] [WK:003][WL:349][P:333] SUCCESS [49_time_bomb] TxHash: 0xdc13b072671d1088ea4538ba687e5e2fcc674286f64a4273354fe4e2722d0a71 t:1.3s
+2026-01-30 11:57:27 [INFO] [WK:010][WL:141][P:341] SUCCESS [37_transfer_later] TxHash: 0xbb18f93e46febec67526b2fa26a3d2e51f4334b521e6c1df8e87f4331642a681 t:1.7s
+2026-01-30 11:57:28 [INFO] [WK:011][WL:086][P:192] SUCCESS [13_grant_role] TxHash: 0x6c002b2b54611ba3765fe7cfa2261655e6ac23e00925a9c3c08df452e2a6b926 t:5.3s
+2026-01-30 11:57:29 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:29 [INFO] [WK:005][WL:494][P:251] SUCCESS [27_batch_meme_token] TxHash: 0x8b9161e30f6e435bf0ac828c828da520ddea8a7e88ea19a0597c708e8ba69f1a t:10.8s
+2026-01-30 11:57:29 [ERROR] Task timed out
+2026-01-30 11:57:29 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:32 [INFO] [WK:000][WL:434][P:069] SUCCESS [41_distribute_shares_stable] TxHash: 0xe1cc9a864f3ecbc17fc732a7afa593cd2c87221d1f60d8ea56daa7fdea632de2 t:2.4s
+2026-01-30 11:57:32 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:32 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:33 [INFO] [WK:001][WL:173][P:074] SUCCESS [34_batch_send_transaction] TxHash: 0xe29a080e850d9bd87a68a835e82e6a0a7e56cec0bfffe990675578721abae382 t:6.2s
+2026-01-30 11:57:33 [INFO] [WK:004][WL:475][P:082] SUCCESS [32_multi_send_concurrent_stable] TxHash: 0xa0e8c4e10f0eb49ab7bdfa8fe7239acc176b1b057bc95493981894986b71a1a7 t:9.0s
+2026-01-30 11:57:34 [INFO] [WK:013][WL:270][P:287] FAILED  [06_add_liquidity] Order failed: ErrorResp(ErrorPayload { code: 3, message: "execution reverted: TIP20 token error: InsufficientAllowance(InsufficientAllowance)", data: Some(RawValue("0x13be252b")) }) t:11.6s
+2026-01-30 11:57:35 [INFO] [WK:001][WL:271][P:301] SUCCESS [02_claim_faucet] TxHash: 0x841d037c2c88e70fc3c975e755794ecc1a1732408b787e6dc03b97c079ec76a9 t:1.3s
+2026-01-30 11:57:35 [INFO] [WK:000][WL:469][P:323] SUCCESS [44_batch_mint_meme] TxHash: 0x0c8ef2c5d306d697609513d22e0e69ac840559cf32a61eca036a6285e5ba2e06 t:3.2s
+2026-01-30 11:57:36 [INFO] [WK:019][WL:079][P:375] SUCCESS [25_batch_system_token] TxHash: 0xb64bd16870857d811f21f71cef5e9c39b4bf43602719bc6a158331f6b8b7dafb t:15.1s
+2026-01-30 11:57:36 [INFO] [WK:018][WL:060][P:008] SUCCESS [31_multi_send_concurrent] TxHash: 0x4389586aa8c115f958cb1d7cf88d8f497dfe9f95cfa71771b34f68be85448f3b t:6.6s
+2026-01-30 11:57:36 [INFO] [WK:007][WL:336][P:027] SUCCESS [32_multi_send_concurrent_stable] TxHash: 0x48d9a98f500707a3d07b4bf7713437b907c4e1b337cd8706b9884e1086f15775 t:16.2s
+2026-01-30 11:57:36 [INFO] [WK:001][WL:397][P:350] SUCCESS [20_wallet_activity] Wallet Activity: 3288 on-chain tx, 0.00 pathUSD t:1.2s
+2026-01-30 11:57:36 [INFO] [WK:005][WL:074][P:043] SUCCESS [17_batch_eip7702] TxHash: 0xf2687146e21c6878e843fe0e3a67f458b72818e654999f3bcacd4482c242b50e t:7.1s
+2026-01-30 11:57:36 [INFO] [WK:014][WL:390][P:373] SUCCESS [48_mint_viral_nft] TxHash: 0xe1fbeca11a8f344c9525a5627ee9e822e01ca01cfcfa187265c44a28840f81be t:4.0s
+2026-01-30 11:57:37 [ERROR] Task error: Failed to grant role  Caused by:     server returned an error response: error code 3: execution reverted: TIP20 token error: Uninitialized(Uninitialized), data: "0x1c72fad4"
+2026-01-30 11:57:37 [INFO] [WK:015][WL:346][P:183] SUCCESS [27_batch_meme_token] TxHash: 0xe2d2ea52d4bb6788f347134a2d65fe6fd3ec53b5245af631b79d2afac4850d19 t:11.9s
+2026-01-30 11:57:38 [INFO] [WK:008][WL:051][P:086] SUCCESS [47_deploy_viral_nft] TxHash: 0xcfe50bda7b08a9101d1435866e591d9aca7bf5e6e93ea447e0601224ee95308a t:5.0s
+2026-01-30 11:57:40 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:41 [INFO] [WK:018][WL:370][P:001] SUCCESS [13_grant_role] TxHash: 0xcdbc94fff7ab043442446406de8a280df8f549f9890ccc60adcbb3f89c36d0ca t:4.0s
+2026-01-30 11:57:41 [INFO] [WK:012][WL:343][P:007] SUCCESS [05_swap_stable] TxHash: 0x54b6068cc9e8f4b9cec695c47a03342e855c56dfc31895520e1ae45982faf99f t:17.6s
+2026-01-30 11:57:41 [INFO] [WK:017][WL:389][P:164] SUCCESS [30_multi_send_disperse_meme] TxHash: 0x3231bb714130437a5bebe12bba12698626189c0488cbbf6d9a07b0a0f3ad1de2 t:19.8s
+2026-01-30 11:57:41 [INFO] [WK:008][WL:115][P:127] SUCCESS [48_mint_viral_nft] TxHash: 0x8b6a5d95f332c14bf2f6b3ae95343d817c58c9cc8bde753f1394fad81e46b519 t:3.1s
+2026-01-30 11:57:41 [INFO] [WK:001][WL:084][P:147] SUCCESS [10_transfer_memo] TxHash: 0xcc6c8aef75d02da64644e8c9cc86df07d633a60759c0656c199c809c321b907d t:4.8s
+2026-01-30 11:57:42 [ERROR] Task error: Deploy Tx Failed  Caused by:     server returned an error response: error code -32000: nonce too low: next nonce 3153, tx nonce 3151
+2026-01-30 11:57:42 [INFO] [WK:014][WL:085][P:275] SUCCESS [15_mint_domain] TxHash: 0x90976fad107fbd59adf3e2fac1564dda378d708754c5d537793529752c703a95 t:5.5s
+2026-01-30 11:57:43 [INFO] [WK:005][WL:358][P:006] SUCCESS [35_batch_send_transaction_stable] TxHash: 0xed44f3e9ca94df1f0ea14eadb307b80b458a8a35bd16dbfc776434054cc25ca1 t:6.1s
+2026-01-30 11:57:43 [INFO] [WK:008][WL:330][P:187] SUCCESS [12_remove_liquidity] No withdrawable balance yet. Order placed successfully. t:1.6s
+2026-01-30 11:57:44 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:45 [INFO] [WK:007][WL:179][P:336] SUCCESS [24_batch_swap] TxHash: 0xe26aa4b0d8bf5baf2ac02932055aa510aee46160946794cf146083dcb8b53bff t:8.0s
+2026-01-30 11:57:45 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: client error (Connect)     1: tunnel error: failed to create underlying connection     2: tcp connect error     3: deadline has elapsed
+2026-01-30 11:57:45 [ERROR] Task timed out
+2026-01-30 11:57:45 [INFO] [WK:008][WL:227][P:246] SUCCESS [41_distribute_shares_stable] TxHash: 0x3ad57e0db82aa6076ceaa5712e024b8d88d3bf122d006e3f89f1e8fced04b6c8 t:1.9s
+2026-01-30 11:57:45 [INFO] [WK:018][WL:101][P:314] SUCCESS [47_deploy_viral_nft] TxHash: 0xb97290311cce14401f06a04ba896f42ba46d9a2e91118537bbe2164d3192fa7e t:4.5s
+2026-01-30 11:57:46 [INFO] [WK:012][WL:231][P:263] SUCCESS [47_deploy_viral_nft] TxHash: 0x537b7a80e8b0f36a51d93e95319dae31c4fcee1373310045173bbbe8c5a60492 t:3.9s
+2026-01-30 11:57:46 [INFO] [WK:007][WL:258][P:107] SUCCESS [03_send_token] TxHash: 0xbc5a99f62fcbe5a0d3adb69e14cad6e0b9fa6b2b96b0d248ad67aa5b26526182 t:1.3s
+2026-01-30 11:57:49 [INFO] [WK:001][WL:121][P:081] SUCCESS [27_batch_meme_token] TxHash: 0x8964296b625ccf78d200023f5d3a1fe3738afa72b98e6639198b8f85ad0fc2f9 t:7.6s
+2026-01-30 11:57:51 [INFO] [WK:002][WL:388][P:341] SUCCESS [25_batch_system_token] TxHash: 0x142243e732af2e0b166f9885acf5074754ea00164d3fcef4c90ebbbfd38008ec t:5.3s
+2026-01-30 11:57:51 [INFO] [WK:008][WL:098][P:001] SUCCESS [17_batch_eip7702] TxHash: 0x2047b971242f610111bc8789b40d10f5a419ceee4357599ebe11afac6f026213 t:5.2s
+2026-01-30 11:57:51 [INFO] [WK:009][WL:399][P:211] SUCCESS [14_nft_create_mint] TxHash: 0x29041991cd21ac1e15c7e5c73748de750800f28ab3943ec14c26076f318853b9 t:11.3s
+2026-01-30 11:57:51 [INFO] [WK:001][WL:389][P:168] SUCCESS [37_transfer_later] TxHash: 0xe0c1faa947ca933a19a85ec9ec417d31a7e954c944acce193e0254cded86f35a t:2.3s
+2026-01-30 11:57:53 [INFO] [WK:002][WL:493][P:343] SUCCESS [03_send_token] TxHash: 0x5fc4dce25158b815244f1815ec01709e855609b0ac55805eff7ef6618adfb93d t:1.7s
+2026-01-30 11:57:53 [INFO] [WK:010][WL:163][P:303] SUCCESS [28_multi_send_disperse] TxHash: 0x8086126a00710e55883f3651dcff1269be81e3f39a8d196d06be9e95debca6f6 t:25.8s
+2026-01-30 11:57:54 [INFO] [WK:013][WL:009][P:097] SUCCESS [33_multi_send_concurrent_meme] TxHash: 0xc70ebabfe4a3e5cc4df29503906e7368f53788752f6cbbce6dbf476efc7f9fd7 t:8.7s
+2026-01-30 11:57:54 [INFO] [WK:012][WL:374][P:224] SUCCESS [31_multi_send_concurrent] TxHash: 0x44cd8e078a6b0ac91f1a7fc08881e837f1a1cd8aa7cc6d6c9b2eb4829b57c424 t:7.7s
+2026-01-30 11:57:55 [INFO] [WK:005][WL:006][P:164] SUCCESS [10_transfer_memo] TxHash: 0x11f7795c4c3de46d32a099b5dfb9eb8fb4c0ab6c88e16e3cc4d66f5631163baa t:11.7s
+2026-01-30 11:57:55 [INFO] [WK:007][WL:304][P:027] SUCCESS [05_swap_stable] TxHash: 0xb5a0bd25afd3f60fa1061a33d7784cadb88c13ae4a33d63d94cea85c3b0c3ff8 t:8.3s
+2026-01-30 11:57:56 [INFO] [WK:008][WL:129][P:112] SUCCESS [25_batch_system_token] TxHash: 0x5bfd20a0fdeced12d54e8c941ebb9066d74118fd4bfc5485e06cf3dda90fcb55 t:5.3s
+2026-01-30 11:57:56 [INFO] [WK:010][WL:323][P:139] SUCCESS [38_transfer_later_stable] TxHash: 0x4fa478be30213e0e78afb0a86b2a497830040fa063a5e7fcbd1d9298b5007658 t:2.4s
+2026-01-30 11:57:57 [ERROR] Task error: Failed to send createToken transaction  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: error sending request for url (https://rpc.moderato.tempo.xyz/)     2: client error (Connect)     3: tunnel error: failed to create underlying connection     4: tcp connect error     5: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:57 [INFO] [WK:018][WL:128][P:321] SUCCESS [16_mint_random_nft] TxHash: 0x8161091812f18028bfafb6bbe8024dc0615e5b1465f0068cbb509051e2aa9759 t:11.5s
+2026-01-30 11:57:57 [INFO] [WK:005][WL:357][P:099] SUCCESS [39_transfer_later_meme] TxHash: 0x5e0df04010c620f5f40194d3a9aba3018099932fb4b67cec124aa641d8d196fb t:2.2s
+2026-01-30 11:57:57 [INFO] [WK:007][WL:242][P:089] SUCCESS [12_remove_liquidity] No withdrawable balance yet. Order placed successfully. t:2.1s
+2026-01-30 11:57:57 [ERROR] Task timed out
+2026-01-30 11:57:58 [INFO] [WK:002][WL:366][P:182] SUCCESS [46_claim_viral_faucet] TxHash: 0x5ea77d714e48c4b71c3fe26ee46992f0646c2163147e66bdad0a4383d41e423f t:4.7s
+2026-01-30 11:57:58 [INFO] [WK:008][WL:130][P:165] SUCCESS [12_remove_liquidity] No withdrawable balance yet. Order placed successfully. t:1.4s
+2026-01-30 11:57:58 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:59 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:57:59 [ERROR] Task timed out
+2026-01-30 11:58:00 [INFO] [WK:000][WL:454][P:252] SUCCESS [37_transfer_later] TxHash: 0x900566794cc7e974249a6c0a7d898bfcaddec96355730c6e03e8a04049b5ae05 t:2.8s
+2026-01-30 11:58:00 [INFO] [WK:009][WL:030][P:292] SUCCESS [21_create_meme] TxHash: 0x8f57e60639523d23215ac73fae593d00f8a3d0383f60baf3eba54c222c128a02 t:9.2s
+2026-01-30 11:58:01 [INFO] [WK:009][WL:369][P:050] SUCCESS [20_wallet_activity] Wallet Activity: 3280 on-chain tx, 0.00 pathUSD t:0.8s
+2026-01-30 11:58:03 [INFO] [WK:008][WL:141][P:388] SUCCESS [47_deploy_viral_nft] TxHash: 0x60093f8ba160dc76c9ef559b3dec3c1e1d1bb31b5acd1bbc147ed8c949e083ec t:5.2s
+2026-01-30 11:58:03 [INFO] [WK:003][WL:169][P:210] SUCCESS [34_batch_send_transaction] TxHash: 0x4fe2c78fe68660f05f5e9de59ff25034aa60c1a65195144777de760e9a23507f t:5.7s
+2026-01-30 11:58:03 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:04 [ERROR] Task timed out
+2026-01-30 11:58:05 [INFO] [WK:003][WL:052][P:215] SUCCESS [01_deploy_contract] TxHash: 0x441b73b2dd10af6cbeeaa583dc8b817260f587361783acd8cded5c1bcb9324f0 t:1.0s
+2026-01-30 11:58:05 [INFO] [WK:000][WL:281][P:083] SUCCESS [36_batch_send_transaction_meme] TxHash: 0xfe3a087ed7ae96303f60751351a9493adb3c8630efc5b6ab0c4c1e6a48979637 t:5.4s
+2026-01-30 11:58:05 [INFO] [WK:012][WL:279][P:342] SUCCESS [28_multi_send_disperse] TxHash: 0x8f54cee58fd782406547474760f0fffbaf199c2ec95ac9bc40ef48af8051e1ef t:11.1s
+2026-01-30 11:58:06 [INFO] [WK:008][WL:293][P:125] SUCCESS [44_batch_mint_meme] TxHash: 0xbba506853bd0a5b478a649f9a56272b62a2736ed9d5627807656290d35f727ea t:2.4s
+2026-01-30 11:58:06 [ERROR] Task timed out
+2026-01-30 11:58:08 [INFO] [WK:018][WL:400][P:090] SUCCESS [31_multi_send_concurrent] TxHash: 0x4069dd0b50ea08b6096b8cb6a5d3cfc9953c14bb5ceae4867ba07f27cbef56ab t:11.0s
+2026-01-30 11:58:08 [INFO] [WK:002][WL:391][P:091] SUCCESS [14_nft_create_mint] TxHash: 0x2a80a65c43b30dccc598a49c2e6013b1c959b334f34802484beaa56fcc7bddff t:10.2s
+2026-01-30 11:58:08 [INFO] [WK:006][WL:292][P:117] SUCCESS [22_mint_meme] TxHash: 0x3d9faab4a23ca495504aa6d97afade6bb9449e57758810206df2eb26b1202aa1 t:8.9s
+2026-01-30 11:58:08 [INFO] [WK:019][WL:326][P:210] SUCCESS [49_time_bomb] TxHash: 0xc987a3c419eae23752cba15a867c896df1275b222c5da5082385e3944a3aa4ce t:1.7s
+2026-01-30 11:58:08 [INFO] [WK:005][WL:463][P:182] SUCCESS [28_multi_send_disperse] TxHash: 0x630fd86d4c19a94140a79e9fe2b57d2257efbfdba893066bf87905a4b1d282f4 t:11.2s
+2026-01-30 11:58:10 [INFO] [WK:007][WL:189][P:359] SUCCESS [27_batch_meme_token] TxHash: 0xe6939d951aadba808ca8656768c239b67a38166174d697e777454a72a069af09 t:12.5s
+2026-01-30 11:58:10 [INFO] [WK:018][WL:207][P:049] SUCCESS [50_deploy_storm] TxHash: 0xf9c1c8641731e816dd2457b61640b264389a80af1d59a2e6f1a16210fa1cb70c t:2.2s
+2026-01-30 11:58:11 [ERROR] Task timed out
+2026-01-30 11:58:12 [INFO] [WK:004][WL:330][P:375] SUCCESS [35_batch_send_transaction_stable] TxHash: 0xb62bea8425b04a9fb6dcd0d8350488c706aaad28f45c10065bd6e56b08e22798 t:8.2s
+2026-01-30 11:58:12 [INFO] [WK:008][WL:246][P:344] SUCCESS [36_batch_send_transaction_meme] TxHash: 0x85d3141e33449971cfa86646dbb53ebf99a53140aef4cd6d3bba9efd41ea36bd t:6.2s
+2026-01-30 11:58:12 [INFO] [WK:012][WL:464][P:280] SUCCESS [09_transfer_token] TxHash: 0x876daf4ef9b1a5d1ab404db8fe02b9964f56af0ecbbf2a0c43e09c86c5a8b94c t:6.7s
+2026-01-30 11:58:13 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:13 [INFO] [WK:011][WL:160][P:121] SUCCESS [30_multi_send_disperse_meme] TxHash: 0xa5e0ae709eb3f816c12edff10ccccaec125870c34cf506db236329f3eedc625e t:14.4s
+2026-01-30 11:58:13 [INFO] [WK:014][WL:168][P:007] SUCCESS [11_limit_order] TxHash: 0x1778b3a5e8f192c67bf42aa10071bbae525da10ba6c053c8a541c6e99e8b6c7e t:9.3s
+2026-01-30 11:58:14 [ERROR] Task timed out
+2026-01-30 11:58:14 [INFO] [WK:014][WL:390][P:057] SUCCESS [42_distribute_shares_meme] TxHash: 0xf8ce24fa831c69d24697f8360542980eed5d419813efc6fde1d6d61ed6c05363 t:1.2s
+2026-01-30 11:58:15 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:15 [INFO] [WK:006][WL:014][P:180] SUCCESS [15_mint_domain] TxHash: 0x19cf6836af521a9f33f1cdf41db54fbfa9e69a60ae044fb788212777388c2203 t:6.9s
+2026-01-30 11:58:16 [INFO] [WK:002][WL:473][P:356] SUCCESS [34_batch_send_transaction] TxHash: 0x20ec57186539bb2a31aa161344b77b72a0b1d8596822fa9e24bc5eca94916545 t:7.8s
+2026-01-30 11:58:18 [INFO] [WK:003][WL:267][P:334] SUCCESS [30_multi_send_disperse_meme] TxHash: 0xb022ec2db68a48fd62b0246b12a6ba6a7ce69fd9c0f84996df77adbb8c87f993 t:12.8s
+2026-01-30 11:58:18 [INFO] [WK:013][WL:466][P:037] SUCCESS [50_deploy_storm] TxHash: 0xd65ef3bd2c542a737de72497666843d998a10ff9542509646fbc5985fe5c3fed t:2.6s
+2026-01-30 11:58:19 [INFO] [WK:005][WL:403][P:153] SUCCESS [29_multi_send_disperse_stable] TxHash: 0x84c074515c0d97c044eb1dbca8a7be35e64defe430a1f2f86ba383d4432d6037 t:10.8s
+2026-01-30 11:58:19 [INFO] [WK:018][WL:478][P:022] SUCCESS [33_multi_send_concurrent_meme] TxHash: 0xaf54d504f9eb3b66b3583edd711238840124e0cb1f5a07c07269f078f50d959d t:8.9s
+2026-01-30 11:58:19 [INFO] [WK:007][WL:142][P:266] SUCCESS [05_swap_stable] TxHash: 0xf730d18509a977c0c622c303d34d5d47f6de3016ef377421bcdee260fd1d5a63 t:9.6s
+2026-01-30 11:58:20 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:22 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: client error (Connect)     1: tunnel error: failed to create underlying connection     2: tcp connect error     3: deadline has elapsed
+2026-01-30 11:58:22 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: client error (Connect)     1: tunnel error: failed to create underlying connection     2: tcp connect error     3: deadline has elapsed
+2026-01-30 11:58:23 [INFO] [WK:017][WL:163][P:318] SUCCESS [28_multi_send_disperse] TxHash: 0xf3ae5bebf8abe4770048fb7d00c1e35a4bd76913426986b37171ce0100db49be t:12.1s
+2026-01-30 11:58:23 [INFO] [WK:002][WL:312][P:133] SUCCESS [09_transfer_token] TxHash: 0x7050634715ff1e4210b09eb74244de883b0a5a636353e81ddeb7a2bf691d7f96 t:6.8s
+2026-01-30 11:58:23 [INFO] [WK:016][WL:316][P:375] SUCCESS [27_batch_meme_token] TxHash: 0x79e15612305798856828cf7dc981aab0b7d9524e904fce35b316bfb4b806a56f t:9.5s
+2026-01-30 11:58:24 [INFO] [WK:016][WL:447][P:035] FAILED  [16_mint_random_nft] No NFT collections found for this wallet. t:0.0s
+2026-01-30 11:58:24 [INFO] [WK:001][WL:414][P:083] SUCCESS [06_add_liquidity] TxHash: 0x7a70219d7a076be267ec39008003c966fdebf92501d913929c2418b72cc0927d t:10.8s
+2026-01-30 11:58:24 [INFO] [WK:006][WL:053][P:174] SUCCESS [27_batch_meme_token] TxHash: 0xb84cab3e1b9e8322e38e95b13db4d73ce30ad91705519162ec1f3e51245277ec t:8.7s
+2026-01-30 11:58:25 [INFO] [WK:013][WL:368][P:333] SUCCESS [32_multi_send_concurrent_stable] TxHash: 0x870360eb5a0bcee64c5a2bbb5bab73f9dae5d56d0dc2e481f4ba51c7f58d465c t:7.0s
+2026-01-30 11:58:25 [INFO] [WK:017][WL:255][P:312] SUCCESS [18_tip403_policies] TxHash: 0x12321f4a74811fb9d43d273f1504aa7137b83a791d245e8e10225cd694d6b715 t:2.1s
+2026-01-30 11:58:26 [INFO] [WK:012][WL:188][P:007] SUCCESS [18_tip403_policies] TxHash: 0xce0a3144ff3cc5906e6b710840a23937966d4a1912d8bf2ca9fbd624420c9817 t:2.8s
+2026-01-30 11:58:26 [INFO] [WK:002][WL:410][P:008] SUCCESS [48_mint_viral_nft] TxHash: 0x791015fe74f82d3d02d8ebc56efec4238223dffef822a38984d964e00c24340e t:2.8s
+2026-01-30 11:58:26 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:26 [ERROR] Task timed out
+2026-01-30 11:58:27 [INFO] [WK:012][WL:367][P:355] SUCCESS [20_wallet_activity] Wallet Activity: 3336 on-chain tx, 0.00 pathUSD t:1.2s
+2026-01-30 11:58:27 [INFO] [WK:006][WL:329][P:122] SUCCESS [43_batch_mint_stable] TxHash: 0xdca67ff3c6495016c548533315eaf63b238cde4983722e009d840897d427c864 t:2.8s
+2026-01-30 11:58:28 [INFO] [WK:018][WL:471][P:166] SUCCESS [32_multi_send_concurrent_stable] TxHash: 0x5a074eba872fbbbc7fcf7593b2a067f622dc839770e69957113aea1ce277b3d5 t:8.7s
+2026-01-30 11:58:30 [ERROR] Task error: Failed to get pending nonce  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: deadline has elapsed
+2026-01-30 11:58:31 [INFO] [WK:000][WL:299][P:095] SUCCESS [18_tip403_policies] TxHash: 0x50ff1caa051de0bc3658f662ea7b4e28b94017d3b999ecee156ff034a1f214e2 t:4.7s
+2026-01-30 11:58:32 [INFO] [WK:013][WL:157][P:027] SUCCESS [18_tip403_policies] TxHash: 0x30d2cb32c68286fad12f774cf4ddfe0992ada5e88e24a6087cf294288ade0582 t:6.4s
+2026-01-30 11:58:32 [ERROR] Task timed out
+2026-01-30 11:58:33 [INFO] [WK:018][WL:396][P:181] SUCCESS [48_mint_viral_nft] TxHash: 0xfb414d49559e657052c42f5fa863eee7fc715b120d0242681631b2ee3bc5f1e4 t:3.8s
+2026-01-30 11:58:33 [INFO] [WK:001][WL:159][P:210] SUCCESS [25_batch_system_token] TxHash: 0xb0d4ffb1bf70a8f570429a9336f856591c4d3f42e568e435a27affce639243bc t:8.5s
+2026-01-30 11:58:33 [INFO] [WK:013][WL:055][P:273] SUCCESS [20_wallet_activity] Wallet Activity: 4650 on-chain tx, 0.00 pathUSD t:0.8s
+2026-01-30 11:58:33 [INFO] [WK:010][WL:021][P:157] SUCCESS [44_batch_mint_meme] TxHash: 0x3068e6f6d29cf32ed3bbb641b04dc827e11c2acf3f1b0ea2f9fc1dbc8da4cf98 t:6.4s
+2026-01-30 11:58:33 [INFO] [WK:004][WL:007][P:130] SUCCESS [06_add_liquidity] TxHash: 0x02823ae8aca9c5873bdc80b7c71f13ee6a01be331925c05a006e0a08f3c41322 t:10.8s
+2026-01-30 11:58:33 [ERROR] Task error: Failed to deploy NFT  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: error sending request for url (https://rpc.moderato.tempo.xyz/)     2: client error (Connect)     3: tunnel error: failed to create underlying connection     4: tcp connect error     5: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:36 [ERROR] Tempo Pipelined at nonce 3152 failure: server returned an error response: error code -32000: nonce too low: next nonce 3154, tx nonce 3152
+2026-01-30 11:58:36 [ERROR] Task error: Failed to submit any randomized Tempo transactions.
+2026-01-30 11:58:36 [INFO] [WK:017][WL:020][P:355] SUCCESS [17_batch_eip7702] TxHash: 0x28d14b5d749138dc9d064c24669885c53b8e732ea18a874fb0a9a431ea59b369 t:10.8s
+2026-01-30 11:58:38 [INFO] [WK:013][WL:195][P:331] SUCCESS [34_batch_send_transaction] TxHash: 0xffad32776954c4ad019d61f5e73ee917ffc06e8be5e29b8168534c0c7c833d52 t:4.5s
+2026-01-30 11:58:38 [INFO] [WK:001][WL:229][P:102] SUCCESS [22_mint_meme] TxHash: 0xeea347bb6cf4cb6f950dc5ebb7aee52a228534c362cc5b8de08dfb4e00648a1d t:5.5s
+2026-01-30 11:58:39 [ERROR] Task timed out
+2026-01-30 11:58:39 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:41 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:42 [INFO] [WK:004][WL:135][P:091] SUCCESS [43_batch_mint_stable] TxHash: 0x68d31492088d738b9068a087ae24aaa1b96d810986852a773b2a74941bc02fb7 t:8.5s
+2026-01-30 11:58:43 [ERROR] Task timed out
+2026-01-30 11:58:44 [INFO] [WK:012][WL:228][P:110] SUCCESS [28_multi_send_disperse] TxHash: 0xdc7fd2bbd96a5e7408d3b3e82f471d380d00d5ad436e7d598a1a64006a5bd29c t:16.7s
+2026-01-30 11:58:44 [INFO] [WK:009][WL:076][P:074] SUCCESS [31_multi_send_concurrent] TxHash: 0x44fd1495fcebd8e38c4153a79213d6e149db46bef0bb0361cca51b728bf3fcfe t:12.4s
+2026-01-30 11:58:45 [ERROR] Task timed out
+2026-01-30 11:58:45 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:45 [INFO] [WK:000][WL:053][P:327] SUCCESS [22_mint_meme] TxHash: 0xc760e6c41e731c96ee61f0ba29c7272435e8d3f4af863b3a8a214cae7b975d4c t:13.8s
+2026-01-30 11:58:45 [INFO] [WK:018][WL:392][P:276] SUCCESS [37_transfer_later] TxHash: 0x2fe117d2f5fb4d5f38688f2000b4ae7dc227cecf5d0b62ae340f46acdf355abc t:9.3s
+2026-01-30 11:58:46 [INFO] [WK:011][WL:449][P:166] SUCCESS [41_distribute_shares_stable] TxHash: 0xbced2ca10f4e34e9064487f354584de4fdcd9e50f3d747bec3680f59d1571c30 t:2.9s
+2026-01-30 11:58:46 [INFO] [WK:016][WL:065][P:086] SUCCESS [12_remove_liquidity] No withdrawable balance yet. Order placed successfully. t:1.5s
+2026-01-30 11:58:47 [INFO] [WK:005][WL:410][P:377] SUCCESS [13_grant_role] TxHash: 0x0866dbdb42800322a3afcbfd003226dbfdbf84598a4aaa49f2f69f19d07d31c9 t:5.7s
+2026-01-30 11:58:47 [INFO] [WK:010][WL:143][P:357] SUCCESS [14_nft_create_mint] TxHash: 0x940c06574d2791a2e76ca069c3cb9c7c1dc408d642ae6bae900e06c5f40959ed t:13.2s
+2026-01-30 11:58:47 [INFO] [WK:012][WL:137][P:358] SUCCESS [38_transfer_later_stable] TxHash: 0x66c7073ed9241dc4d04472cd71382824cedf89a257aace2d019c9f742a2d5f7c t:2.4s
+2026-01-30 11:58:47 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:48 [INFO] [WK:008][WL:415][P:142] SUCCESS [36_batch_send_transaction_meme] TxHash: 0x52a3dc36d851b5ebeb17a0727b75e7bed95852fb7604021d8250cbc093706a7b t:14.0s
+2026-01-30 11:58:48 [INFO] [WK:015][WL:468][P:023] SUCCESS [21_create_meme] TxHash: 0xc7ec71ca6bc6090cdfd7b8ca3b1ac51e957af60fec2be2a882b21510da6cdf14 t:18.0s
+2026-01-30 11:58:48 [ERROR] Task error: Failed to send deployment transaction  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: error sending request for url (https://rpc.moderato.tempo.xyz/)     2: client error (Connect)     3: tunnel error: failed to create underlying connection     4: tcp connect error     5: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:48 [INFO] [WK:017][WL:165][P:207] SUCCESS [28_multi_send_disperse] TxHash: 0xf1988dbc8a12c415949446882ab7b37dc511b7144036f10ac06def1d05b5d752 t:11.8s
+2026-01-30 11:58:49 [INFO] [WK:010][WL:261][P:102] SUCCESS [41_distribute_shares_stable] TxHash: 0xb65de7915398dc6c89589bb25fa3a59106450c8ed6687dbc0ad16db203b331b1 t:2.1s
+2026-01-30 11:58:50 [ERROR] Task timed out
+2026-01-30 11:58:50 [INFO] [WK:009][WL:128][P:246] SUCCESS [05_swap_stable] TxHash: 0x4404e0a6d65e5f18118f7957ec9a9c7f37fddc8fcf701398ce125e8f768450b3 t:5.7s
+2026-01-30 11:58:50 [INFO] [WK:015][WL:431][P:100] SUCCESS [40_distribute_shares] TxHash: 0x1a704963d901d7168b5390bd4f6725295f8e55984af068892644fb27d82811e5 t:2.0s
+2026-01-30 11:58:51 [INFO] [WK:002][WL:253][P:309] SUCCESS [03_send_token] TxHash: 0xd1b402d977171c3f9ddff5b7d76e48c8bdd9ceeb61c9cc78387b07be5787c8b1 t:2.9s
+2026-01-30 11:58:51 [INFO] [WK:014][WL:471][P:000] FAILED  [06_add_liquidity] Order failed: ErrorResp(ErrorPayload { code: -32000, message: "nonce too low: next nonce 3118, tx nonce 3116", data: None }) t:5.8s
+2026-01-30 11:58:51 [INFO] [WK:001][WL:307][P:297] SUCCESS [04_create_stable] TxHash: 0x09c5d652db6ed675b8b7081909cd24d31def9b4c0a84508e497caf2ad2033fc7 t:12.5s
+2026-01-30 11:58:51 [INFO] [WK:004][WL:194][P:114] SUCCESS [29_multi_send_disperse_stable] TxHash: 0x07a456213b14374cce3369bbcf6cbff222be0056a779bf8878f7ba0d4915e972 t:9.2s
+2026-01-30 11:58:51 [INFO] [WK:015][WL:237][P:090] SUCCESS [01_deploy_contract] TxHash: 0x206572a95de4dc8f9dcd849d5ad2848e0a66b8c7d0cce6d253e8a52e5e00b5ed t:0.8s
+2026-01-30 11:58:52 [INFO] [WK:000][WL:458][P:061] SUCCESS [05_swap_stable] TxHash: 0x67edd34f9a66f915796cc53f662c4d590ac097ef21b0867adbb10085ffb89682 t:6.7s
+2026-01-30 11:58:52 [INFO] [WK:005][WL:062][P:122] SUCCESS [32_multi_send_concurrent_stable] TxHash: 0x2f0d533658d19f8731aeeae6c32915f3f7bcb921e0157f3dcfe7320d29e96c4c t:5.4s
+2026-01-30 11:58:52 [INFO] [WK:018][WL:173][P:018] SUCCESS [07_mint_stable] TxHash: 0x398708f5feb0a418e7df4e58e467bed761820e52a99acbea854c60bc1aa9767e t:6.8s
+2026-01-30 11:58:53 [INFO] [WK:009][WL:008][P:150] SUCCESS [50_deploy_storm] TxHash: 0xe6a57a336c711ad06107a13e7d7d208c1c8e13d9370ca7c8dc6a25a52c05088c t:2.2s
+2026-01-30 11:58:53 [INFO] [WK:019][WL:152][P:361] SUCCESS [27_batch_meme_token] TxHash: 0xbc6358f62cad36b4dd3df29546014b9fbf4bcdc73a9e9ca2ade383d93a370013 t:14.4s
+2026-01-30 11:58:53 [INFO] [WK:006][WL:035][P:132] SUCCESS [22_mint_meme] TxHash: 0x691324316a73597bb267d68957095127841b8adc9a587e99ebd9cba3b181fc1f t:4.8s
+2026-01-30 11:58:54 [INFO] [WK:012][WL:028][P:342] SUCCESS [05_swap_stable] TxHash: 0x5cc378dbc90b17606e79d62d8f5be04bf82d5e8de473087280b69157379ac236 t:6.8s
+2026-01-30 11:58:54 [INFO] [WK:011][WL:265][P:017] SUCCESS [06_add_liquidity] TxHash: 0x8dd796ae5520d246294e2ea3b99a309ab52c3ccee009efd7cf9724b86f7214c9 t:7.7s
+2026-01-30 11:58:55 [ERROR] Task error: Deploy Tx Failed  Caused by:     server returned an error response: error code -32000: nonce too low: next nonce 4374, tx nonce 4373
+2026-01-30 11:58:55 [INFO] [WK:001][WL:448][P:073] SUCCESS [09_transfer_token] TxHash: 0x5ac374b062405d5bc50584f6e55678164e72bb3d804f0a7e90e230e0d865e75f t:3.5s
+2026-01-30 11:58:55 [INFO] [WK:002][WL:023][P:133] SUCCESS [15_mint_domain] TxHash: 0x0c2d33807aa1bc34c9289c7f368eabb4dc7cc2e3aea8da762324251f81c76df3 t:4.6s
+2026-01-30 11:58:56 [INFO] [WK:001][WL:389][P:114] SUCCESS [50_deploy_storm] TxHash: 0x7ae6dcd0e71a19e14c7309ccd1871ea1a0ef256dcf57dd34f78244111eabe5d5 t:1.2s
+2026-01-30 11:58:57 [INFO] [WK:019][WL:271][P:202] SUCCESS [03_send_token] TxHash: 0xa0cefd176305a1282d3f34d621878e4c3363400da1bffede84e4070876b2ccd5 t:2.2s
+2026-01-30 11:58:57 [INFO] [WK:015][WL:478][P:314] SUCCESS [05_swap_stable] TxHash: 0xaee79a61aaa1f2d983a62793aac7848398ed3cc3e919ddcf6ac9477fc2e56e84 t:5.7s
+2026-01-30 11:58:57 [ERROR] Task error: Failed to send raw Tempo tx  Caused by:     server returned an error response: error code -32000: nonce too low: next nonce 3147, tx nonce 3137
+2026-01-30 11:58:57 [INFO] [WK:011][WL:402][P:358] SUCCESS [10_transfer_memo] TxHash: 0x31fc9995824e4dc8176cd9fdaa6d29985316a723d099a07d4327c84cc064bb35 t:3.2s
+2026-01-30 11:58:58 [INFO] [WK:014][WL:156][P:243] SUCCESS [07_mint_stable] TxHash: 0xaff00239ea72af130a8aaad6295a411724513efcf904b15879fbe11384e2cf90 t:7.4s
+2026-01-30 11:58:59 [ERROR] Task error: Failed to send deployment transaction  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: error sending request for url (https://rpc.moderato.tempo.xyz/)     2: client error (Connect)     3: tunnel error: failed to create underlying connection     4: tcp connect error     5: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:58:59 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: client error (Connect)     1: tunnel error: failed to create underlying connection     2: tcp connect error     3: deadline has elapsed
+2026-01-30 11:58:59 [INFO] [WK:018][WL:162][P:154] SUCCESS [47_deploy_viral_nft] TxHash: 0xe420eca11dfaca5a55214d4838273af00911f2d9a057618df7fe27e78a594e5d t:6.7s
+2026-01-30 11:58:59 [INFO] [WK:015][WL:232][P:043] SUCCESS [18_tip403_policies] TxHash: 0xccc69399e2ede2faa4eed814f563048419d60c0e29e44f8f25b8ff6377175bef t:2.0s
+2026-01-30 11:58:59 [INFO] [WK:011][WL:180][P:074] SUCCESS [50_deploy_storm] TxHash: 0x42dee47cf143dc44074e97f15ed3ffe88cbd8bedc5de741e967c94caae879636 t:1.7s
+2026-01-30 11:59:00 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:59:01 [INFO] [WK:009][WL:378][P:210] SUCCESS [43_batch_mint_stable] TxHash: 0x7312962a4f5d9e0b3c5f0e05df530ea02ebe55451d24680f1e2b73849e2226af t:7.8s
+2026-01-30 11:59:01 [INFO] [WK:010][WL:111][P:131] SUCCESS [38_transfer_later_stable] TxHash: 0xc961ffda65580d98a489ab7c793958883ef2be894ea57cee58979c95a97950ea t:1.7s
+2026-01-30 11:59:01 [INFO] [WK:011][WL:352][P:354] SUCCESS [37_transfer_later] TxHash: 0xa005285502f5976fd98c777aa8d1f42300a4ec89251e67bb13eacc4ce7723f7e t:1.9s
+2026-01-30 11:59:02 [INFO] [WK:008][WL:246][P:193] SUCCESS [28_multi_send_disperse] TxHash: 0x91aeed55ecae3651ca7bc002c752d508e9dd4574237b659ac611cba47c6e4483 t:13.9s
+2026-01-30 11:59:02 [INFO] [WK:000][WL:441][P:388] SUCCESS [05_swap_stable] TxHash: 0x1691b1016775781c99b793f63a2b1c4c0de929f26e0e029101d6283ee058ec3e t:9.8s
+2026-01-30 11:59:02 [ERROR] Task error: Mint failed  Caused by:     server returned an error response: error code -32000: nonce too low: next nonce 3468, tx nonce 3466
+2026-01-30 11:59:03 [ERROR] Task error: Failed to send transfer with memo  Caused by:     server returned an error response: error code -32000: nonce too low: next nonce 3201, tx nonce 3200
+2026-01-30 11:59:04 [INFO] [WK:011][WL:002][P:091] SUCCESS [41_distribute_shares_stable] TxHash: 0x5ec5548b98d7b8836a3536495c488e176d60d7793f1ac644849dc88dc7dea84b t:2.8s
+2026-01-30 11:59:05 [INFO] [WK:019][WL:477][P:082] SUCCESS [48_mint_viral_nft] TxHash: 0x58c79f2dd682b877c487decd4f5e42c8a35f4b913ab6a4eef435cfe34eaa75ca t:7.5s
+2026-01-30 11:59:05 [INFO] [WK:014][WL:020][P:344] SUCCESS [09_transfer_token] TxHash: 0x8924647bac4d94247ef15ec26f0c38bfab243a7b248fd6ca9dbd991f68536f62 t:6.4s
+2026-01-30 11:59:07 [INFO] [WK:002][WL:091][P:193] SUCCESS [36_batch_send_transaction_meme] TxHash: 0x91356282bd97656f6493a95c928d8814947723a11d3064a54539b17b57d92620 t:9.2s
+2026-01-30 11:59:07 [ERROR] Task error: Failed to send deploy tx  Caused by:     server returned an error response: error code -32000: nonce too low: next nonce 4980, tx nonce 4962
+2026-01-30 11:59:07 [INFO] [WK:003][WL:050][P:040] SUCCESS [35_batch_send_transaction_stable] TxHash: 0x3bca849e72c098dbe3277b57ff3a13d1474d9f5a139488ef42b4a2ca75e7baac t:7.1s
+2026-01-30 11:59:08 [INFO] [WK:011][WL:204][P:166] SUCCESS [26_batch_stable_token] TxHash: 0x593ab8ccd0d6975ce01e4402999dcf46e2d1a5a519f4fec93f3ad9e3d58a5d20 t:3.4s
+2026-01-30 11:59:09 [INFO] [WK:006][WL:053][P:115] SUCCESS [14_nft_create_mint] TxHash: 0x22a71f121f11ef057611525a11fff5855f0be3d0c12e4963065c61db8d170aca t:15.2s
+2026-01-30 11:59:10 [INFO] [WK:011][WL:407][P:093] SUCCESS [39_transfer_later_meme] TxHash: 0xed677129c4e6fae902394556921a80ca8574c5daef33c5daee6ebcb5c5c3d887 t:1.9s
+2026-01-30 11:59:12 [INFO] [WK:006][WL:225][P:205] SUCCESS [26_batch_stable_token] TxHash: 0x1d9084ee2c80211026c669678e0abb7f855e1953b925f01ffb65abf1ef5d9bf0 t:3.0s
+2026-01-30 11:59:13 [INFO] [WK:018][WL:183][P:181] SUCCESS [33_multi_send_concurrent_meme] TxHash: 0x75ad42c4c3f28acaaaae5e219182ed99fd499f9d6f31c3487522684ebce56a53 t:13.1s
+2026-01-30 11:59:13 [INFO] [WK:019][WL:172][P:275] SUCCESS [35_batch_send_transaction_stable] TxHash: 0xbb6ff71fef703765616c591d2bea61b03ef4839c9b096bcfb49c0bffb2396b86 t:8.5s
+2026-01-30 11:59:13 [INFO] [WK:003][WL:271][P:305] SUCCESS [34_batch_send_transaction] TxHash: 0x13bdbf1f50337e0f4bc8d1a9d702ea694008904d5eaa9f9f8c1ec079030a529f t:6.1s
+2026-01-30 11:59:15 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:59:15 [INFO] [WK:000][WL:177][P:020] SUCCESS [11_limit_order] TxHash: 0x127fc1d6a9d51fff176ccdf54b473c61674cb347cffdc90d6122ba3833b40e75 t:12.6s
+2026-01-30 11:59:15 [INFO] [WK:019][WL:255][P:003] SUCCESS [20_wallet_activity] Wallet Activity: 3196 on-chain tx, 0.00 pathUSD t:1.4s
+2026-01-30 11:59:15 [INFO] [WK:013][WL:171][P:019] SUCCESS [06_add_liquidity] TxHash: 0x42556e45e8ce621cd191c2cbf18872b05beb4581e594985d27ded37cabbb688e t:16.2s
+2026-01-30 11:59:16 [INFO] [WK:014][WL:466][P:267] FAILED  [06_add_liquidity] Order failed: ErrorResp(ErrorPayload { code: -32000, message: "nonce too low: next nonce 3148, tx nonce 3138", data: None }) t:9.0s
+2026-01-30 11:59:17 [ERROR] Task timed out
+2026-01-30 11:59:17 [INFO] [WK:012][WL:164][P:183] SUCCESS [41_distribute_shares_stable] TxHash: 0x9bc58cad0ed60fbb59d160eea05fc20dc5213203b0a99f439fc63948ea0999ab t:1.9s
+2026-01-30 11:59:17 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:59:19 [ERROR] Task timed out
+2026-01-30 11:59:19 [INFO] [WK:006][WL:252][P:052] SUCCESS [43_batch_mint_stable] TxHash: 0x1eb01e8f50786447e56c489e35994a439d948338ab232d4c2d218c9d17afc1ba t:7.0s
+2026-01-30 11:59:19 [INFO] [WK:003][WL:036][P:212] SUCCESS [35_batch_send_transaction_stable] TxHash: 0xc31cb2c5cc7e3acf3eb6cc69e98d4b6d16011b73bffc334cdff97651d5550325 t:5.7s
+2026-01-30 11:59:20 [ERROR] Task timed out
+2026-01-30 11:59:21 [INFO] [WK:017][WL:269][P:251] SUCCESS [37_transfer_later] TxHash: 0x59ea4fc8b4514bca299ff7bad5fd7ee534197dea43eae9d9fe834b18f4cfc7c9 t:2.1s
+2026-01-30 11:59:21 [INFO] [WK:003][WL:057][P:303] SUCCESS [40_distribute_shares] TxHash: 0xbceaa0dc1e74825b60363c64df903acb91ca178f1877c4dbe1c8be6b88f35c48 t:1.5s
+2026-01-30 11:59:21 [ERROR] Task timed out
+2026-01-30 11:59:21 [INFO] [WK:018][WL:475][P:204] SUCCESS [43_batch_mint_stable] TxHash: 0x7005ffc99eaee7f4b006313487aa1315bbc8e9206bcfb13ae15c8237ef74bed5 t:8.6s
+2026-01-30 11:59:22 [ERROR] Task timed out
+2026-01-30 11:59:23 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:59:24 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:59:24 [INFO] [WK:017][WL:302][P:101] SUCCESS [40_distribute_shares] TxHash: 0x8ed07758ffd562f7ce7ef85298bb5eef4e9002089f8dce5f5fa374af361af324 t:3.1s
+2026-01-30 11:59:24 [WARN] Proxy/Network error on attempt 1: error sending request for url (https://rpc.moderato.tempo.xyz/). Retrying...
+2026-01-30 11:59:25 [INFO] [WK:000][WL:474][P:024] SUCCESS [33_multi_send_concurrent_meme] TxHash: 0x5bd63ef3950a61663a9b08ddce9e3b31177f024661cdb27d80915e6a2193b59e t:9.5s
+2026-01-30 11:59:25 [INFO] [WK:019][WL:348][P:029] SUCCESS [46_claim_viral_faucet] TxHash: 0x9b5d10923c8b3f6bf703ea2f0a6228fc6e0bd227b9accf040406a43b698f5fdb t:9.4s
+2026-01-30 11:59:26 [INFO] [WK:005][WL:123][P:252] SUCCESS [44_batch_mint_meme] TxHash: 0x157f642f230e9ae2272231403df2962111194bba8c5c8b7ac2bb169545a5b8a0 t:3.4s
+2026-01-30 11:59:27 [INFO] [WK:019][WL:248][P:283] SUCCESS [41_distribute_shares_stable] TxHash: 0x442c3fa25bb043f5d9d94e905ecce67a3756923ee66395757128e6626a71ac65 t:2.3s
+2026-01-30 11:59:27 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: client error (Connect)     1: tunnel error: failed to create underlying connection     2: tcp connect error     3: deadline has elapsed
+2026-01-30 11:59:28 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:59:30 [ERROR] Task timed out
+2026-01-30 11:59:30 [INFO] [WK:009][WL:115][P:305] SUCCESS [10_transfer_memo] TxHash: 0x3d1e7d25b27ca7a108ec5e8e5b404a1ae7f37fa2c0b4f0cc40642380471789e8 t:6.2s
+2026-01-30 11:59:30 [INFO] [WK:003][WL:220][P:111] SUCCESS [23_transfer_meme] TxHash: 0x1c121d9fb33b610bd57326e460f1e3370ddf04c0b9ccfcacea339aaafae153fb t:9.0s
+2026-01-30 11:59:30 [INFO] [WK:000][WL:464][P:011] SUCCESS [23_transfer_meme] TxHash: 0x5f5046b0dc51c1534290727307092359faa568a82bdcdcad4d3573660fa29498 t:5.6s
+2026-01-30 11:59:31 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:59:32 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: client error (Connect)     1: tunnel error: failed to create underlying connection     2: tcp connect error     3: deadline has elapsed
+2026-01-30 11:59:32 [INFO] [WK:013][WL:159][P:051] SUCCESS [05_swap_stable] TxHash: 0x7d5ed62985b550c91da489d03edb03de9c8db2374d6fb4f9e14a0756cd15ce51 t:16.4s
+2026-01-30 11:59:33 [INFO] [WK:000][WL:485][P:296] SUCCESS [03_send_token] TxHash: 0x937fdab40fae899f7a98d1e26712bb3c1c4c68bdc482ecd9bc151218ef3c5eb3 t:2.1s
+2026-01-30 11:59:33 [INFO] [WK:003][WL:249][P:235] SUCCESS [42_distribute_shares_meme] TxHash: 0xc09b8c68b074890e889f3d4b8b4092f9a40c25fb38b341bc6462a038b96acc48 t:2.2s
+2026-01-30 11:59:33 [INFO] [WK:004][WL:178][P:107] SUCCESS [43_batch_mint_stable] TxHash: 0x13a886758d13cea9d22d4a571ec4f2252bebb3be7dc8ee1c92fddd81f9357309 t:11.7s
+2026-01-30 11:59:33 [ERROR] Task timed out
+2026-01-30 11:59:33 [INFO] [WK:016][WL:326][P:061] SUCCESS [45_deploy_viral_faucet] TxHash: 0x96735b8109e507354b0052ca34469b77e779d98594e894b6ef50f922b05b0aa1 t:16.5s
+2026-01-30 11:59:34 [INFO] [WK:005][WL:195][P:085] SUCCESS [11_limit_order] TxHash: 0x20bea82d7e8a583fab4f6ce093bc9079bc19601628c591309e36e13f39912146 t:7.9s
+2026-01-30 11:59:34 [INFO] [WK:007][WL:006][P:021] SUCCESS [17_batch_eip7702] TxHash: 0x0ebbdfb3c2e882196d639366e14f67370884e77bb4bce3000c843728f01f5ac4 t:13.9s
+2026-01-30 11:59:35 [INFO] [WK:018][WL:370][P:190] SUCCESS [39_transfer_later_meme] TxHash: 0x5cf4904e1ea613137d5e9bed28b8756d611bc7e6c1d032288b515f6a6fc95e58 t:2.7s
+2026-01-30 11:59:35 [INFO] [WK:010][WL:334][P:202] SUCCESS [38_transfer_later_stable] TxHash: 0x78983e064a60bb14decc9d700e69a970f1264521e624a72a11cf018a24c4786c t:1.2s
+2026-01-30 11:59:35 [INFO] [WK:019][WL:236][P:018] SUCCESS [27_batch_meme_token] TxHash: 0x5f24477b1b488e0ae49aee731657fd3f6babb64564e100f43a8f10c95452cde4 t:7.7s
+2026-01-30 11:59:35 [ERROR] Task error: Failed to send batch mint 0x76 tx  Caused by:     server returned an error response: error code -32000: nonce too low: next nonce 3306, tx nonce 3305
+2026-01-30 11:59:36 [ERROR] Task error: Failed to send batch mint 0x76 tx  Caused by:     server returned an error response: error code -32000: nonce too low: next nonce 3208, tx nonce 3205
+2026-01-30 11:59:36 [INFO] [WK:005][WL:017][P:154] SUCCESS [50_deploy_storm] TxHash: 0x91e409c670c68118de12def8bfb8d925e2352badf53602767b4af9ec04dc3e11 t:1.8s
+2026-01-30 11:59:37 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:59:38 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: client error (Connect)     1: tunnel error: failed to create underlying connection     2: tcp connect error     3: deadline has elapsed
+2026-01-30 11:59:39 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:59:39 [INFO] [WK:011][WL:494][P:327] SUCCESS [34_batch_send_transaction] TxHash: 0x8eb4cfb8524690019cefe15070aa1ee62e4fadc4359fd77dfdf4b393ae834df6 t:7.3s
+2026-01-30 11:59:40 [ERROR] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/)  Caused by:     0: error sending request for url (https://rpc.moderato.tempo.xyz/)     1: client error (Connect)     2: tunnel error: failed to create underlying connection     3: tcp connect error     4: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond. (os error 10060)
+2026-01-30 11:59:41 [INFO] [WK:014][WL:176][P:375] SUCCESS [26_batch_stable_token] TxHash: 0x817d6d6c581cc7695cdb9bfcd610576bdde655904a149b098ebdeb6f5fb7df46 t:3.1s
+2026-01-30 11:59:41 [INFO] [WK:011][WL:112][P:205] SUCCESS [41_distribute_shares_stable] TxHash: 0x96aa1684920fbbd0855b4900338adca9545b23a6108e85055e3ab0106781363a t:2.1s
+2026-01-30 11:59:42 [ERROR] Task error: Failed to send raw Tempo tx  Caused by:     server returned an error response: error code -32000: nonce too low: next nonce 4689, tx nonce 4679

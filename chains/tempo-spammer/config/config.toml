@@ -1,0 +1,20 @@
+# Tempo Spammer Configuration
+
+# RPC Settings
+rpc_url = "https://rpc.moderato.tempo.xyz"
+chain_id = 42431
+
+# Worker Settings
+worker_count = 20
+
+# Gas Settings (Fee AMM)
+default_gas_limit = 1000000
+max_fee_per_gas = 200000000000
+priority_fee_per_gas = 2000000000
+
+# Task Settings (in milliseconds)
+task_interval_min = 100
+task_interval_max = 600
+
+# Task Timeout (in seconds)
+task_timeout = 15

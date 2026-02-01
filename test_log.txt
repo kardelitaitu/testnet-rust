@@ -1,0 +1,7 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.78s
+     Running `target\debug\test_logger.exe`
+--- Logger Test Start ---
+[90m[WK:???][WL:???][P:???][0m Standard ERROR (Visible) 
+[90m[WK:???][WL:???][P:???][0m TaskResult INFO (Visible) 
+[90m[WK:???][WL:???][P:???][0m TaskResult WARN (Visible) 
+--- Logger Test End ---

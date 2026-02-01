@@ -1,0 +1,212 @@
+{
+  "104.252.149.141:5555:KingAirdrop:kiNgdom77": {
+    "ip": "104.252.149.141",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.027Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.21.231.242:7556:KingAirdrop:kiNgdom77": {
+    "ip": "82.21.231.242",
+    "attempts": 4,
+    "successes": 4,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.088Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "45.39.75.234:6148:KingAirdrop:kiNgdom77": {
+    "ip": "45.39.75.234",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.054Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "92.113.241.236:6321:KingAirdrop:kiNgdom77": {
+    "ip": "92.113.241.236",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.062Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.21.231.70:7384:KingAirdrop:kiNgdom77": {
+    "ip": "82.21.231.70",
+    "attempts": 2,
+    "successes": 2,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.241Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.21.231.39:7353:KingAirdrop:kiNgdom77": {
+    "ip": "82.21.231.39",
+    "attempts": 3,
+    "successes": 3,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.127Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "45.39.75.221:6135:KingAirdrop:kiNgdom77": {
+    "ip": "45.39.75.221",
+    "attempts": 2,
+    "successes": 2,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.250Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.21.231.175:7489:KingAirdrop:kiNgdom77": {
+    "ip": "82.21.231.175",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.137Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "45.38.111.72:5987:KingAirdrop:kiNgdom77": {
+    "ip": "45.38.111.72",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.145Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.29.223.106:7920:KingAirdrop:kiNgdom77": {
+    "ip": "82.29.223.106",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.156Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "45.38.111.8:5923:KingAirdrop:kiNgdom77": {
+    "ip": "45.38.111.8",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.171Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.21.231.205:7519:KingAirdrop:kiNgdom77": {
+    "ip": "82.21.231.205",
+    "attempts": 2,
+    "successes": 2,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.261Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.21.231.202:7516:KingAirdrop:kiNgdom77": {
+    "ip": "82.21.231.202",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.187Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "45.38.111.15:5930:KingAirdrop:kiNgdom77": {
+    "ip": "45.38.111.15",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.196Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "92.113.246.126:5711:KingAirdrop:kiNgdom77": {
+    "ip": "92.113.246.126",
+    "attempts": 2,
+    "successes": 2,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.224Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "198.105.121.200:6462:atmajacreative2:atmajacreative2": {
+    "ip": "198.105.121.200",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.211Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "92.113.246.168:5753:KingAirdrop:kiNgdom77": {
+    "ip": "92.113.246.168",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.233Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "45.39.73.80:5495:KingAirdrop:kiNgdom77": {
+    "ip": "45.39.73.80",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.261Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.29.223.185:7999:KingAirdrop:kiNgdom77": {
+    "ip": "82.29.223.185",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:34.272Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  }
+}
+}

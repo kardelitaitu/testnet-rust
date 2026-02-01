@@ -1,0 +1,25 @@
+{
+  "92.113.241.218:6303:KingAirdrop:kiNgdom77": {
+    "ip": "92.113.241.218",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:33.963Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  },
+  "82.21.231.122:7436:KingAirdrop:kiNgdom77": {
+    "ip": "82.21.231.122",
+    "attempts": 1,
+    "successes": 1,
+    "failures": 0,
+    "lastSeen": "2026-01-15T23:51:33.974Z",
+    "lastStatus": "active",
+    "lastTx": null,
+    "errors": [],
+    "status": "OK"
+  }
+} }
+}

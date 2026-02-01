@@ -1,0 +1,8 @@
+rpc_url = "https://testnet.riselabs.xyz"
+chain_id = 11155931
+private_key_file = "../../wallets/evm.json"
+tps = 100
+worker_amount = 20
+min_delay_ms = 50
+max_delay_ms = 100
+create2_factory = "0x8628208543e2b16be283e30abec6fec7b91e5721"

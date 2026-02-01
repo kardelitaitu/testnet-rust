@@ -1,0 +1,38 @@
+[package]
+name = "tempo-payload-builder"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+tempo-chainspec = { path = "../chainspec" }
+tempo-consensus = { path = "../consensus" }
+tempo-evm = { path = "../evm" }
+tempo-primitives = { path = "../primitives" }
+tempo-transaction-pool = { path = "../transaction-pool" }
+tempo-payload-types = { path = "../types" }
+
+reth-basic-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-chainspec = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-consensus-common = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-engine-tree = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-errors = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-evm = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-metrics = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+
+reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-storage-api = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+
+
+
+alloy-consensus = { version = "1.4.3", default-features = false }
+alloy-primitives = { version = "1.5.0", default-features = false }
+alloy-rlp = "0.3"
+
+metrics = "0.23"
+tracing = "0.1"

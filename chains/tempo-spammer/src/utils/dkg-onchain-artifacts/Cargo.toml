@@ -1,0 +1,19 @@
+[package]
+name = "tempo-dkg-onchain-artifacts"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+publish = false
+
+[dependencies]
+bytes = "1.0"
+commonware-codec = "0.0.65"
+commonware-consensus = "0.0.65"
+commonware-cryptography = "0.0.65"
+commonware-utils = "0.0.65"
+modular-bitfield = { version = "0.11.2", optional = true }
+
+[dev-dependencies]
+commonware-math = "0.0.65"
+rand = "0.8"

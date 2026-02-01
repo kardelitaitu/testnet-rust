@@ -1,0 +1,27 @@
+[package]
+name = "tempo-cli"
+description = "Tempo CLI application"
+
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "tempo-project"
+path = "src/main.rs"
+
+[dependencies]
+# Local client
+tempo-client = { path = "../crates/client" }
+tempo-protocol = { path = "../crates/protocol" }
+
+# Workspace dependencies
+tokio = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+dotenv = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+futures = { workspace = true }
+rand = { workspace = true }
+nu-ansi-term = { workspace = true }

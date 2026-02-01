@@ -1,0 +1,17 @@
+[rpc]
+http_url = "https://sepolia.base.org"
+ws_url = "wss://base-sepolia-rpc.publicnode.com"
+chain_id = 84532
+max_retries = 3
+timeout_seconds = 10
+
+[spam]
+target_tps = 5
+duration_seconds = 60
+payload_size_bytes = 0
+mode = "Transfer" # Can be "SelfTransfer", "Deploy", "Call"
+
+[proxies]
+enabled = false
+list_path = "proxies.txt"
+rotation_strategy = "RoundRobin"

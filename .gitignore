@@ -1,0 +1,24 @@
+# Databases
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets
+.env
+
+# IDEs and OS files
+.vscode/
+.trae/
+.agent/
+.cargo/
+test_logs/
+target/
+target_analyzer/
+target-temp/
+*.log
+
+node_modules/
+solc.exe
+
+# Windows Reserved
+nul

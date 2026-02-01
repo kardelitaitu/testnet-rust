@@ -1,0 +1,26 @@
+[workspace]
+members = [
+    "core-logic",
+    "chains/evm-project",
+    "chains/risechain",
+    "chains/tempo-spammer",
+    # "chains/solana-project"
+]
+
+resolver = "2"
+
+[profile.dev]
+codegen-units = 256
+debug = 1
+split-debuginfo = "unpacked"
+incremental = false
+panic = "abort"
+
+[profile.release]
+# Optimizations for cheap VPS compilation
+opt-level = 1           # Good balance of compile speed vs runtime
+lto = "thin"            # Keep thin LTO for better runtime performance
+codegen-units = 4       # Reduce parallelism = lower CPU usage during compile
+strip = "symbols"       # Remove debug symbols = smaller binaries
+incremental = false
+# panic = "abort"       # Optional: uncomment for smaller binaries (no stack traces)

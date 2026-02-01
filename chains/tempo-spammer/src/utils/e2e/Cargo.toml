@@ -1,0 +1,67 @@
+[package]
+name = "tempo-e2e"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+publish = false
+
+[dependencies]
+alloy = { version = "1.4.3", features = [
+  "genesis",
+  "rpc-types",
+  "signers",
+  "signer-local",
+  "signer-mnemonic",
+  "rlp",
+  "providers",
+] }
+
+alloy-genesis = { version = "0.5" }
+alloy-primitives = { version = "1.5.0", default-features = false }
+
+commonware-codec = "0.0.65"
+# fuzz features provides access to dkg fixtures
+commonware-consensus = { version = "0.0.65", features = ["fuzz"] }
+commonware-cryptography = "0.0.65"
+commonware-math = "0.0.65"
+commonware-p2p = "0.0.65"
+commonware-runtime = { version = "0.0.65", features = ["external"] }
+commonware-utils = "0.0.65"
+
+itertools = "0.13"
+
+eyre = "0.6"
+reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-ethereum = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", features = ["node", "rpc", "test-utils", "pool"] }
+reth-network-peers = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-node-builder = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-node-core = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth_node_metrics = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-rpc-builder = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+
+
+
+tempo-chainspec = { path = "../chainspec" }
+tempo-dkg-onchain-artifacts = { path = "../dkg-onchain-artifacts" }
+tempo-commonware-node = { path = "../commonware-node" }
+tempo-node = { path = "../node" }
+tempo-precompiles = { path = "../precompiles", features = ["rpc"] }
+
+futures = "0.3"
+tempfile = "3.12"
+tokio = { version = "1.41", features = ["full"] }
+tracing = "0.1"
+serde_json = "1.0"
+secp256k1 = "0.29"
+
+[dev-dependencies]
+commonware-consensus = "0.0.65"
+commonware-macros = "0.0.65"
+jsonrpsee = { version = "0.24", features = ["ws-client", "http-client"] }
+tempo-eyre = "0.1"
+tracing-subscriber = "0.3"
+
+alloy-network = { version = "1.4.3", default-features = false }
+
+rand = "0.8"

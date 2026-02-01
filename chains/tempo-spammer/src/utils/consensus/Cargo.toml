@@ -1,0 +1,23 @@
+[package]
+name = "tempo-consensus"
+
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+tempo-chainspec = { path = "../chainspec" }
+tempo-primitives = { path = "../primitives" }
+
+reth-chainspec = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-consensus = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-consensus-common = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-ethereum-consensus = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+
+alloy-consensus = { version = "1.4.3", default-features = false }
+
+
+[dev-dependencies]
+alloy-primitives = { version = "1.5.0", default-features = false }

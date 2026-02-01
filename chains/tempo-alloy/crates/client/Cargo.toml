@@ -1,0 +1,30 @@
+[package]
+name = "tempo-client"
+description = "Tempo blockchain client using Alloy v1.0"
+
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Core Alloy
+alloy = { workspace = true }
+alloy-sol-macro = { workspace = true }
+
+# Workspace dependencies
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+tracing = { workspace = true }
+rand = { workspace = true }
+hex = { workspace = true }
+url = { workspace = true }
+
+# Core logic for database and wallet management
+core-logic = { path = "../../../core-logic" }
+
+# Protocol types
+tempo-protocol = { path = "../protocol" }

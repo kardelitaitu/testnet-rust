@@ -1,0 +1,68 @@
+
+[package]
+name = "tempo-transaction-pool"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+tempo-chainspec = { path = "../chainspec" }
+tempo-contracts = { path = "../contracts" }
+tempo-primitives = { path = "../primitives", features = ["serde", "reth-codec"] }
+tempo-revm = { path = "../revm", features = ["reth"] }
+tempo-precompiles = { path = "../precompiles" }
+
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-evm = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-chainspec = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+
+reth-storage-api = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-eth-wire-types = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-metrics = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+
+
+
+
+
+alloy-consensus = { version = "1.4.3", default-features = false }
+alloy-primitives = { version = "1.5.0", default-features = false }
+alloy-eips = { version = "1.4.3", default-features = false }
+
+alloy-sol-types = { version = "1.4.3", default-features = false }
+
+futures = "0.3"
+tracing = "0.1"
+parking_lot = "0.12"
+tokio = { version = "1.41", features = ["sync"] }
+thiserror = "1.0"
+metrics = "0.23"
+
+[features]
+default = []
+test-utils = [
+  "reth-chainspec/test-utils",
+
+  "reth-evm/test-utils",
+  "reth-primitives-traits/test-utils",
+  "reth-provider/test-utils",
+  "reth-transaction-pool/test-utils",
+  "tempo-precompiles/test-utils",
+]
+
+[dev-dependencies]
+
+reth-ethereum-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", features = ["test-utils"] }
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", features = ["test-utils"] }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", features = ["test-utils"] }
+
+
+alloy-eips = { version = "1.4.3", default-features = false }
+alloy-consensus = { version = "1.4.3", default-features = false }
+alloy-signer = { version = "1.4.3" }
+alloy-signer-local = { version = "1.4.3" }
+tokio = { version = "1.41", features = ["full"] }
+test-case = "3.3"

@@ -1,0 +1,75 @@
+[package]
+name = "tempo-spammer"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85.0"
+license = "MIT"
+
+[dependencies]
+derive_more = { version = "2.0.0", features = ["full"] }
+alloy = { version = "1.4.3", default-features = false, features = [
+    "providers",
+    "signer-local",
+    "rpc-types-eth",
+    "json-rpc",
+    "transport-http",
+    "reqwest",
+    "contract",
+    "rpc-client",
+    "consensus",
+    "rlp",
+    "network", 
+    "node-bindings",
+] }
+alloy-transport-http = "1.4.3"
+alloy-sol-macro = "1.4.3"
+alloy-sol-types = "1.4.3"
+alloy-primitives = "1.5.0"
+async-trait = "0.1"
+tokio = { version = "1.45", features = ["full"] }
+clap = { version = "4.5", features = ["derive"] }
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.8"
+url = "2.5"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
+hex = "0.4"
+toml = "0.8"
+futures = "0.3"
+chrono = "0.4"
+chrono-tz = "0.10"
+dotenv = "0.15"
+fastrand = "2.3"
+bytes = "1.0"
+dialoguer = "0.11"
+
+core-logic = { path = "../../core-logic" }
+tempo-primitives = { path = "src/utils/primitives" }
+
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "tempo-spammer"
+path = "bin/tempo-spammer.rs"
+
+[[bin]]
+name = "tempo-debug"
+path = "bin/tempo-debug.rs"
+
+[[bin]]
+name = "tempo-runner"
+path = "bin/tempo-runner.rs"
+
+[[bin]]
+name = "tempo-sequence"
+path = "bin/tempo-sequence.rs"
+
+[[bin]]
+name = "debug_proxy"
+path = "bin/debug_proxy.rs"

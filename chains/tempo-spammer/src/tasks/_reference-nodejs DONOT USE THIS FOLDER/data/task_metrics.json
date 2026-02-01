@@ -1,0 +1,538 @@
+{
+  "41_distributeSharesStable.js": {
+    "success": 13681,
+    "failed": 303,
+    "total": 13984,
+    "totalDuration": 277910.36400000047,
+    "lastRun": 1768911273532
+  },
+  "30_multiSendDisperseMeme.js": {
+    "success": 2868,
+    "failed": 63,
+    "total": 2931,
+    "totalDuration": 35914.384999999944,
+    "lastRun": 1768911161456
+  },
+  "20_walletActivity.js": {
+    "success": 2869,
+    "failed": 3,
+    "total": 2872,
+    "totalDuration": 4735.832999999997,
+    "lastRun": 1768911214491
+  },
+  "48_mintViralNFT.js": {
+    "success": 14024,
+    "failed": 144,
+    "total": 14168,
+    "totalDuration": 108400.76100000017,
+    "lastRun": 1768911273865
+  },
+  "42_distributeSharesMeme.js": {
+    "success": 13804,
+    "failed": 391,
+    "total": 14195,
+    "totalDuration": 78557.47900000015,
+    "lastRun": 1768911265334
+  },
+  "21_createMeme.js": {
+    "success": 5543,
+    "failed": 34,
+    "total": 5577,
+    "totalDuration": 42633.3630000001,
+    "lastRun": 1768911249036
+  },
+  "16_retrieveNFT.js": {
+    "success": 2757,
+    "failed": 27,
+    "total": 2784,
+    "totalDuration": 22868.123999999978,
+    "lastRun": 1768911275699
+  },
+  "40_distributeShares.js": {
+    "success": 13792,
+    "failed": 238,
+    "total": 14030,
+    "totalDuration": 268519.1699999989,
+    "lastRun": 1768911274680
+  },
+  "3_sendToken.js": {
+    "success": 2778,
+    "failed": 45,
+    "total": 2823,
+    "totalDuration": 20449.21000000004,
+    "lastRun": 1768911207908
+  },
+  "11_limitOrder.js": {
+    "success": 2806,
+    "failed": 55,
+    "total": 2861,
+    "totalDuration": 25316.83800000003,
+    "lastRun": 1768911262924
+  },
+  "24_batchEIP7702swap.js": {
+    "success": 2797,
+    "failed": 42,
+    "total": 2839,
+    "totalDuration": 56744.210000000014,
+    "lastRun": 1768911136095
+  },
+  "12_removeLiquidity.js": {
+    "success": 2796,
+    "failed": 41,
+    "total": 2837,
+    "totalDuration": 34767.52400000002,
+    "lastRun": 1768911150898
+  },
+  "31_multiSendConcurrent.js": {
+    "success": 2758,
+    "failed": 46,
+    "total": 2804,
+    "totalDuration": 36009.825000000004,
+    "lastRun": 1768911238931
+  },
+  "35_batchSendTransactionStable.js": {
+    "success": 13936,
+    "failed": 338,
+    "total": 14274,
+    "totalDuration": 86961.82400000023,
+    "lastRun": 1768911264951
+  },
+  "4_createStable.js": {
+    "success": 5684,
+    "failed": 35,
+    "total": 5719,
+    "totalDuration": 43521.209000000104,
+    "lastRun": 1768911258454
+  },
+  "44_batchMintMeme.js": {
+    "success": 14115,
+    "failed": 258,
+    "total": 14373,
+    "totalDuration": 42907.37800000032,
+    "lastRun": 1768911254317
+  },
+  "34_batchSendTransaction.js": {
+    "success": 14331,
+    "failed": 274,
+    "total": 14605,
+    "totalDuration": 84480.38800000011,
+    "lastRun": 1768911276975
+  },
+  "1_deployContract.js": {
+    "success": 2822,
+    "failed": 61,
+    "total": 2883,
+    "totalDuration": 28585.68000000006,
+    "lastRun": 1768911227933
+  },
+  "15_mintDomain.js": {
+    "success": 2717,
+    "failed": 53,
+    "total": 2770,
+    "totalDuration": 21728.86700000001,
+    "lastRun": 1768911242424
+  },
+  "10_transferMemo.js": {
+    "success": 2848,
+    "failed": 69,
+    "total": 2917,
+    "totalDuration": 22633.014999999945,
+    "lastRun": 1768911279052
+  },
+  "36_batchSendTransactionMeme.js": {
+    "success": 14101,
+    "failed": 394,
+    "total": 14495,
+    "totalDuration": 87771.90700000024,
+    "lastRun": 1768911270415
+  },
+  "39_transferLaterMeme.js": {
+    "success": 2874,
+    "failed": 79,
+    "total": 2953,
+    "totalDuration": 9640.52900000001,
+    "lastRun": 1768911270644
+  },
+  "46_claimViralFaucet.js": {
+    "success": 13835,
+    "failed": 279,
+    "total": 14114,
+    "totalDuration": 94742.99300000034,
+    "lastRun": 1768911279610
+  },
+  "7_mintStable.js": {
+    "success": 2733,
+    "failed": 42,
+    "total": 2775,
+    "totalDuration": 21744.00699999996,
+    "lastRun": 1768911274145
+  },
+  "43_batchMintStable.js": {
+    "success": 13958,
+    "failed": 246,
+    "total": 14204,
+    "totalDuration": 42357.07199999998,
+    "lastRun": 1768911263392
+  },
+  "37_transferLater.js": {
+    "success": 2771,
+    "failed": 51,
+    "total": 2822,
+    "totalDuration": 9569.889999999992,
+    "lastRun": 1768911268273
+  },
+  "25_batchEIP7702systemToken.js": {
+    "success": 2823,
+    "failed": 25,
+    "total": 2848,
+    "totalDuration": 44311.669000000016,
+    "lastRun": 1768911256490
+  },
+  "5_swapStable.js": {
+    "success": 2794,
+    "failed": 59,
+    "total": 2853,
+    "totalDuration": 24648.239000000074,
+    "lastRun": 1768911268450
+  },
+  "51_timeBomb.js": {
+    "success": 2964,
+    "failed": 3,
+    "total": 2967,
+    "totalDuration": 8097.697999999998,
+    "lastRun": 1768911266169
+  },
+  "8_burnStable.js": {
+    "success": 2845,
+    "failed": 30,
+    "total": 2875,
+    "totalDuration": 25460.757,
+    "lastRun": 1768911275149
+  },
+  "32_multiSendConcurrentStable.js": {
+    "success": 2807,
+    "failed": 62,
+    "total": 2869,
+    "totalDuration": 38597.21600000003,
+    "lastRun": 1768911202250
+  },
+  "17_batchEIP7702.js": {
+    "success": 2795,
+    "failed": 32,
+    "total": 2827,
+    "totalDuration": 35565.41699999999,
+    "lastRun": 1768911255290
+  },
+  "27_batchEIP7702memeToken.js": {
+    "success": 2813,
+    "failed": 64,
+    "total": 2877,
+    "totalDuration": 112357.61300000004,
+    "lastRun": 1768911253200
+  },
+  "47_deployViralNFT.js": {
+    "success": 2744,
+    "failed": 51,
+    "total": 2795,
+    "totalDuration": 23496.646000000026,
+    "lastRun": 1768911197840
+  },
+  "28_multiSendDisperse.js": {
+    "success": 2835,
+    "failed": 75,
+    "total": 2910,
+    "totalDuration": 30655.89800000002,
+    "lastRun": 1768911254821
+  },
+  "22_mintMeme.js": {
+    "success": 2738,
+    "failed": 30,
+    "total": 2768,
+    "totalDuration": 14544.380000000008,
+    "lastRun": 1768911207364
+  },
+  "14_nftCreateMint.js": {
+    "success": 2808,
+    "failed": 55,
+    "total": 2863,
+    "totalDuration": 34494.085999999996,
+    "lastRun": 1768911273433
+  },
+  "19_walletAnalytics.js": {
+    "success": 2924,
+    "failed": 0,
+    "total": 2924,
+    "totalDuration": 28289.264000000006,
+    "lastRun": 1768911257856
+  },
+  "45_deployViralFaucet.js": {
+    "success": 2755,
+    "failed": 54,
+    "total": 2809,
+    "totalDuration": 50856.444999999985,
+    "lastRun": 1768911276531
+  },
+  "26_batchEIP7702stableToken.js": {
+    "success": 2805,
+    "failed": 32,
+    "total": 2837,
+    "totalDuration": 61070.40899999992,
+    "lastRun": 1768911091723
+  },
+  "38_transferLaterStable.js": {
+    "success": 2831,
+    "failed": 66,
+    "total": 2897,
+    "totalDuration": 9577.529999999999,
+    "lastRun": 1768911269162
+  },
+  "2_claimFaucet.js": {
+    "success": 2763,
+    "failed": 61,
+    "total": 2824,
+    "totalDuration": 14419.738999999981,
+    "lastRun": 1768911256229
+  },
+  "9_transfer.js": {
+    "success": 2765,
+    "failed": 47,
+    "total": 2812,
+    "totalDuration": 23217.355999999967,
+    "lastRun": 1768911222507
+  },
+  "29_multiSendDisperseStable.js": {
+    "success": 2812,
+    "failed": 67,
+    "total": 2879,
+    "totalDuration": 35410.78299999988,
+    "lastRun": 1768911278769
+  },
+  "13_grantRole.js": {
+    "success": 2733,
+    "failed": 39,
+    "total": 2772,
+    "totalDuration": 19835.305000000044,
+    "lastRun": 1768911252119
+  },
+  "6_addLiquidity.js": {
+    "success": 2761,
+    "failed": 45,
+    "total": 2806,
+    "totalDuration": 20412.36600000004,
+    "lastRun": 1768911234399
+  },
+  "23_transferMeme.js": {
+    "success": 2839,
+    "failed": 22,
+    "total": 2861,
+    "totalDuration": 16593.77800000002,
+    "lastRun": 1768911261581
+  },
+  "33_multiSendConcurrentMeme.js": {
+    "success": 2853,
+    "failed": 0,
+    "total": 2853,
+    "totalDuration": 37680.61000000001,
+    "lastRun": 1768911248408
+  },
+  "18_tip403Policies.js": {
+    "success": 2771,
+    "failed": 72,
+    "total": 2843,
+    "totalDuration": 18864.937999999995,
+    "lastRun": 1768911243685
+  },
+  "50_deployStorm.js": {
+    "success": 2941,
+    "failed": 0,
+    "total": 2941,
+    "totalDuration": 12450.673999999994,
+    "lastRun": 1768911219582
+  },
+  "Faucet": {
+    "total": 20,
+    "success": 18,
+    "failed": 2,
+    "totalDuration": 11.728999999999997
+  },
+  "SendToken": {
+    "total": 20,
+    "success": 20,
+    "failed": 0,
+    "totalDuration": 128.876
+  },
+  "AddLiquidity": {
+    "total": 38,
+    "success": 38,
+    "failed": 0,
+    "totalDuration": 210.06000000000003
+  },
+  "CreateStable": {
+    "total": 73,
+    "success": 70,
+    "failed": 3,
+    "totalDuration": 595.3419999999999
+  },
+  "Transfer": {
+    "total": 26,
+    "success": 26,
+    "failed": 0,
+    "totalDuration": 154.85500000000002
+  },
+  "MintToken": {
+    "total": 59,
+    "success": 26,
+    "failed": 33,
+    "totalDuration": 184.43800000000002
+  },
+  "TransferMemo": {
+    "total": 22,
+    "success": 21,
+    "failed": 1,
+    "totalDuration": 142.018
+  },
+  "RemoveLiq": {
+    "total": 27,
+    "success": 27,
+    "failed": 0,
+    "totalDuration": 301.79999999999995
+  },
+  "CreateMeme": {
+    "total": 89,
+    "success": 86,
+    "failed": 3,
+    "totalDuration": 591.9890000000001
+  },
+  "TimeBomb": {
+    "total": 28,
+    "success": 28,
+    "failed": 0,
+    "totalDuration": 83.33599999999998
+  },
+  "BatchMintMeme": {
+    "total": 131,
+    "success": 127,
+    "failed": 4,
+    "totalDuration": 410.37500000000034
+  },
+  "BatchMintStable": {
+    "total": 133,
+    "success": 129,
+    "failed": 4,
+    "totalDuration": 438.58800000000014
+  },
+  "DistributeMeme": {
+    "total": 137,
+    "success": 135,
+    "failed": 2,
+    "totalDuration": 880.277
+  },
+  "DistributeStable": {
+    "total": 123,
+    "success": 122,
+    "failed": 1,
+    "totalDuration": 2619.439
+  },
+  "ClaimViralNFT": {
+    "total": 129,
+    "success": 126,
+    "failed": 3,
+    "totalDuration": 959.5099999999995
+  },
+  "DeployStorm": {
+    "total": 27,
+    "success": 27,
+    "failed": 0,
+    "totalDuration": 95.527
+  },
+  "BatchTxSystem": {
+    "total": 23,
+    "success": 22,
+    "failed": 1,
+    "totalDuration": 280.765
+  },
+  "DeployFaucet": {
+    "total": 30,
+    "success": 30,
+    "failed": 0,
+    "totalDuration": 565.9630000000001
+  },
+  "DistributeSystem": {
+    "total": 151,
+    "success": 149,
+    "failed": 2,
+    "totalDuration": 3150.8610000000003
+  },
+  "Analytics": {
+    "total": 31,
+    "success": 31,
+    "failed": 0,
+    "totalDuration": 303.413
+  },
+  "TransferMeme": {
+    "total": 25,
+    "success": 25,
+    "failed": 0,
+    "totalDuration": 162.883
+  },
+  "ClaimFaucet": {
+    "total": 137,
+    "success": 133,
+    "failed": 4,
+    "totalDuration": 892.4770000000005
+  },
+  "BatchTxMeme": {
+    "total": 22,
+    "success": 21,
+    "failed": 1,
+    "totalDuration": 912.687
+  },
+  "BatchMultiSwap": {
+    "total": 26,
+    "success": 26,
+    "failed": 0,
+    "totalDuration": 555.412
+  },
+  "MintMeme": {
+    "total": 27,
+    "success": 27,
+    "failed": 0,
+    "totalDuration": 172.35600000000002
+  },
+  "ScheduleTransfer": {
+    "total": 26,
+    "success": 26,
+    "failed": 0,
+    "totalDuration": 90.95999999999998
+  },
+  "BatchTxStable": {
+    "total": 29,
+    "success": 29,
+    "failed": 0,
+    "totalDuration": 670.644
+  },
+  "CreateMintNFT": {
+    "total": 22,
+    "success": 20,
+    "failed": 2,
+    "totalDuration": 214.75099999999998
+  },
+  "DeployNFT": {
+    "total": 39,
+    "success": 39,
+    "failed": 0,
+    "totalDuration": 343.144
+  },
+  "Activity": {
+    "total": 19,
+    "success": 19,
+    "failed": 0,
+    "totalDuration": 133.832
+  },
+  "BatchApprove+Swap": {
+    "total": 21,
+    "success": 21,
+    "failed": 0,
+    "totalDuration": 273.491
+  }
+}

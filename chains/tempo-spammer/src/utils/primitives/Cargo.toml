@@ -1,0 +1,108 @@
+[package]
+name = "tempo-primitives"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+# Reth
+reth-db-api = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", optional = true }
+reth-ethereum-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", optional = true }
+reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", optional = true }
+reth-codecs = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", optional = true }
+reth-rpc-convert = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", optional = true }
+
+# revm
+revm = { version = "34.0.0", features = ["optional_fee_charge"] }
+
+# Alloy
+alloy-consensus = { version = "1.4.3", default-features = false, features = ["secp256k1", "k256"] }
+alloy-eips = { version = "1.4.3", default-features = false }
+alloy-primitives = { version = "1.5.0", default-features = false }
+alloy-rlp = { version = "0.3", default-features = false }
+alloy-serde = { version = "1.4.3", default-features = false, optional = true }
+alloy-rpc-types-eth = { version = "1.4.3", default-features = false, optional = true }
+alloy-network = { version = "1.4.3", default-features = false, optional = true }
+
+# Utils
+arbitrary = { version = "1.3", features = ["derive"], optional = true }
+derive_more = { version = "2.0.0", features = ["full"] }
+modular-bitfield = { version = "0.11.2", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Cryptography for P256 and WebAuthn signature verification
+p256 = { version = "0.13", features = ["ecdsa"] }
+sha2 = "0.10"
+base64 = "0.22"
+
+[dev-dependencies]
+arbitrary = "1.3"
+
+proptest = "1.4"
+proptest-arbitrary-interop = "0.1"
+alloy-consensus = { version = "1.4.3", features = ["arbitrary"] }
+alloy-primitives = { version = "1.5.0", features = ["arbitrary", "getrandom", "rand"] }
+alloy-signer = { version = "1.4.3" }
+alloy-signer-local = { version = "1.4.3" }
+rand = "0.9"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+default = ["reth", "serde", "reth-codec", "serde-bincode-compat", "rpc"]
+reth = ["dep:reth-ethereum-primitives", "dep:reth-primitives-traits"]
+serde = [
+	"dep:alloy-serde",
+	"alloy-consensus/serde",
+	"reth-primitives-traits?/serde",
+	"reth-ethereum-primitives?/serde",
+	"alloy-eips/serde",
+	"alloy-primitives/serde",
+	"reth-codecs?/serde",
+	"rand/serde",
+	"p256/serde",
+	"tracing-subscriber/serde",
+	"revm/serde",
+]
+reth-codec = [
+	"reth",
+	"serde",
+	"dep:reth-codecs",
+	"dep:reth-db-api",
+	"dep:modular-bitfield",
+	"reth-ethereum-primitives/reth-codec",
+	"reth-codecs/alloy",
+	"reth-primitives-traits/reth-codec",
+]
+serde-bincode-compat = [
+	"reth",
+	"serde",
+	"alloy-consensus/serde-bincode-compat",
+	"reth-primitives-traits?/serde-bincode-compat",
+	"reth-ethereum-primitives?/serde-bincode-compat",
+	"alloy-eips/serde-bincode-compat",
+	"alloy-rpc-types-eth?/serde-bincode-compat",
+]
+arbitrary = [
+	"dep:arbitrary",
+	"serde",
+	"alloy-consensus/arbitrary",
+	"alloy-primitives/arbitrary",
+	"alloy-eips/arbitrary",
+	"reth-codecs?/arbitrary",
+	"alloy-serde?/arbitrary",
+	"reth-ethereum-primitives?/arbitrary",
+	"reth-primitives-traits?/arbitrary",
+	"alloy-rpc-types-eth?/arbitrary",
+	"reth-db-api?/arbitrary",
+	"revm/arbitrary",
+]
+rpc = [
+	"reth",
+	"reth-ethereum-primitives/rpc",
+	"dep:alloy-rpc-types-eth",
+	"dep:reth-rpc-convert",
+	"dep:alloy-network",
+]

@@ -1,0 +1,14 @@
+[rpc]
+http_url = "https://api.devnet.solana.com"
+ws_url = "wss://api.devnet.solana.com"
+commitment = "confirmed"
+
+[spam]
+target_tps = 5
+duration_seconds = 60
+payload_size_bytes = 0
+
+[proxies]
+enabled = false
+list_path = "proxies.txt"
+rotation_strategy = "Random"

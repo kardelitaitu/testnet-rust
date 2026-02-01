@@ -1,0 +1,9 @@
+# Tempo Chain Configuration
+# RPC endpoint for Tempo testnet
+rpc_url = "https://rpc.moderato.tempo.xyz"
+
+# Chain ID for Tempo network
+chain_id = 42431
+
+# Number of worker threads for parallel operations
+worker_count = 1

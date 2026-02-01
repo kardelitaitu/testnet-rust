@@ -1,0 +1,8 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.69s
+     Running `C:\My Script\testnet-framework\target\debug\debug_task.exe --task 0 --wallet 15`
+--- Tempo Debugger (Ethers) ---
+Found 30 wallet files in wallet-json. Decryption test passed.
+Debugging Task: 01_deploy_contract
+Running...
+
+≡ƒÆÑ Task Error: Failed to compile contract: "solc": program not found

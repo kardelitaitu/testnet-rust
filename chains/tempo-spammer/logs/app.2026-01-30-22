@@ -1,0 +1,84 @@
+2026-01-31 05:31:44 [INFO] Target RPC: https://rpc.moderato.tempo.xyz
+2026-01-31 05:31:44 [INFO] Target Chain ID: 42431
+2026-01-31 05:31:44 [INFO] Workers: 10
+2026-01-31 05:31:44 [INFO] Interval: 2000ms - 3000ms
+2026-01-31 05:31:44 [INFO] 🔍 Starting proxy health check for 390 proxies...
+2026-01-31 05:31:50 [INFO] ✅ 382/390 proxies healthy, ⏱️ 8 temporarily banned (30min)
+2026-01-31 05:31:50 [INFO] Starting spammer with 10 workers...
+2026-01-31 05:31:54 [INFO] [WK:002][WL:349][P:349] SUCCESS [19_wallet_analytics] Analytics for 0x85f96cba6fbae1f28a1d69839e8981d12b41a841: Native Balances: (PathUSD: [38;5;208m21.34M[0m, AlphaUSD: [38;5;208m34.63M[0m, BetaUSD: [38;5;208m27.25M[0m, ThetaUSD: [38;5;208m31.59M[0m), Assets: (Stables: 0, Memes: 0), TXs: 0 (Success: 0.0%) t:1.4s
+2026-01-31 05:32:00 [INFO] [WK:008][WL:409][P:019] SUCCESS [26_batch_stable_token] TxHash: 0x887ff18d05b6994ca40592efe9705cab94f47dd28f17b7f7cbb7442c42e8b863 t:2.8s
+2026-01-31 05:32:00 [INFO] [WK:006][WL:019][P:019] SUCCESS [03_send_token] TxHash: 0xd2836731e8cd3405058c94e80677c9ad205548d97d123802475a745cbab53af7 t:1.1s
+2026-01-31 05:32:00 [INFO] [WK:001][WL:201][P:201] FAILED  [08_burn_stable] No created stablecoins found in DB. Run Task 4 first. t:0.0s
+2026-01-31 05:32:01 [INFO] [WK:007][WL:325][P:325] SUCCESS [28_multi_send_disperse] TxHash: 0xe97a248c742bcfdcb533674095a035182c8ae1cab7388b3ef14f660b4355701f t:6.2s
+2026-01-31 05:32:03 [INFO] [WK:003][WL:028][P:028] SUCCESS [36_batch_send_transaction_meme] TxHash: 0x6c05fc60303ca284a30c24b18082e73d2efc9c17e1cf45c17fbc4c95d420ca34 t:6.6s
+2026-01-31 05:32:08 [INFO] [WK:004][WL:442][P:052] SUCCESS [36_batch_send_transaction_meme] TxHash: 0x643691470aad3354cf6cf29c15a991211060493eb81117dd852a9d3320a672e1 t:5.4s
+2026-01-31 05:32:08 [INFO] [WK:005][WL:391][P:001] SUCCESS [40_distribute_shares] TxHash: 0x22a349758de78842e16d37e0f476e5b4876bc78ee05bb951ecd836fbb737bc29 t:1.4s
+2026-01-31 05:32:09 [INFO] [WK:009][WL:275][P:275] SUCCESS [25_batch_system_token] TxHash: 0xdd4ece88ff71f4fb85c58da5387066d94032373e3150f8cb8851c45ef698c91e t:4.7s
+2026-01-31 05:32:12 [INFO] [WK:000][WL:253][P:253] SUCCESS [11_limit_order] TxHash: 0xdb532cbf199feee09a3637acf30235f2225dce2a1ae30ff17e0b289b1c1473ca t:5.2s
+2026-01-31 05:32:13 [INFO] [WK:003][WL:334][P:334] FAILED  [48_mint_viral_nft] No viral NFTs found in DB to mint. t:0.0s
+2026-01-31 05:32:14 [INFO] [WK:008][WL:337][P:337] SUCCESS [36_batch_send_transaction_meme] TxHash: 0x05f98137598ce0335663e11a6ef5ea14a423c35a08d385e34040e6d8937d4296 t:5.1s
+2026-01-31 05:32:15 [INFO] [WK:001][WL:244][P:244] SUCCESS [50_deploy_storm] TxHash: 0xfd50cad35ba777d4b02bf767f9baef766ed2bfe89d01bb0d83d9599138e60eb8 t:1.8s
+2026-01-31 05:32:15 [INFO] [WK:006][WL:130][P:130] FAILED  [29_multi_send_disperse_stable] No stable tokens found in DB. t:0.0s
+2026-01-31 05:32:17 [INFO] [WK:002][WL:466][P:076] FAILED  [39_transfer_later_meme] No created meme tokens found in DB for scheduled transfer. t:0.0s
+2026-01-31 05:32:17 [INFO] [WK:007][WL:331][P:331] SUCCESS [28_multi_send_disperse] TxHash: 0x788dc1707d62c0066485853ad52fb60f155e22e4da0b1a856fb776901694f1a6 t:7.0s
+2026-01-31 05:32:19 [INFO] [WK:003][WL:457][P:067] SUCCESS [02_claim_faucet] TxHash: 0xe61d6619119eab8e94f1885f84360317a5cddead845b21d233c29c4898002932 t:0.9s
+2026-01-31 05:32:24 [INFO] [WK:004][WL:463][P:073] SUCCESS [24_batch_swap] TxHash: 0xcfec7036451cfec420ddbcb44d4bbd8994c17d30d555a5518e79c93c59655303 t:3.7s
+2026-01-31 05:32:26 [INFO] [WK:009][WL:170][P:170] SUCCESS [40_distribute_shares] TxHash: 0xae1f5017603992f389b3d4c1dfda9863c85b8e881f1aa7c313ee106a3c88bf48 t:1.4s
+2026-01-31 05:32:28 [INFO] [WK:008][WL:259][P:259] SUCCESS [31_multi_send_concurrent] TxHash: 0xf0a43d90dff03ceef6691698204c01ad2ecc923c36f0b0a6e2c6973199106840 t:5.0s
+2026-01-31 05:32:28 [INFO] [WK:003][WL:161][P:161] FAILED  [48_mint_viral_nft] No viral NFTs found in DB to mint. t:0.0s
+2026-01-31 05:32:29 [INFO] [WK:005][WL:221][P:221] SUCCESS [36_batch_send_transaction_meme] TxHash: 0xcec8cb857ed09d3c581322bc2ad900d13bdc208b7f8c87bc68300abac180b729 t:6.4s
+2026-01-31 05:32:31 [INFO] [WK:000][WL:354][P:354] SUCCESS [31_multi_send_concurrent] TxHash: 0x5c4358c145b688220e556c0f89c41f0ccb26391993bcabca7fc22cdf9a679069 t:4.9s
+2026-01-31 05:32:32 [INFO] [WK:006][WL:117][P:117] SUCCESS [42_distribute_shares_meme] TxHash: 0x0041c93f87e721ec3662df838f8b7241eb074ebc64cc693fc01c3324d7208f8d t:1.3s
+2026-01-31 05:32:37 [INFO] [WK:007][WL:394][P:004] SUCCESS [31_multi_send_concurrent] TxHash: 0x8ffa6f38dee983265fa775a945a7a5e2fa187ffa6c0136829d5f9171a7db4493 t:4.6s
+2026-01-31 05:32:37 [INFO] [WK:002][WL:270][P:270] SUCCESS [25_batch_system_token] TxHash: 0x97701113122b41d8f800e9865c9cecf6d9e0bacd8c1272f10cd43328dbfc5074 t:4.9s
+2026-01-31 05:32:38 [INFO] [WK:004][WL:169][P:169] FAILED  [07_mint_stable] No created stablecoins found in DB t:0.0s
+2026-01-31 05:32:41 [INFO] [WK:001][WL:241][P:241] SUCCESS [36_batch_send_transaction_meme] TxHash: 0xc275c31cdeaddfeb4afd420199a939238e9dafcd4f2bcf5c080e95d2eec7cb26 t:6.6s
+2026-01-31 05:32:42 [INFO] [WK:006][WL:234][P:234] SUCCESS [40_distribute_shares] TxHash: 0xfeefbe9a943b8d1fe2ff02ec7f0c1d550a37d27b20ee25d81b990f2e11482e48 t:1.4s
+2026-01-31 05:32:44 [INFO] [WK:003][WL:024][P:024] FAILED  [08_burn_stable] No created stablecoins found in DB. Run Task 4 first. t:0.0s
+2026-01-31 05:32:44 [INFO] [WK:009][WL:294][P:294] SUCCESS [18_tip403_policies] TxHash: 0xb244b5b667ae0d246e95bfd9bece5a4274667bb9f6b5c70bd38abad5b3723cb0 t:1.9s
+2026-01-31 05:32:45 [INFO] [WK:005][WL:111][P:111] SUCCESS [14_nft_create_mint] TxHash: 0x364039d3854a6e62393cbe683c291ca1f292842d81d079ed2c07021a42373e9f t:9.0s
+2026-01-31 05:32:50 [INFO] [WK:008][WL:243][P:243] SUCCESS [41_distribute_shares_stable] TxHash: 0xaa934a6ba6d58358fe7ccd5eb5beb9aaa28c6344c5c5a40246b44a5da5eb1fbd t:1.8s
+2026-01-31 05:32:53 [INFO] [WK:000][WL:365][P:365] SUCCESS [06_add_liquidity] TxHash: 0xe210db8fe0b7afbe23fba705fc4a39b54546cf5a43b8de5b85cb6e1d97b70305 t:7.2s
+2026-01-31 05:32:53 [INFO] [WK:002][WL:160][P:160] SUCCESS [20_wallet_activity] Wallet Activity: 3490 on-chain tx, [38;5;208m10.37M[0m pathUSD t:1.1s
+2026-01-31 05:32:54 [INFO] [WK:001][WL:475][P:085] SUCCESS [23_transfer_meme] TxHash: 0xf0abc8e5c75cd4c94f04f0a84d37f36c0a3f267b62bcf95b54e5c8c1c8909155 t:2.2s
+2026-01-31 05:32:56 [INFO] [WK:006][WL:328][P:328] FAILED  [29_multi_send_disperse_stable] No stable tokens found in DB. t:0.0s
+2026-01-31 05:32:56 [INFO] [WK:007][WL:449][P:059] SUCCESS [06_add_liquidity] TxHash: 0xfa0bcfb9dae5e27aa89bcb1c293f81aa0f5526dbff4652cb76f2417a28711799 t:6.7s
+2026-01-31 05:32:59 [INFO] [WK:008][WL:495][P:105] FAILED  [29_multi_send_disperse_stable] No stable tokens found in DB. t:0.0s
+2026-01-31 05:32:59 [INFO] [WK:003][WL:161][P:161] FAILED  [33_multi_send_concurrent_meme] No created meme tokens found in DB for concurrent transfer. t:0.0s
+2026-01-31 05:33:00 [INFO] [WK:004][WL:025][P:025] SUCCESS [28_multi_send_disperse] TxHash: 0x1683e02d60609edde4f57dbc65b2a4d3009cd0f2f9a453995e1f09edd712bc0b t:6.5s
+2026-01-31 05:33:04 [INFO] [WK:002][WL:460][P:070] SUCCESS [21_create_meme] TxHash: 0xa4184eb4f9ceb99fde8e57a0fa0f87b0f19cf7c136eb7abb58da13a1fcfe3ea4 t:6.6s
+2026-01-31 05:33:06 [INFO] [WK:009][WL:001][P:001] SUCCESS [18_tip403_policies] TxHash: 0x9632505f5c91dbb5cb8e16370070e0479f0dc3ada5241845054affbb35deb45a t:2.5s
+2026-01-31 05:33:07 [INFO] [WK:000][WL:363][P:363] SUCCESS [20_wallet_activity] Wallet Activity: 3557 on-chain tx, [38;5;208m3.57M[0m pathUSD t:1.1s
+2026-01-31 05:33:07 [INFO] [WK:004][WL:044][P:044] SUCCESS [03_send_token] TxHash: 0x2f6c7d17fd4a0568f01ce50c39a9db6369f8518721ca76231602c56d58edac43 t:1.3s
+2026-01-31 05:33:08 [INFO] [WK:005][WL:165][P:165] SUCCESS [04_create_stable] TxHash: 0xef52d312dc2357b9a96a7d60366cc9762b7cb54d36b930490d0d02e3f4b01b4d t:6.6s
+2026-01-31 05:33:10 [INFO] [WK:006][WL:445][P:055] SUCCESS [50_deploy_storm] TxHash: 0xcf9ee99d5f36566aa9d15eeea48f4e591ce29aa0fe67c94dd73b00ab0840e70a t:2.0s
+2026-01-31 05:33:12 [WARN] [WK:001][P:192] 🚫 Banning unhealthy proxy due to error: Fund Tx Failed: error sending request for url (https://rpc.moderato.tempo.xyz/): error sending reque...
+2026-01-31 05:33:12 [ERROR] [WK:001][WL:192][P:192] [31mERROR[0m [41_distribute_shares_stable] Task error: Fund Tx Failed: error sending request for url (https://rpc.moderato.tempo.xyz/): error sending request for url (https://rpc.moderato.tempo.xyz/): client error (Connect): tunnel error: unsuccessful t:1.8s
+2026-01-31 05:33:13 [INFO] [WK:007][WL:011][P:011] SUCCESS [32_multi_send_concurrent_stable] TxHash: 0x054321f1f9e4820fa50200f372e10e049360b08ae9f2d38cfe9312dc88f67294 t:5.1s
+2026-01-31 05:33:14 [WARN] [WK:008][P:190] 🚫 Banning unhealthy proxy due to error: error sending request for url (https://rpc.moderato.tempo.xyz/): error sending request for url (http...
+2026-01-31 05:33:14 [ERROR] [WK:008][WL:190][P:190] [31mERROR[0m [37_transfer_later] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/): error sending request for url (https://rpc.moderato.tempo.xyz/): client error (Connect): tunnel error: unsuccessful t:0.1s
+2026-01-31 05:33:14 [INFO] [WK:003][WL:007][P:007] SUCCESS [18_tip403_policies] TxHash: 0x9c5ea19d7249fcf9247b35c3653e49347848d1ff90dcf643566ce30a01b12e17 t:2.7s
+2026-01-31 05:33:16 [INFO] [WK:002][WL:427][P:037] FAILED  [07_mint_stable] No created stablecoins found in DB t:0.0s
+2026-01-31 05:33:16 [INFO] [WK:005][WL:244][P:244] FAILED  [30_multi_send_disperse_meme] No meme tokens found in DB. t:0.0s
+2026-01-31 05:33:18 [INFO] [WK:000][WL:164][P:164] FAILED  [46_claim_viral_faucet] No viral faucets found in DB to claim from. t:0.0s
+2026-01-31 05:33:23 [INFO] [WK:009][WL:426][P:036] FAILED  [43_batch_mint_stable] Failed to grant ISSUER or MINTER role. t:5.2s
+2026-01-31 05:33:24 [INFO] [WK:001][WL:084][P:084] FAILED  [13_grant_role] No created stablecoins found in DB to grant roles. t:0.0s
+2026-01-31 05:33:25 [WARN] [WK:003][P:337] 🚫 Banning unhealthy proxy due to error: Distribute Tx Failed: error sending request for url (https://rpc.moderato.tempo.xyz/): error sending...
+2026-01-31 05:33:25 [ERROR] [WK:003][WL:337][P:337] [31mERROR[0m [41_distribute_shares_stable] Task error: Distribute Tx Failed: error sending request for url (https://rpc.moderato.tempo.xyz/): error sending request for url (https://rpc.moderato.tempo.xyz/): client error (Connect): tunnel error: unsuccessful t:1.0s
+2026-01-31 05:33:26 [WARN] [WK:007][P:191] 🚫 Banning unhealthy proxy due to error: error sending request for url (https://rpc.moderato.tempo.xyz/): client error (Connect): tunnel erro...
+2026-01-31 05:33:26 [ERROR] [WK:007][WL:191][P:191] [31mERROR[0m [26_batch_stable_token] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/): client error (Connect): tunnel error: unsuccessful t:0.2s
+2026-01-31 05:33:27 [INFO] [WK:004][WL:277][P:277] SUCCESS [35_batch_send_transaction_stable] TxHash: 0x6775f26c7d80e0f2f9f571833ca9742b7013ebd59bc57e88d4b4a7cf21ac396b t:6.7s
+2026-01-31 05:33:27 [INFO] [WK:002][WL:078][P:078] FAILED  [44_batch_mint_meme] No created meme tokens found for batch minting. t:0.0s
+2026-01-31 05:33:28 [INFO] [WK:006][WL:309][P:309] SUCCESS [28_multi_send_disperse] TxHash: 0x2789b404856f5cc698a23f93a704358e2f6fe9d898e3333634e3abbb05c872a0 t:6.8s
+2026-01-31 05:33:30 [INFO] [WK:005][WL:013][P:013] FAILED  [30_multi_send_disperse_meme] No meme tokens found in DB. t:0.0s
+2026-01-31 05:33:30 [INFO] [WK:000][WL:474][P:084] FAILED  [30_multi_send_disperse_meme] No meme tokens found in DB. t:0.0s
+2026-01-31 05:33:35 [INFO] [WK:009][WL:403][P:013] SUCCESS [40_distribute_shares] TxHash: 0xbc74e6e9f96f2fb31252c94a79ad406171e880d1a77fd52f0252a9bb04d15911 t:1.5s
+2026-01-31 05:33:36 [WARN] [WK:003][P:386] 🚫 Banning unhealthy proxy due to error: error sending request for url (https://rpc.moderato.tempo.xyz/): error sending request for url (http...
+2026-01-31 05:33:36 [ERROR] [WK:003][WL:386][P:386] [31mERROR[0m [25_batch_system_token] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/): error sending request for url (https://rpc.moderato.tempo.xyz/): client error (Connect): tunnel error: unsuccessful t:0.1s
+2026-01-31 05:33:38 [INFO] [WK:008][WL:424][P:034] SUCCESS [24_batch_swap] TxHash: 0x87aeafc0e9bc9adfe2a9b8bfdaab842a9ae93298f44488d21bee3db7243de7f1 t:6.1s
+2026-01-31 05:33:38 [INFO] [WK:001][WL:477][P:087] SUCCESS [24_batch_swap] TxHash: 0xfaa346e4a06cca5d31fc8e48c7ebd3c86084983b00112dc28436a95c213a8b5f t:4.4s
+2026-01-31 05:33:39 [INFO] [WK:007][WL:010][P:010] SUCCESS [12_remove_liquidity] No withdrawable balance yet. Order placed successfully. t:1.6s
+2026-01-31 05:33:41 [INFO] [WK:006][WL:044][P:044] SUCCESS [38_transfer_later_stable] TxHash: 0x9d7653016575ac099b6e69e34da906c08ffe5d7ca6471317f9cf48c0a7a7efbb t:1.5s
+2026-01-31 05:33:42 [INFO] [WK:002][WL:409][P:019] SUCCESS [26_batch_stable_token] TxHash: 0xd94023b192e77b71e05d9806cda4e1673d0a552a0bb8667ce7c6c8911a533906 t:2.0s
+2026-01-31 05:33:42 [WARN] [WK:005][P:107] 🚫 Banning unhealthy proxy due to error: error sending request for url (https://rpc.moderato.tempo.xyz/): error sending request for url (http...
+2026-01-31 05:33:42 [ERROR] [WK:005][WL:497][P:107] [31mERROR[0m [27_batch_meme_token] Task error: error sending request for url (https://rpc.moderato.tempo.xyz/): error sending request for url (https://rpc.moderato.tempo.xyz/): client error (Connect): tunnel error: unsuccessful t:0.5s

@@ -1,0 +1,43 @@
+[package]
+name = "tempo-revm"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+publish = false
+
+[dependencies]
+tempo-precompiles = { path = "../precompiles" }
+tempo-primitives = { path = "../primitives" }
+tempo-contracts = { path = "../contracts" }
+tempo-chainspec = { path = "../chainspec" }
+
+reth-evm = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9" }
+reth-storage-api = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", optional = true }
+
+
+
+
+alloy-primitives = { version = "1.5.0", default-features = false }
+alloy-consensus = { version = "1.4.3", default-features = false }
+alloy-sol-types = { version = "1.4.3", default-features = false }
+
+auto_impl = "1.2"
+derive_more = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+thiserror = "1.0"
+
+[dev-dependencies]
+eyre = "0.6"
+alloy-primitives = { version = "1.5.0", features = ["rand"] }
+alloy-eips = { version = "1.4.3", default-features = false }
+alloy-rlp = "0.3"
+base64 = "0.22"
+p256 = { version = "0.13", features = ["ecdsa"] }
+proptest = "1.4"
+sha2 = "0.10"
+tempo-evm = { path = "../evm" }
+tempo-precompiles = { path = "../precompiles", features = ["test-utils"] }
+
+[features]
+rpc = []

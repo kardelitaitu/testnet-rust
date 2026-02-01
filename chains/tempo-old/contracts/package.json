@@ -1,0 +1,7 @@
+{
+    "name": "tempo-compiler",
+    "version": "1.0.0",
+    "dependencies": {
+        "solc": "^0.8.21"
+    }
+}
