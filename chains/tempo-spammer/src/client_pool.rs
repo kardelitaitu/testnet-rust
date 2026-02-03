@@ -121,10 +121,14 @@ pub struct ClientPool {
     pub config: Config,
     /// Set of wallet indices currently in use (leased)
     pub locked_wallets: tokio::sync::Mutex<std::collections::HashSet<usize>>,
-    /// Optional nonce manager for caching (legacy)
+    /// Optional nonce manager for caching (legacy) - shared across all wallets
     pub nonce_manager: Option<Arc<crate::NonceManager>>,
-    /// Optional robust nonce manager with per-request tracking (recommended)
+    /// Optional robust nonce manager with per-request tracking (recommended) - shared across all wallets
     pub robust_nonce_manager: Option<Arc<crate::RobustNonceManager>>,
+    /// Sharded nonce managers for per-wallet isolation (when config.nonce.per_wallet is true)
+    pub sharded_nonce_managers: Vec<Arc<crate::NonceManager>>,
+    /// Sharded robust nonce managers for per-wallet isolation (when config.nonce.per_wallet is true)
+    pub sharded_robust_nonce_managers: Vec<Arc<crate::RobustNonceManager>>,
     /// Optional proxy banlist for health tracking
     pub proxy_banlist: Option<crate::proxy_health::ProxyBanlist>,
     /// Database manager for logging
@@ -202,10 +206,19 @@ impl ClientLease {
     pub async fn release(self) {
         let pool = self.pool.clone();
         let index = self.index;
+        let nonce_config = pool.config.nonce.clone();
+
         tokio::spawn(async move {
-            // Reduced cooldown from 4s to 500ms for better throughput
-            // With 500 wallets and proper nonce management, this is sufficient
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            // Use configurable cooldown with adaptive backoff
+            // Base cooldown prevents nonce races by ensuring transactions
+            // have time to propagate before the wallet is reused
+            let cooldown_ms = nonce_config
+                .base_cooldown_ms
+                .max(nonce_config.min_cooldown_ms);
+
+            tracing::debug!("Releasing wallet {} with {}ms cooldown", index, cooldown_ms);
+
+            tokio::time::sleep(std::time::Duration::from_millis(cooldown_ms)).await;
             pool.release_wallet(index).await;
         });
     }
@@ -228,14 +241,26 @@ impl Drop for ClientLease {
         tracing::warn!(
             target: "client_pool",
             "ClientLease dropped without explicit release(). \
-             Using automatic release with 500ms cooldown. \
+             Using automatic release with cooldown. \
              Prefer calling lease.release().await explicitly."
         );
         let pool = self.pool.clone();
         let index = self.index;
+        let nonce_config = pool.config.nonce.clone();
+
         tokio::spawn(async move {
-            // Reduced cooldown from 4s to 500ms for better throughput
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            // Use configurable cooldown with adaptive backoff
+            let cooldown_ms = nonce_config
+                .base_cooldown_ms
+                .max(nonce_config.min_cooldown_ms);
+
+            tracing::debug!(
+                "Auto-releasing wallet {} with {}ms cooldown",
+                index,
+                cooldown_ms
+            );
+
+            tokio::time::sleep(std::time::Duration::from_millis(cooldown_ms)).await;
             pool.release_wallet(index).await;
         });
     }
@@ -302,6 +327,16 @@ impl ClientPool {
         let nonce_manager = Some(Arc::new(crate::NonceManager::new()));
         let robust_nonce_manager = Some(Arc::new(crate::RobustNonceManager::new()));
 
+        // Initialize sharded nonce managers for per-wallet isolation
+        // This reduces contention when managing 2500+ wallets
+        let shard_count = config.nonce.shard_count;
+        let sharded_nonce_managers: Vec<_> = (0..shard_count)
+            .map(|_| Arc::new(crate::NonceManager::new()))
+            .collect();
+        let sharded_robust_nonce_managers: Vec<_> = (0..shard_count)
+            .map(|_| Arc::new(crate::RobustNonceManager::new()))
+            .collect();
+
         // Initialize proxy banlist
         let proxy_banlist = Some(crate::proxy_health::ProxyBanlist::new(10)); // 10 min ban
 
@@ -320,6 +355,8 @@ impl ClientPool {
             locked_wallets: tokio::sync::Mutex::new(std::collections::HashSet::new()),
             nonce_manager,
             robust_nonce_manager,
+            sharded_nonce_managers,
+            sharded_robust_nonce_managers,
             proxy_banlist,
             db: Some(db),
             // O(1) optimization fields
@@ -623,6 +660,33 @@ impl ClientPool {
         Ok(client)
     }
 
+    /// Get the appropriate nonce manager for a wallet index
+    ///
+    /// Returns sharded manager if per_wallet is enabled, otherwise returns shared manager
+    fn get_nonce_manager(&self, wallet_idx: usize) -> Option<Arc<crate::NonceManager>> {
+        if self.config.nonce.per_wallet && !self.sharded_nonce_managers.is_empty() {
+            let shard = wallet_idx % self.sharded_nonce_managers.len();
+            Some(self.sharded_nonce_managers[shard].clone())
+        } else {
+            self.nonce_manager.clone()
+        }
+    }
+
+    /// Get the appropriate robust nonce manager for a wallet index
+    ///
+    /// Returns sharded manager if per_wallet is enabled, otherwise returns shared manager
+    fn get_robust_nonce_manager(
+        &self,
+        wallet_idx: usize,
+    ) -> Option<Arc<crate::RobustNonceManager>> {
+        if self.config.nonce.per_wallet && !self.sharded_robust_nonce_managers.is_empty() {
+            let shard = wallet_idx % self.sharded_robust_nonce_managers.len();
+            Some(self.sharded_robust_nonce_managers[shard].clone())
+        } else {
+            self.robust_nonce_manager.clone()
+        }
+    }
+
     /// Try to create client with proxy, fallback to direct connection on failure
     async fn try_create_client_with_fallback(
         &self,
@@ -631,6 +695,10 @@ impl ClientPool {
         proxy_idx: Option<usize>,
         proxy_config: Option<&crate::tasks::ProxyConfig>,
     ) -> Result<(TempoClient, Option<usize>)> {
+        // Get sharded nonce managers for this wallet
+        let nonce_manager = self.get_nonce_manager(wallet_idx);
+        let robust_nonce_manager = self.get_robust_nonce_manager(wallet_idx);
+
         // First attempt: Try with proxy if available
         if let Some(config) = proxy_config {
             match self
@@ -644,8 +712,9 @@ impl ClientPool {
                         reqwest_client,
                         Some(config.clone()),
                         proxy_idx,
-                        self.nonce_manager.clone(),
-                        self.robust_nonce_manager.clone(),
+                        nonce_manager.clone(),
+                        robust_nonce_manager.clone(),
+                        self.config.nonce.use_pending_count,
                     )
                     .await
                     {
@@ -685,8 +754,9 @@ impl ClientPool {
             direct_client,
             None,
             None,
-            self.nonce_manager.clone(),
-            self.robust_nonce_manager.clone(),
+            nonce_manager,
+            robust_nonce_manager,
+            self.config.nonce.use_pending_count,
         )
         .await
         .context("Failed to create TempoClient with direct connection")?;
@@ -972,11 +1042,16 @@ impl ClientPool {
     /// # Arguments
     ///
     /// * `wallet_idx` - The index of the wallet to get a client for
+    /// * `rotation_offset` - Offset to apply to proxy selection (allows trying different proxies)
     ///
     /// # Returns
     ///
     /// Returns `Ok(TempoClient)` if successful, `Err` if client creation fails.
-    pub async fn get_client_with_rotated_proxy(&self, wallet_idx: usize) -> Result<TempoClient> {
+    pub async fn get_client_with_rotated_proxy(
+        &self,
+        wallet_idx: usize,
+        rotation_offset: usize,
+    ) -> Result<TempoClient> {
         // Check if wallet index is valid
         if wallet_idx >= self.wallet_manager.count() {
             anyhow::bail!("Wallet index {} out of bounds", wallet_idx);
@@ -989,11 +1064,12 @@ impl ClientPool {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get wallet {}: {}", wallet_idx, e))?;
 
-        // Select a different proxy (rotate by using wallet_idx + 1)
+        // Select a different proxy (rotate by using wallet_idx + offset)
+        // Ensure offset is non-zero if possible to actually rotate
         let proxy_config = if self.proxies.is_empty() {
             None
         } else {
-            let proxy_idx = (wallet_idx + 1) % self.proxies.len();
+            let proxy_idx = (wallet_idx + rotation_offset) % self.proxies.len();
             Some(&self.proxies[proxy_idx])
         };
 
@@ -1028,9 +1104,10 @@ impl ClientPool {
             &wallet.evm_private_key,
             reqwest_client,
             proxy_config.cloned(),
-            proxy_config.map(|_| (wallet_idx + 1) % self.proxies.len()),
+            proxy_config.map(|_| (wallet_idx + rotation_offset) % self.proxies.len()),
             self.nonce_manager.clone(),
             self.robust_nonce_manager.clone(),
+            self.config.nonce.use_pending_count,
         )
         .await
         .with_context(|| {

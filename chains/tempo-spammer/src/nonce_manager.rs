@@ -20,8 +20,9 @@
 //!
 //! # Thread Safety
 //!
-//! Uses a [`Mutex`] to ensure atomic read-modify-write operations on the nonce cache.
-//! This allows multiple concurrent tasks to safely acquire nonces for the same wallet.
+//! Uses a [`RwLock`] to ensure atomic read-modify-write operations on the nonce cache.
+//! This allows multiple concurrent tasks to safely acquire nonces for the same wallet,
+//! with concurrent reads and exclusive writes.
 //!
 //! # Example
 //!
@@ -73,7 +74,7 @@
 
 use alloy_primitives::Address;
 use std::collections::HashMap;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 /// Thread-safe nonce cache for multiple wallets
 ///
@@ -82,13 +83,13 @@ use tokio::sync::Mutex;
 ///
 /// # Implementation Details
 ///
-/// - Uses [`Mutex<HashMap>`] for thread-safe access
+/// - Uses [`RwLock<HashMap>`] for thread-safe access with concurrent reads
 /// - Stores the NEXT nonce to use (not the current transaction count)
 /// - Lazy initialization - nonces are only cached after first use
 #[derive(Debug, Default)]
 pub struct NonceManager {
     /// Maps wallet address to the NEXT nonce to use
-    nonces: Mutex<HashMap<Address, u64>>,
+    nonces: RwLock<HashMap<Address, u64>>,
 }
 
 impl NonceManager {
@@ -105,7 +106,7 @@ impl NonceManager {
     /// ```
     pub fn new() -> Self {
         Self {
-            nonces: Mutex::new(HashMap::new()),
+            nonces: RwLock::new(HashMap::new()),
         }
     }
 
@@ -147,7 +148,7 @@ impl NonceManager {
     /// # }
     /// ```
     pub async fn get_and_increment(&self, address: Address) -> Option<u64> {
-        let mut map = self.nonces.lock().await;
+        let mut map = self.nonces.write().await;
         if let Some(nonce) = map.get_mut(&address) {
             let current = *nonce;
             *nonce += 1;
@@ -155,6 +156,24 @@ impl NonceManager {
         } else {
             None
         }
+    }
+
+    /// Gets the current cached nonce for an address without incrementing
+    ///
+    /// This is useful for read-only operations where you need to know
+    /// the next nonce without consuming it.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The wallet address to peek
+    ///
+    /// # Returns
+    ///
+    /// - `Some(nonce)` - The next nonce to use for this address
+    /// - `None` - Address not in cache
+    pub async fn peek(&self, address: Address) -> Option<u64> {
+        let map = self.nonces.read().await;
+        map.get(&address).copied()
     }
 
     /// Sets or updates the cached nonce for an address
@@ -191,7 +210,7 @@ impl NonceManager {
     /// # }
     /// ```
     pub async fn set(&self, address: Address, next_nonce: u64) {
-        let mut map = self.nonces.lock().await;
+        let mut map = self.nonces.write().await;
         map.insert(address, next_nonce);
     }
 
@@ -227,7 +246,7 @@ impl NonceManager {
     /// # }
     /// ```
     pub async fn reset(&self, address: Address) {
-        let mut map = self.nonces.lock().await;
+        let mut map = self.nonces.write().await;
         map.remove(&address);
     }
 }

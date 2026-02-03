@@ -183,7 +183,7 @@ async fn main() -> Result<()> {
                     client_pool.get_client(current_wallet_idx).await
                 } else {
                     client_pool
-                        .get_client_with_rotated_proxy(current_wallet_idx)
+                        .get_client_with_rotated_proxy(current_wallet_idx, 1)
                         .await
                 } {
                     Ok(c) => c,

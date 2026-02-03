@@ -6,6 +6,7 @@ use dialoguer::{Input, Password, theme::ColorfulTheme};
 use dotenv::dotenv;
 use std::env;
 
+use rand::Rng;
 use std::sync::Arc;
 use std::time::Duration;
 use tempo_spammer::config::TempoSpammerConfig;
@@ -88,6 +89,7 @@ async fn main() -> Result<()> {
         println!("\n⚠️  Wallet decryption failed (password not set or invalid).");
         let input = Password::with_theme(&ColorfulTheme::default())
             .with_prompt("Enter wallet password")
+            .report(true) // Show asterisks (*****) when typing
             .interact()?;
         wallet_password = Some(input);
 
@@ -122,50 +124,16 @@ async fn main() -> Result<()> {
         "Mint Meme",
     ];
 
-    // 5. SMART: Analyze wallet completion status
-    println!("🔍 Analyzing {} wallets...", total_wallets);
-    let mut wallets_to_process = Vec::new();
-    let mut skipped_count = 0;
-
-    for wallet_idx in args.start_from..total_wallets {
-        // Get wallet address
-        let wallet = match wallet_manager
-            .get_wallet(wallet_idx, wallet_password.as_deref())
-            .await
-        {
-            Ok(w) => w,
-            Err(e) => {
-                println!("⚠️  Wallet {}: Failed to load - {}", wallet_idx, e);
-                continue;
-            }
-        };
-        let wallet_address = wallet.evm_address.clone();
-
-        // Check completion status if skip_completed is enabled
-        let should_skip = if args.skip_completed && !args.no_db {
-            let completed_tasks =
-                check_wallet_completion(&db_arc, &wallet_address, &sequence_ids).await;
-            completed_tasks.len() == sequence_ids.len()
-        } else {
-            false
-        };
-
-        if should_skip {
-            skipped_count += 1;
-            continue;
-        }
-
-        wallets_to_process.push(wallet_idx);
-    }
-
+    // 5. Build wallet list (simple - no skipping)
+    let wallets_to_process: Vec<usize> = (args.start_from..total_wallets).collect();
     let wallets_to_run = wallets_to_process.len();
 
     if wallets_to_run == 0 {
-        println!("✅ All wallets have completed the sequence!");
+        println!("❌ No wallets to process!");
         return Ok(());
     }
 
-    println!("🚀 Starting Smart Tempo Sequence Runner");
+    println!("🚀 Starting Tempo Sequence Runner");
     println!(
         "📋 Sequence: {:?}",
         sequence_ids
@@ -175,40 +143,13 @@ async fn main() -> Result<()> {
             .collect::<Vec<_>>()
     );
     println!(
-        "💼 Total Wallets: {} | Processing: {} | Skipped (completed): {}",
-        total_wallets, wallets_to_run, skipped_count
+        "💼 Total Wallets: {} | Processing: {} wallets",
+        total_wallets, wallets_to_run
     );
     println!(
         "👷 Workers: {} | Starting from wallet: {}",
         args.workers, args.start_from
     );
-
-    if args.dry_run {
-        println!("\n📊 Dry Run - Wallets to process:");
-        for (_i, &wallet_idx) in wallets_to_process.iter().take(10).enumerate() {
-            let wallet = wallet_manager
-                .get_wallet(wallet_idx, wallet_password.as_deref())
-                .await?;
-            let completed =
-                check_wallet_completion(&db_arc, &wallet.evm_address, &sequence_ids).await;
-            let status = if completed.is_empty() {
-                "New"
-            } else {
-                &format!("Partial ({}/{})", completed.len(), sequence_ids.len())
-            };
-            println!(
-                "  Wallet {}: {}... [{}]",
-                wallet_idx,
-                &wallet.evm_address[..20],
-                status
-            );
-        }
-        if wallets_to_process.len() > 10 {
-            println!("  ... and {} more", wallets_to_process.len() - 10);
-        }
-        println!("\n✅ Dry run complete. Use without --dry-run to execute.");
-        return Ok(());
-    }
 
     // Determine effective worker count: compile-time > CLI arg > interactive
     let compile_workers = if COMPILE_TIME_WORKERS > 0 {
@@ -271,85 +212,122 @@ async fn main() -> Result<()> {
             println!("Starting Wallet {:02}", wallet_idx);
 
             for task_id in &sequence_ids {
-                // 1. Get Client with ROTATED proxy
-                let client = match client_pool.get_client_with_rotated_proxy(wallet_idx).await {
-                    Ok(c) => c,
-                    Err(e) => {
-                        println!("❌ [Wallet {:02}] Client Error: {}", wallet_idx, e);
-                        continue;
-                    }
-                };
+                let mut attempt = 0;
 
-                let proxy_idx_str = client
-                    .proxy_index
-                    .map(|i| format!("{:03}", i))
-                    .unwrap_or_else(|| "DIR".to_string());
+                // Infinite retry loop until task succeeds
+                loop {
+                    attempt += 1;
 
-                // 2. Instantiate Task
-                let task: Box<dyn TempoTask> = match task_id {
-                    2 => Box::new(tempo_spammer::tasks::t02_claim_faucet::ClaimFaucetTask::new()),
-                    4 => Box::new(tempo_spammer::tasks::t04_create_stable::CreateStableTask::new()),
-                    7 => Box::new(tempo_spammer::tasks::t07_mint_stable::MintStableTask::new()),
-                    21 => Box::new(tempo_spammer::tasks::t21_create_meme::CreateMemeTask::new()),
-                    22 => Box::new(tempo_spammer::tasks::t22_mint_meme::MintMemeTask::new()),
-                    _ => {
-                        println!(
-                            "⚠️ [Wallet {:02}] Task {} not implemented in sequence runner",
-                            wallet_idx, task_id
-                        );
-                        continue;
-                    }
-                };
-
-                println!(
-                    "▶️  [Wallet {:02}] Task {:02} | Proxy {} | Running...",
-                    wallet_idx, task_id, proxy_idx_str
-                );
-
-                let context = TaskContext::new(client, config.clone(), db.clone());
-                let start = std::time::Instant::now();
-
-                // Run Task
-                let result = tokio::time::timeout(context.timeout, task.run(&context)).await;
-                let duration = start.elapsed();
-
-                match result {
-                    Ok(Ok(res)) => {
-                        if res.success {
-                            println!(
-                                "✅ [Wallet {:02}] Task {:02} | {:.2}s | {}",
-                                wallet_idx,
-                                task_id,
-                                duration.as_secs_f64(),
-                                res.message
-                            );
-                        } else {
-                            println!(
-                                "❌ [Wallet {:02}] Task {:02} | {:.2}s | Failed: {}",
-                                wallet_idx,
-                                task_id,
-                                duration.as_secs_f64(),
-                                res.message
-                            );
+                    // 1. Get Client with Random Proxy (new proxy every attempt)
+                    let rotate_offset = rand::thread_rng().gen_range(0..100);
+                    let client = match client_pool
+                        .get_client_with_rotated_proxy(wallet_idx, rotate_offset)
+                        .await
+                    {
+                        Ok(c) => c,
+                        Err(e) => {
+                            if attempt % 5 == 0 || attempt == 1 {
+                                println!(
+                                    "⚠️  [Wallet {:02}] Client/Proxy Error (Attempt {}): {}. Rotating proxy...",
+                                    wallet_idx, attempt, e
+                                );
+                            }
+                            tokio::time::sleep(Duration::from_millis(1000)).await;
+                            continue;
                         }
-                    }
-                    Ok(Err(e)) => {
-                        println!(
-                            "❌ [Wallet {:02}] Task {:02} | {:.2}s | Error: {:?}",
-                            wallet_idx,
-                            task_id,
-                            duration.as_secs_f64(),
-                            e
-                        );
-                    }
-                    Err(_) => {
-                        println!(
-                            "❌ [Wallet {:02}] Task {:02} | Timeout",
-                            wallet_idx, task_id
-                        );
-                    }
-                }
+                    };
 
+                    let proxy_idx_str = client
+                        .proxy_index
+                        .map(|i| format!("{:03}", i))
+                        .unwrap_or_else(|| "DIR".to_string());
+
+                    // 2. Instantiate Task
+                    let task: Box<dyn TempoTask> = match task_id {
+                        2 => {
+                            Box::new(tempo_spammer::tasks::t02_claim_faucet::ClaimFaucetTask::new())
+                        }
+                        4 => Box::new(
+                            tempo_spammer::tasks::t04_create_stable::CreateStableTask::new(),
+                        ),
+                        7 => Box::new(tempo_spammer::tasks::t07_mint_stable::MintStableTask::new()),
+                        21 => {
+                            Box::new(tempo_spammer::tasks::t21_create_meme::CreateMemeTask::new())
+                        }
+                        22 => Box::new(tempo_spammer::tasks::t22_mint_meme::MintMemeTask::new()),
+                        _ => {
+                            println!(
+                                "⚠️ [Wallet {:02}] Task {} not implemented in sequence runner",
+                                wallet_idx, task_id
+                            );
+                            break; // Skip non-implemented tasks
+                        }
+                    };
+
+                    println!(
+                        "▶️  [Wallet {:02}] Task {:02} | Proxy {} | Attempt {} | Running...",
+                        wallet_idx, task_id, proxy_idx_str, attempt
+                    );
+
+                    let context = TaskContext::new(client, config.clone(), db.clone());
+                    let start = std::time::Instant::now();
+
+                    // 3. Run Task
+                    let result = tokio::time::timeout(context.timeout, task.run(&context)).await;
+                    let duration = start.elapsed();
+
+                    // 4. Handle Result
+                    let success = match result {
+                        Ok(Ok(res)) => {
+                            if res.success {
+                                println!(
+                                    "✅ [Wallet {:02}] Task {:02} | {:.2}s | {}",
+                                    wallet_idx,
+                                    task_id,
+                                    duration.as_secs_f64(),
+                                    res.message
+                                );
+                                true
+                            } else {
+                                println!(
+                                    "❌ [Wallet {:02}] Task {:02} | {:.2}s | Failed: {}",
+                                    wallet_idx,
+                                    task_id,
+                                    duration.as_secs_f64(),
+                                    res.message
+                                );
+                                false
+                            }
+                        }
+                        Ok(Err(e)) => {
+                            println!(
+                                "❌ [Wallet {:02}] Task {:02} | {:.2}s | Error: {:?}",
+                                wallet_idx,
+                                task_id,
+                                duration.as_secs_f64(),
+                                e
+                            );
+                            false
+                        }
+                        Err(_) => {
+                            println!(
+                                "❌ [Wallet {:02}] Task {:02} | {:.2}s | Timeout",
+                                wallet_idx,
+                                task_id,
+                                duration.as_secs_f64()
+                            );
+                            false
+                        }
+                    };
+
+                    if success {
+                        break; // Move to next task
+                    }
+
+                    // Wait before retry
+                    let sleep_time = if attempt < 5 { 2000 } else { 5000 };
+                    tokio::time::sleep(Duration::from_millis(sleep_time)).await;
+                }
                 // Small delay between tasks for same wallet
                 tokio::time::sleep(Duration::from_millis(500)).await;
             }
@@ -367,35 +345,4 @@ async fn main() -> Result<()> {
 
     println!("All wallets completed.");
     Ok(())
-}
-
-/// Check which tasks from the sequence have been completed by this wallet
-async fn check_wallet_completion(
-    db: &Arc<DatabaseManager>,
-    wallet_address: &str,
-    sequence_ids: &[u32],
-) -> Vec<u32> {
-    let mut completed = Vec::new();
-
-    for &task_id in sequence_ids {
-        // Query database for successful task completion
-        let task_name = match task_id {
-            2 => "ClaimFaucet",
-            4 => "CreateStable",
-            7 => "MintStable",
-            21 => "CreateMeme",
-            22 => "MintMeme",
-            _ => continue,
-        };
-
-        match db.has_task_succeeded(wallet_address, task_name).await {
-            Ok(true) => completed.push(task_id),
-            Ok(false) => {}
-            Err(e) => {
-                eprintln!("⚠️  DB query error for {}: {}", task_name, e);
-            }
-        }
-    }
-
-    completed
 }

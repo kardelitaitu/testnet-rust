@@ -10,9 +10,9 @@ rpc_url = "https://rpc.moderato.tempo.xyz"
 chain_id = 42431
 
 # Worker Settings
-worker_count = 20
-connection_semaphore = 300  # Max concurrent connections (default: 100)
-worker_semaphore = 2        # Per-worker concurrent limit (prevents burst patterns)
+worker_count = 5
+connection_semaphore = 500  # Max concurrent connections (default: 100)
+worker_semaphore = 10        # Per-worker concurrent limit (prevents burst patterns)
 
 # Gas Settings (Fee AMM)
 default_gas_limit = 1000000
@@ -20,8 +20,19 @@ max_fee_per_gas = 200000000000
 priority_fee_per_gas = 2000000000
 
 # Task Settings (in milliseconds)
-task_interval_min = 300
-task_interval_max = 600
+task_interval_min = 100
+task_interval_max = 300
 
 # Task Timeout (in seconds)
-task_timeout = 15
+task_timeout = 20h
+
+# Nonce Management Settings - OPTIMIZED FOR SPEED
+nonce_base_cooldown_ms = 800       # Reduced from 1500ms - 0.8s = faster wallet reuse
+nonce_min_cooldown_ms = 300        # Reduced from 500ms - minimum 0.3s for quick recovery  
+nonce_adaptive_backoff = false     # DISABLED - don't double cooldown on errors (prevents slowdown)
+nonce_use_pending_count = true     # Keep enabled - ensures accurate nonce tracking
+nonce_per_wallet = true            # Keep enabled - essential for 2500 wallets
+nonce_shard_count = 32             # INCREASED from 16 - more shards = less contention (78 wallets/shard)
+nonce_retry_max = 3                # REDUCED from 5 - fail faster, don't waste time retrying
+nonce_retry_initial_ms = 50        # REDUCED from 100ms - faster initial retry
+nonce_retry_max_ms = 500           # REDUCED from 2000ms - cap retries at 0.5s

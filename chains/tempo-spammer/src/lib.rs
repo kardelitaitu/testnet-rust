@@ -130,6 +130,7 @@ pub mod nonce_manager;
 pub mod proxy_health;
 pub mod robust_nonce_manager;
 pub mod tasks;
+pub mod utils;
 
 pub use client::TempoClient;
 pub use client_pool::ClientPool;

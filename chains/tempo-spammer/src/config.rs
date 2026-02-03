@@ -53,6 +53,9 @@ pub struct TempoSpammerConfig {
     pub task_interval_max: u64,
     /// Task timeout in seconds
     pub task_timeout: u64,
+    /// Nonce management configuration
+    #[serde(default)]
+    pub nonce: NonceConfig,
 }
 
 fn default_connection_semaphore() -> usize {
@@ -61,6 +64,90 @@ fn default_connection_semaphore() -> usize {
 
 fn default_worker_semaphore() -> usize {
     5
+}
+
+/// Configuration for nonce management
+#[derive(Debug, Clone, Deserialize)]
+pub struct NonceConfig {
+    /// Base cooldown between wallet reuse in milliseconds (default: 1500ms)
+    #[serde(default = "default_nonce_base_cooldown_ms")]
+    pub base_cooldown_ms: u64,
+    /// Minimum cooldown for fast recovery in milliseconds (default: 500ms)
+    #[serde(default = "default_nonce_min_cooldown_ms")]
+    pub min_cooldown_ms: u64,
+    /// Whether to double cooldown on repeated errors (default: true)
+    #[serde(default = "default_nonce_adaptive_backoff")]
+    pub adaptive_backoff: bool,
+    /// Use pending tx count instead of confirmed count (default: true)
+    #[serde(default = "default_nonce_use_pending_count")]
+    pub use_pending_count: bool,
+    /// Use per-wallet isolated managers (default: true)
+    #[serde(default = "default_nonce_per_wallet")]
+    pub per_wallet: bool,
+    /// Number of nonce manager shards (default: 16)
+    #[serde(default = "default_nonce_shard_count")]
+    pub shard_count: usize,
+    /// Max retries on nonce errors (default: 5)
+    #[serde(default = "default_nonce_retry_max")]
+    pub retry_max: u32,
+    /// Initial backoff delay for retries in milliseconds (default: 100ms)
+    #[serde(default = "default_nonce_retry_initial_ms")]
+    pub retry_initial_ms: u64,
+    /// Maximum backoff delay for retries in milliseconds (default: 2000ms)
+    #[serde(default = "default_nonce_retry_max_ms")]
+    pub retry_max_ms: u64,
+}
+
+impl Default for NonceConfig {
+    fn default() -> Self {
+        Self {
+            base_cooldown_ms: 1500,
+            min_cooldown_ms: 500,
+            adaptive_backoff: true,
+            use_pending_count: true,
+            per_wallet: true,
+            shard_count: 16,
+            retry_max: 5,
+            retry_initial_ms: 100,
+            retry_max_ms: 2000,
+        }
+    }
+}
+
+fn default_nonce_base_cooldown_ms() -> u64 {
+    1500
+}
+
+fn default_nonce_min_cooldown_ms() -> u64 {
+    500
+}
+
+fn default_nonce_adaptive_backoff() -> bool {
+    true
+}
+
+fn default_nonce_use_pending_count() -> bool {
+    true
+}
+
+fn default_nonce_per_wallet() -> bool {
+    true
+}
+
+fn default_nonce_shard_count() -> usize {
+    16
+}
+
+fn default_nonce_retry_max() -> u32 {
+    5
+}
+
+fn default_nonce_retry_initial_ms() -> u64 {
+    100
+}
+
+fn default_nonce_retry_max_ms() -> u64 {
+    2000
 }
 
 fn deserialize_u128<'de, D>(deserializer: D) -> Result<u128, D::Error>

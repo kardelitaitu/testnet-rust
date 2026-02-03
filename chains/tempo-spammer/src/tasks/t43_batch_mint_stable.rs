@@ -119,8 +119,13 @@ impl TempoTask for BatchMintStableTask {
 
             let mut grant_success = false;
 
-            // Try Granting ISSUER_ROLE
-            let nonce = client.get_pending_nonce(&ctx.config.rpc_url).await?;
+            // Try Granting ISSUER_ROLE with atomic nonce
+            let nonce = if let Some(manager) = &client.nonce_manager {
+                manager.get_and_increment(address).await.unwrap_or(0)
+            } else {
+                client.get_pending_nonce(&ctx.config.rpc_url).await?
+            };
+
             let grant_issuer = IMintable::grantRoleCall {
                 role: FixedBytes::from(ISSUER_ROLE),
                 account: address,
@@ -144,7 +149,11 @@ impl TempoTask for BatchMintStableTask {
             // Fallback to MINTER_ROLE if ISSUER failed
             if !grant_success {
                 tracing::debug!("  -> ISSUER_ROLE grant failed, trying MINTER_ROLE...");
-                let nonce = client.get_pending_nonce(&ctx.config.rpc_url).await?;
+                let nonce = if let Some(manager) = &client.nonce_manager {
+                    manager.get_and_increment(address).await.unwrap_or(0)
+                } else {
+                    client.get_pending_nonce(&ctx.config.rpc_url).await?
+                };
                 let grant_minter = IMintable::grantRoleCall {
                     role: FixedBytes::from(MINTER_ROLE),
                     account: address,
@@ -235,8 +244,12 @@ impl TempoTask for BatchMintStableTask {
             calls.len()
         );
 
-        // 3. Construct 0x76 Transaction
-        let nonce = client.get_pending_nonce(&ctx.config.rpc_url).await?;
+        // 3. Construct 0x76 Transaction with atomic nonce
+        let nonce = if let Some(manager) = &client.nonce_manager {
+            manager.get_and_increment(address).await.unwrap_or(0)
+        } else {
+            client.get_pending_nonce(&ctx.config.rpc_url).await?
+        };
         let gas_price = client.provider.get_gas_price().await?;
         let max_fee = U256::from(gas_price) * U256::from(120) / U256::from(100);
 

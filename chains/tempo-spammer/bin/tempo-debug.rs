@@ -3,6 +3,7 @@ use clap::Parser;
 use core_logic::WalletManager;
 use core_logic::database::DatabaseManager;
 use core_logic::traits::TaskResult;
+use dialoguer::{Password, theme::ColorfulTheme};
 use dotenv::dotenv;
 use rand::Rng;
 use std::env;
@@ -66,8 +67,8 @@ async fn main() -> Result<()> {
         config.rpc_url, config.chain_id
     );
 
-    // Load wallet
-    let wallet_password = env::var("WALLET_PASSWORD").ok();
+    // Load wallet with password handling
+    let mut wallet_password = env::var("WALLET_PASSWORD").ok();
     let wallet_manager = WalletManager::new()?;
     let total_wallets = wallet_manager.count();
 
@@ -85,6 +86,27 @@ async fn main() -> Result<()> {
     }
 
     println!("Using wallet {} of {}", args.wallet, total_wallets);
+
+    // Test wallet decryption with current password
+    if let Err(_) = wallet_manager
+        .get_wallet(args.wallet, wallet_password.as_deref())
+        .await
+    {
+        println!("\n⚠️  Decryption failed with env KEY (or KEY unset/wrong).");
+        let input = Password::with_theme(&ColorfulTheme::default())
+            .with_prompt("Enter wallet password")
+            .interact()?;
+        wallet_password = Some(input);
+
+        // Validate password works
+        if let Err(e) = wallet_manager
+            .get_wallet(args.wallet, wallet_password.as_deref())
+            .await
+        {
+            println!("❌ Decryption failed even with provided password: {}", e);
+            return Ok(());
+        }
+    }
 
     // Get the directory containing the config file
     let config_path_obj = std::path::Path::new(&config_path);

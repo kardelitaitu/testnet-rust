@@ -111,6 +111,8 @@ pub struct TempoClient {
     pub nonce_manager: Option<Arc<crate::NonceManager>>,
     /// Optional robust nonce manager with per-request tracking (recommended)
     pub robust_nonce_manager: Option<Arc<crate::RobustNonceManager>>,
+    /// Whether to use pending transaction count instead of confirmed count
+    pub use_pending_count: bool,
 }
 
 impl TempoClient {
@@ -164,6 +166,7 @@ impl TempoClient {
         proxy_index: Option<usize>,
         nonce_manager: Option<Arc<crate::NonceManager>>,
         robust_nonce_manager: Option<Arc<crate::RobustNonceManager>>,
+        use_pending_count: bool,
     ) -> Result<Self> {
         let signer: PrivateKeySigner =
             private_key.parse().context("Failed to parse private key")?;
@@ -212,6 +215,7 @@ impl TempoClient {
             proxy_index,
             nonce_manager,
             robust_nonce_manager,
+            use_pending_count,
         };
 
         // Phase 3: Verify provider is ready before returning
@@ -337,6 +341,7 @@ impl TempoClient {
             proxy_index,
             nonce_manager: None,
             robust_nonce_manager: None,
+            use_pending_count: false,
         };
 
         // Phase 3: Verify provider is ready before returning
@@ -515,11 +520,18 @@ impl TempoClient {
 
         // 2. Fallback to RPC using existing provider (avoids creating new HTTP clients)
         // This prevents connection pool exhaustion when many tasks run concurrently
-        let rpc_nonce = self
-            .provider
-            .get_transaction_count(address)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to get transaction count: {}", e))?;
+        // Use pending block tag if configured to get transactions in mempool
+        let rpc_nonce = if self.use_pending_count {
+            self.provider
+                .get_transaction_count(address)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to get pending transaction count: {}", e))?
+        } else {
+            self.provider
+                .get_transaction_count(address)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to get transaction count: {}", e))?
+        };
 
         // 3. Update Manager with NEXT expected nonce
         if let Some(manager) = &self.nonce_manager {

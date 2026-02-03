@@ -1,19 +1,21 @@
 //! Mint Random NFT Task
 //!
 //! Randomly selects an NFT from wallet's collection and mints 1-5 units to the same wallet.
+//! If no NFT collections exist, deploys a new one first.
 //!
 //! Workflow:
 //! 1. Query database for NFT collections owned by wallet
-//! 2. Randomly select one NFT collection
-//! 3. Mint 1-5 random NFTs to the wallet from that collection
-//! 4. Log results and return count
+//! 2. If none exist, deploy a new NFT collection
+//! 3. Randomly select one NFT collection (existing or newly created)
+//! 4. Mint 1-5 random NFTs to the wallet from that collection
+//! 5. Log results and return count
 
 use crate::TempoClient;
 use crate::tasks::{TaskContext, TaskResult, TempoTask};
-use alloy::primitives::{Address, U256};
+use alloy::primitives::{Address, TxKind, U256};
 use alloy::rpc::types::{TransactionInput, TransactionRequest};
 use alloy::sol;
-use alloy_sol_types::SolCall;
+use alloy_sol_types::{SolCall, SolEvent};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use rand::Rng;
@@ -25,8 +27,20 @@ sol! {
     interface IMinimalNFT {
         function mint(address to) external;
         function balanceOf(address owner) external view returns (uint256);
+        function grantRole(address minter) external;
+        event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
     }
 }
+
+// Load NFT bytecode from compiled contract file at compile time
+fn load_nft_bytecode() -> Result<Vec<u8>> {
+    let bytecode_hex = include_str!("../contracts/MinimalNFT.bin");
+    hex::decode(bytecode_hex.trim()).context("Loading NFT contract bytecode")
+}
+
+// Error message constants
+const ERR_NONCE_TOO_LOW: &str = "nonce too low";
+const ERR_ALREADY_KNOWN: &str = "already known";
 
 #[derive(Debug, Clone, Default)]
 pub struct MintRandomNftTask;
@@ -52,23 +66,11 @@ impl TempoTask for MintRandomNftTask {
 
         // Step 1: Query database for NFT collections
         let available_collections = if let Some(db) = &ctx.db {
-            // println!("🔍 Querying database for NFT collections...");
-
             match db.get_assets_by_type(&wallet_address, "nft").await {
-                Ok(collections) => {
-                    // println!(
-                    //     "📊 Found {} NFT collection(s) in database",
-                    //     collections.len()
-                    // );
-                    collections
-                }
-                Err(_e) => {
-                    // println!("❌ Failed to query database: {:?}", _e);
-                    Vec::new()
-                }
+                Ok(collections) => collections,
+                Err(_e) => Vec::new(),
             }
         } else {
-            // println!("⚠️ No database available - no NFTs to mint");
             return Ok(TaskResult {
                 success: false,
                 message: "No NFT collections available to mint from.".to_string(),
@@ -76,35 +78,53 @@ impl TempoTask for MintRandomNftTask {
             });
         };
 
-        if available_collections.is_empty() {
-            return Ok(TaskResult {
-                success: false,
-                message: "No NFT collections found for this wallet.".to_string(),
-                tx_hash: None,
-            });
-        }
+        // Step 2: If no collections exist, deploy a new one
+        let selected_collection = if available_collections.is_empty() {
+            tracing::info!(
+                "No NFT collections found for wallet {}, deploying new collection...",
+                wallet_address
+            );
 
-        // Step 2: Randomly select one NFT collection
-        let selected_collection = match available_collections.choose(&mut rng) {
-            Some(collection) => {
-                // println!("🎯 Selected NFT collection: {}", collection);
-                collection.to_string()
+            // Deploy new NFT collection
+            match deploy_nft_collection(client, address, ctx).await {
+                Ok(contract_address) => {
+                    tracing::info!(
+                        "Successfully deployed NFT collection at {}",
+                        contract_address
+                    );
+                    contract_address
+                }
+                Err(e) => {
+                    return Ok(TaskResult {
+                        success: false,
+                        message: format!(
+                            "No NFT collections found and failed to deploy new one: {}",
+                            e
+                        ),
+                        tx_hash: None,
+                    });
+                }
             }
-            None => {
-                return Ok(TaskResult {
-                    success: false,
-                    message: "Failed to select random NFT collection.".to_string(),
-                    tx_hash: None,
-                });
+        } else {
+            // Randomly select one NFT collection
+            match available_collections.choose(&mut rng) {
+                Some(collection) => {
+                    tracing::debug!("Selected NFT collection: {}", collection);
+                    collection.to_string()
+                }
+                None => {
+                    return Ok(TaskResult {
+                        success: false,
+                        message: "Failed to select random NFT collection.".to_string(),
+                        tx_hash: None,
+                    });
+                }
             }
         };
 
         // Step 3: Parse contract address
         let contract_address = match Address::from_str(&selected_collection) {
-            Ok(addr) => {
-                // println!("✅ Parsed collection address: {:?}", addr);
-                addr
-            }
+            Ok(addr) => addr,
             Err(e) => {
                 return Ok(TaskResult {
                     success: false,
@@ -119,22 +139,14 @@ impl TempoTask for MintRandomNftTask {
 
         // Step 4: Generate random number of NFTs to mint (1-5)
         let nfts_to_mint = rng.gen_range(1..=5);
-        // println!(
-        //     "🎲 Will mint {} NFT(s) from collection {}",
-        //     nfts_to_mint, selected_collection
-        // );
 
         // Step 5: Mint NFTs
         let mut successful_mints = 0;
         let mut minted_token_ids = Vec::new();
 
         for _i in 0..nfts_to_mint {
-            // println!("🪙 Minting NFT {}/{}...", _i + 1, nfts_to_mint);
-
             let mint_call = IMinimalNFT::mintCall { to: address };
             let mint_input = mint_call.abi_encode();
-
-            // let nonce = client.get_pending_nonce(&ctx.config.rpc_url).await?;
 
             let mint_tx = TransactionRequest::default()
                 .to(contract_address)
@@ -152,7 +164,9 @@ impl TempoTask for MintRandomNftTask {
                 }
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
-                    if err_str.contains("nonce too low") || err_str.contains("already known") {
+                    let nonce_error =
+                        err_str.contains(ERR_NONCE_TOO_LOW) || err_str.contains(ERR_ALREADY_KNOWN);
+                    if nonce_error {
                         tracing::warn!("Nonce error on NFT mint, resetting cache and retrying...");
                         client.reset_nonce_cache().await;
                         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
@@ -161,8 +175,6 @@ impl TempoTask for MintRandomNftTask {
                             successful_mints += 1;
                             minted_token_ids.push(format!("{:?}", mint_hash));
                         }
-                    } else {
-                        // println!("❌ Mint {} failed to send: {:?}", _i + 1, e);
                     }
                 }
             }
@@ -191,4 +203,101 @@ impl TempoTask for MintRandomNftTask {
             },
         })
     }
+}
+
+/// Deploy a new NFT collection for the wallet
+async fn deploy_nft_collection(
+    client: &TempoClient,
+    address: Address,
+    ctx: &TaskContext,
+) -> Result<String> {
+    let bytecode = load_nft_bytecode()?;
+
+    let mut deploy_tx = TransactionRequest::default()
+        .input(TransactionInput::from(bytecode))
+        .from(address)
+        .max_fee_per_gas(150_000_000_000u128)
+        .max_priority_fee_per_gas(1_500_000_000u128);
+
+    deploy_tx.to = Some(TxKind::Create);
+
+    // Send deploy with retry logic
+    let pending = match client.provider.send_transaction(deploy_tx.clone()).await {
+        Ok(p) => p,
+        Err(e) => {
+            let err_str = e.to_string().to_lowercase();
+            let nonce_error =
+                err_str.contains(ERR_NONCE_TOO_LOW) || err_str.contains(ERR_ALREADY_KNOWN);
+            if nonce_error {
+                tracing::warn!("Nonce error on NFT deploy, resetting cache and retrying...");
+                client.reset_nonce_cache().await;
+                tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                client
+                    .provider
+                    .send_transaction(deploy_tx)
+                    .await
+                    .context("Sending deployment transaction")?
+            } else {
+                return Err(e).context("Creating NFT contract");
+            }
+        }
+    };
+
+    let tx_hash = *pending.tx_hash();
+    let receipt = pending
+        .get_receipt()
+        .await
+        .context("Getting transaction confirmation")?;
+
+    if !receipt.inner.status() {
+        anyhow::bail!("NFT deployment transaction failed. Tx: {:?}", tx_hash);
+    }
+
+    let contract_address = receipt
+        .contract_address
+        .ok_or_else(|| anyhow::anyhow!("Missing contract address in transaction result"))?;
+
+    let contract_address_str = format!("{:?}", contract_address);
+
+    // Grant minter role to self
+    let grant_call = IMinimalNFT::grantRoleCall { minter: address };
+    let grant_input = grant_call.abi_encode();
+
+    let grant_tx = TransactionRequest::default()
+        .to(contract_address)
+        .input(TransactionInput::from(grant_input))
+        .from(address)
+        .max_fee_per_gas(150_000_000_000u128)
+        .max_priority_fee_per_gas(1_500_000_000u128);
+
+    match client.provider.send_transaction(grant_tx).await {
+        Ok(grant_pending) => {
+            let _ = grant_pending.get_receipt().await;
+            tracing::debug!(
+                "Granted minter role for NFT collection {}",
+                contract_address_str
+            );
+        }
+        Err(e) => {
+            tracing::warn!("Failed to grant minter role (continuing anyway): {}", e);
+        }
+    }
+
+    // Log to database if available
+    if let Some(db) = &ctx.db {
+        if let Err(e) = db
+            .log_asset_creation(
+                &format!("{:?}", address),
+                &contract_address_str,
+                "nft",
+                "TempoNFT",
+                "TNF",
+            )
+            .await
+        {
+            tracing::warn!("Failed to log NFT creation to database: {}", e);
+        }
+    }
+
+    Ok(contract_address_str)
 }

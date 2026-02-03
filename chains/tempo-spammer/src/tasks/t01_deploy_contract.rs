@@ -32,17 +32,37 @@ impl TempoTask for DeployContractTask {
             hex::decode(bytecode_hex).map_err(|e| anyhow!("Invalid bytecode hex: {}", e))?;
         let bytecode = Bytes::from(bytecode);
 
-        let mut tx = TransactionRequest::default()
-            .input(bytecode.into())
-            .from(ctx.address())
-            .gas_limit(500_000);
-        tx.to = Some(alloy::primitives::TxKind::Create);
-
-        // Send with retry logic for nonce errors
+        // Send with retry logic for nonce errors using explicit nonce management
         let mut attempt = 0;
         let max_retries = 3;
         let pending = loop {
-            match client.provider.send_transaction(tx.clone()).await {
+            // Get fresh nonce BEFORE building transaction
+            let nonce = match client.get_pending_nonce(&ctx.config.rpc_url).await {
+                Ok(n) => n,
+                Err(e) => {
+                    attempt += 1;
+                    tracing::error!(
+                        "Failed to get nonce for deploy (attempt {}/{}): {}",
+                        attempt,
+                        max_retries,
+                        e
+                    );
+                    if attempt >= max_retries {
+                        return Err(e).context("Failed to get nonce after max retries");
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    continue;
+                }
+            };
+
+            let mut tx = TransactionRequest::default()
+                .input(bytecode.clone().into())
+                .from(ctx.address())
+                .nonce(nonce) // EXPLICIT NONCE - prevents race conditions
+                .gas_limit(500_000);
+            tx.to = Some(alloy::primitives::TxKind::Create);
+
+            match client.provider.send_transaction(tx).await {
                 Ok(p) => break p,
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
@@ -59,7 +79,7 @@ impl TempoTask for DeployContractTask {
 
                         // Reset nonce cache and wait
                         client.reset_nonce_cache().await;
-                        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
                         continue;
                     } else {
                         return Err(e).context("Failed to send deployment transaction");

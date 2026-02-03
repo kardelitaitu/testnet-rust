@@ -140,15 +140,42 @@ impl TempoTask for GrantRoleTask {
             account: address,
         };
 
-        // Retry logic for nonce races
+        // Retry logic for nonce races with explicit nonce management
         let mut retry_count = 0;
         const MAX_RETRIES: u32 = 3;
 
         let pending = loop {
+            // Get fresh nonce BEFORE building transaction
+            let nonce = match client.get_pending_nonce(&ctx.config.rpc_url).await {
+                Ok(n) => n,
+                Err(e) => {
+                    retry_count += 1;
+                    tracing::error!(
+                        "Failed to get nonce for grant role (attempt {}/{}): {}",
+                        retry_count,
+                        MAX_RETRIES,
+                        e
+                    );
+                    if retry_count >= MAX_RETRIES {
+                        return Ok(TaskResult {
+                            success: false,
+                            message: format!(
+                                "Failed to get nonce after {} retries: {}",
+                                MAX_RETRIES, e
+                            ),
+                            tx_hash: None,
+                        });
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    continue;
+                }
+            };
+
             let tx = TransactionRequest::default()
                 .to(token_addr)
                 .input(TransactionInput::from(grant_call.clone().abi_encode()))
                 .from(address)
+                .nonce(nonce) // EXPLICIT NONCE - prevents race conditions
                 .max_fee_per_gas(150_000_000_000u128)
                 .max_priority_fee_per_gas(1_500_000_000u128);
 
@@ -157,17 +184,19 @@ impl TempoTask for GrantRoleTask {
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
 
-                    // Check for nonce too low error
-                    if err_str.contains("nonce too low") && retry_count < MAX_RETRIES {
+                    // Check for nonce errors
+                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
+                        && retry_count < MAX_RETRIES
+                    {
                         retry_count += 1;
                         tracing::warn!(
-                            "Nonce too low on grant role attempt {}/{}, refreshing and retrying...",
+                            "Nonce error on grant role attempt {}/{}, resetting cache and retrying...",
                             retry_count,
                             MAX_RETRIES
                         );
-                        // Reset nonce cache and retry
+                        // Reset nonce cache and retry with fresh nonce
                         client.reset_nonce_cache().await;
-                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
                         continue;
                     }
 

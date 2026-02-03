@@ -184,6 +184,17 @@ cargo run --release --bin tempo-spammer
 .\target\release\tempo-spammer.exe
 ```
 
+### Tempo Sequence Runner (For fixed sequence tasks)
+```bash
+# Run the fixed sequence (Faucet -> Stable -> Meme)
+cargo run --release --bin tempo-sequence
+
+# Options:
+# --workers <N>      Set number of concurrent workers (default: 5)
+# --start-from <N>   Start from specific wallet index
+cargo run --release --bin tempo-sequence -- --workers 20 --start-from 100
+```
+
 ### RiseChain Spammer
 ```bash
 cargo run --release --bin rise-project

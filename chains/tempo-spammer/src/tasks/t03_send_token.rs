@@ -94,23 +94,55 @@ impl TempoTask for SendTokenTask {
         transfer_data.extend_from_slice(dest.as_slice());
         transfer_data.extend_from_slice(&amount.to_be_bytes_vec());
 
-        // Send with retry logic for nonce errors (1 retry)
-        let base_tx = TransactionRequest::default()
-            .to(token_address)
-            .input(transfer_data.into())
-            .from(address);
+        // Send with retry logic for nonce errors using explicit nonce management
+        let mut attempt = 0;
+        let max_retries = 3;
+        let pending = loop {
+            // Get fresh nonce BEFORE building transaction
+            let nonce = match client.get_pending_nonce(&ctx.config.rpc_url).await {
+                Ok(n) => n,
+                Err(e) => {
+                    attempt += 1;
+                    tracing::error!(
+                        "Failed to get nonce for send_token (attempt {}/{}): {}",
+                        attempt,
+                        max_retries,
+                        e
+                    );
+                    if attempt >= max_retries {
+                        return Err(e.into());
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    continue;
+                }
+            };
 
-        let pending = match client.provider.send_transaction(base_tx.clone()).await {
-            Ok(p) => p,
-            Err(e) => {
-                let err_str = e.to_string().to_lowercase();
-                if err_str.contains("nonce too low") || err_str.contains("already known") {
-                    tracing::warn!("Nonce error on send_token, resetting cache and retrying...");
-                    client.reset_nonce_cache().await;
-                    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-                    client.provider.send_transaction(base_tx).await?
-                } else {
-                    return Err(e.into());
+            let tx = TransactionRequest::default()
+                .to(token_address)
+                .input(transfer_data.clone().into())
+                .from(address)
+                .nonce(nonce); // EXPLICIT NONCE - prevents race conditions
+
+            match client.provider.send_transaction(tx).await {
+                Ok(p) => break p,
+                Err(e) => {
+                    let err_str = e.to_string().to_lowercase();
+                    attempt += 1;
+
+                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
+                        && attempt < max_retries
+                    {
+                        tracing::warn!(
+                            "Nonce error on send_token, attempt {}/{}, resetting cache...",
+                            attempt,
+                            max_retries
+                        );
+                        client.reset_nonce_cache().await;
+                        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                        continue;
+                    } else {
+                        return Err(e.into());
+                    }
                 }
             }
         };
