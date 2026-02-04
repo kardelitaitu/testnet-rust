@@ -1,11 +1,10 @@
 use crate::task::{Task, TaskContext, TaskResult};
-use anyhow::{Context, Result};
+use crate::utils::address_cache::AddressCache;
+use anyhow::Result;
 use async_trait::async_trait;
 use ethers::prelude::*;
 use rand::rngs::OsRng;
-use rand::seq::SliceRandom;
 use rand::Rng;
-use std::fs;
 use std::sync::Arc;
 use tracing::debug;
 
@@ -28,11 +27,8 @@ impl Task<TaskContext> for BatchTransferTask {
         let wallet = &ctx.wallet;
         let address = wallet.address();
 
-        let recipients = fs::read_to_string("address.txt").context("Failed to read address.txt")?;
-        let recipient_list: Vec<&str> = recipients
-            .lines()
-            .filter(|l| !l.trim().is_empty())
-            .collect();
+        // Get random recipients from address cache
+        let recipients = AddressCache::get_random_many(5)?;
 
         let num_transfers = 5;
         let mut rng = OsRng;
@@ -52,20 +48,11 @@ impl Task<TaskContext> for BatchTransferTask {
         let (max_fee, priority_fee) = ctx.gas_manager.get_fees().await?;
         let gas_limit = crate::utils::gas::GasManager::LIMIT_TRANSFER;
 
-        for i in 0..num_transfers {
-            let recipient_str = recipient_list
-                .choose(&mut OsRng)
-                .context("address.txt is empty")?;
-
-            let recipient: Address = recipient_str
-                .trim()
-                .parse()
-                .context(format!("Invalid address in address.txt: {}", recipient_str))?;
-
+        for (i, recipient) in recipients.iter().enumerate() {
             let nonce = nonce_manager.next().await?;
 
             let tx = Eip1559TransactionRequest::new()
-                .to(recipient)
+                .to(*recipient)
                 .value(amount_wei)
                 .gas(gas_limit)
                 .max_fee_per_gas(max_fee)
@@ -82,19 +69,17 @@ impl Task<TaskContext> for BatchTransferTask {
                     let tx_hash = format!("{:?}", pending.tx_hash());
                     tx_hashes.push(tx_hash.clone());
                     debug!(
-                        "🚀 Transfer {}/{} sent: {} (Nonce: {})",
+                        "Transfer {}/{} sent: {} (Nonce: {})",
                         i + 1,
                         num_transfers,
                         tx_hash,
                         nonce
                     );
                     success_count += 1;
-                    // We DO NOT await the receipt here to keep it fast
                 }
                 Err(e) => {
-                    debug!("❌ Transfer {}/{} failed: {}", i + 1, num_transfers, e);
+                    debug!("Transfer {}/{} failed: {}", i + 1, num_transfers, e);
                     tx_hashes.push("failed".to_string());
-                    // If failed, we should probably resync nonce, but for now we just continue
                     let _ = nonce_manager.resync().await;
                 }
             }

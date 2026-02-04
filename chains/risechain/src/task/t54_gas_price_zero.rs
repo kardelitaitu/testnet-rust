@@ -1,4 +1,5 @@
 use crate::task::{Task, TaskContext, TaskResult};
+use crate::utils::address_cache::AddressCache;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::prelude::*;
@@ -22,19 +23,9 @@ impl Task<TaskContext> for GasPriceZeroTask {
         let wallet = &ctx.wallet;
         let address = wallet.address();
 
-        let recipients =
-            std::fs::read_to_string("address.txt").context("Failed to read address.txt")?;
-        let recipient_list: Vec<&str> = recipients
-            .lines()
-            .filter(|l| !l.trim().is_empty())
-            .collect();
-
-        let recipient_str = recipient_list.first().context("address.txt is empty")?;
-
-        let recipient: Address = recipient_str
-            .trim()
-            .parse()
-            .context(format!("Invalid address: {}", recipient_str))?;
+        // Get first recipient from address cache
+        let recipients = AddressCache::all().context("Failed to get addresses")?;
+        let recipient = recipients.first().context("address.txt is empty")?;
 
         let amount_wei: u64 = 1_000_000_000;
 
@@ -52,7 +43,7 @@ impl Task<TaskContext> for GasPriceZeroTask {
             .unwrap_or_else(|_| amount_wei.to_string());
 
         let tx = Eip1559TransactionRequest::new()
-            .to(recipient)
+            .to(*recipient)
             .value(amount_wei)
             .gas(gas_limit)
             .max_fee_per_gas(max_fee)

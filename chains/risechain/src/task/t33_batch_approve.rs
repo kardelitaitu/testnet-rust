@@ -1,9 +1,8 @@
 use crate::task::{Task, TaskContext, TaskResult};
+use crate::utils::address_cache::AddressCache;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::prelude::*;
-use rand::rngs::OsRng;
-use rand::seq::SliceRandom;
 use std::sync::Arc;
 
 pub struct BatchApproveTask;
@@ -25,21 +24,8 @@ impl Task<TaskContext> for BatchApproveTask {
         let wallet = &ctx.wallet;
         let address = wallet.address();
 
-        let recipients =
-            std::fs::read_to_string("address.txt").context("Failed to read address.txt")?;
-        let recipient_list: Vec<&str> = recipients
-            .lines()
-            .filter(|l| !l.trim().is_empty())
-            .collect();
-
-        let spender_str = recipient_list
-            .choose(&mut OsRng)
-            .context("address.txt is empty")?;
-
-        let spender: Address = spender_str
-            .trim()
-            .parse()
-            .context(format!("Invalid spender: {}", spender_str))?;
+        // Get random spender from address cache
+        let spender = AddressCache::get_random().context("Failed to get random address")?;
 
         let tokens = [
             ("USDC", "0x8a93d247134d91e0de6f96547cb0204e5be8e5d8"),

@@ -3,11 +3,11 @@ use async_trait::async_trait;
 use ethers::prelude::*;
 use rand::rngs::OsRng;
 use rand::seq::SliceRandom;
-use std::fs;
 use std::sync::Arc;
 
 use crate::contracts::MEME_TOKEN_ABI;
 use crate::task::{Task, TaskContext, TaskResult};
+use crate::utils::address_cache::AddressCache;
 
 pub struct SendMemeTokenTask;
 
@@ -23,19 +23,8 @@ impl Task<TaskContext> for SendMemeTokenTask {
         let address = wallet.address();
         let wallet_str = format!("{:?}", address);
 
-        // 1. Pick Random Recipient from address.txt
-        let recipients = fs::read_to_string("address.txt").context("Failed to read address.txt")?;
-        let recipient_list: Vec<&str> = recipients
-            .lines()
-            .filter(|l| !l.trim().is_empty())
-            .collect();
-        let recipient_str = recipient_list
-            .choose(&mut OsRng)
-            .context("address.txt is empty")?;
-        let recipient: Address = recipient_str
-            .trim()
-            .parse()
-            .context(format!("Invalid address in address.txt: {}", recipient_str))?;
+        // 1. Pick Random Recipient from address cache
+        let recipient = AddressCache::get_random().context("Failed to get random address")?;
 
         // 2. Get Meme Tokens from DB
         let db = ctx.db.as_ref().context("Database not initialized")?;

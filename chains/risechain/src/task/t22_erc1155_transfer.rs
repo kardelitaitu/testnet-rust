@@ -1,9 +1,9 @@
 use crate::task::{Task, TaskContext, TaskResult};
+use crate::utils::address_cache::AddressCache;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::prelude::*;
 use rand::rngs::OsRng;
-use rand::seq::SliceRandom;
 use rand::Rng;
 use std::sync::Arc;
 use tracing::debug;
@@ -27,21 +27,8 @@ impl Task<TaskContext> for Erc1155TransferTask {
         let wallet = &ctx.wallet;
         let address = wallet.address();
 
-        let recipients =
-            std::fs::read_to_string("address.txt").context("Failed to read address.txt")?;
-        let recipient_list: Vec<&str> = recipients
-            .lines()
-            .filter(|l| !l.trim().is_empty())
-            .collect();
-
-        let recipient_str = recipient_list
-            .choose(&mut OsRng)
-            .context("address.txt is empty")?;
-
-        let recipient: Address = recipient_str
-            .trim()
-            .parse()
-            .context(format!("Invalid address in address.txt: {}", recipient_str))?;
+        // Get random recipient from address cache
+        let recipient = AddressCache::get_random().context("Failed to get random address")?;
 
         let mut rng = OsRng;
         let token_id: u64 = rng.gen_range(1_000_000..9_999_999);

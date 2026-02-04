@@ -1,10 +1,8 @@
 use crate::task::{Task, TaskContext, TaskResult};
+use crate::utils::address_cache::AddressCache;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::prelude::*;
-use rand::rngs::OsRng;
-use rand::seq::SliceRandom;
-use std::fs;
 
 pub struct SimpleEthTransferTask;
 
@@ -25,20 +23,8 @@ impl Task<TaskContext> for SimpleEthTransferTask {
         let wallet = &ctx.wallet;
         let address = wallet.address();
 
-        let recipients = fs::read_to_string("address.txt").context("Failed to read address.txt")?;
-        let recipient_list: Vec<&str> = recipients
-            .lines()
-            .filter(|l| !l.trim().is_empty())
-            .collect();
-
-        let recipient_str = recipient_list
-            .choose(&mut OsRng)
-            .context("address.txt is empty")?;
-
-        let recipient: Address = recipient_str
-            .trim()
-            .parse()
-            .context(format!("Invalid address in address.txt: {}", recipient_str))?;
+        // Get random recipient from address cache
+        let recipient = AddressCache::get_random().context("Failed to get random address")?;
 
         let (max_fee, priority_fee) = ctx.gas_manager.get_fees().await?;
         let gas_limit = crate::utils::gas::GasManager::LIMIT_TRANSFER;

@@ -102,6 +102,11 @@ async fn main() -> Result<()> {
         info!("Loaded {} proxies for rotation.", proxies.len());
     }
 
+    // Initialize Address Cache from root address.txt
+    use rise_project::utils::address_cache::AddressCache;
+    AddressCache::init()?;
+    info!("Address cache initialized from root address.txt");
+
     // Initialize Database
     let db_manager = core_logic::database::DatabaseManager::new("rise.db").await?;
     let db_arc = std::sync::Arc::new(db_manager);
