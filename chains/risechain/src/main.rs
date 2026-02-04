@@ -3,13 +3,13 @@ use rise_project::spammer;
 
 use anyhow::Result;
 use clap::Parser;
+use config::RiseConfig;
 use core_logic::metrics::MetricsCollector;
 use core_logic::{setup_logger, WorkerRunner};
-use rand; // Ensure rand is imported/available
-          // use core_logic::security::SecurityUtils;
-use config::RiseConfig;
+use dialoguer::{theme::ColorfulTheme, Password};
 use dotenv::dotenv;
-use ethers::prelude::*; // Import Signer trait for wallet.address()
+use ethers::prelude::*;
+use rand::seq::SliceRandom;
 use spammer::EvmSpammer;
 use std::env;
 use tokio::time::{interval, Duration};
@@ -18,7 +18,7 @@ use tracing::{error, info};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value = "config.toml")]
+    #[arg(short, long, default_value = "chains/risechain/config.toml")]
     config: String,
     #[arg(short, long)]
     export_metrics: Option<String>,
@@ -46,12 +46,55 @@ async fn main() -> Result<()> {
 
     info!("Configuration loaded for chain ID: {}", config.chain_id);
 
-    // Load Wallet Manager
-    let password = env::var("WALLET_PASSWORD").ok(); // Optional
+    // Load Wallet Manager with password handling
     let manager = core_logic::WalletManager::new()?;
     let total_wallets = manager.count();
 
     info!("Found {} wallet files.", total_wallets);
+
+    // Get password (env var first, then interactive fallback)
+    let wallet_password = if total_wallets > 0 {
+        let mut password = env::var("WALLET_PASSWORD").ok();
+
+        // Validate password or prompt
+        if password.is_none() || manager.get_wallet(0, password.as_deref()).await.is_err() {
+            if password.is_none() {
+                error!("WALLET_PASSWORD environment variable is not set.");
+            } else {
+                error!("Wallet decryption failed with provided password.");
+            }
+
+            // Try interactive prompt
+            match Password::with_theme(&ColorfulTheme::default())
+                .with_prompt("Enter wallet password")
+                .interact()
+            {
+                Ok(input) => {
+                    password = Some(input);
+                    // Validate interactive password
+                    if let Err(e) = manager.get_wallet(0, password.as_deref()).await {
+                        error!("Interactive password also failed: {}", e);
+                        return Ok(());
+                    }
+                    info!("Interactive password validated successfully.");
+                }
+                Err(_) => {
+                    // Non-interactive mode - show helpful error
+                    error!("Cannot prompt for password (not a terminal).");
+                    error!("Please set WALLET_PASSWORD environment variable:");
+                    error!("  PowerShell: $env:WALLET_PASSWORD='your_password'");
+                    error!("  CMD: set WALLET_PASSWORD=your_password");
+                    return Ok(());
+                }
+            }
+        } else {
+            info!("Wallet password validated successfully.");
+        }
+
+        password
+    } else {
+        None
+    };
 
     // Load proxies
     let proxies = core_logic::ProxyManager::load_proxies()?;
@@ -82,13 +125,19 @@ async fn main() -> Result<()> {
     );
 
     let mut rng = rand::thread_rng();
+    let mut wallet_indices: Vec<usize> = (0..total_wallets).collect();
+    wallet_indices.shuffle(&mut rng);
 
     for i in 0..max_workers {
+        let wallet_idx = wallet_indices[i];
         // Lazy decrypt
-        let decrypted = match manager.get_wallet(i, password.as_deref()).await {
+        let decrypted = match manager
+            .get_wallet(wallet_idx, wallet_password.as_deref())
+            .await
+        {
             Ok(w) => w,
             Err(e) => {
-                error!("Failed to decrypt wallet {}: {}", i, e);
+                error!("Failed to decrypt wallet {}: {}", wallet_idx, e);
                 continue;
             }
         };
@@ -109,7 +158,8 @@ async fn main() -> Result<()> {
             info!("Assigned proxy {} to wallet {:?}", p.url, wallet.address());
         }
 
-        let wallet_id_str = format!("{:03}", i + 1);
+        // Use wallet_idx for the ID string to track which actual wallet is being used
+        let wallet_id_str = format!("{:03}", wallet_idx + 1);
 
         let spammer = EvmSpammer::new_with_signer(
             config.to_spam_config(),

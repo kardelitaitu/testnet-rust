@@ -2,7 +2,11 @@
 name = "rise-project"
 version = "0.1.0"
 edition = "2021"
- 
+default-run = "rise-project"
+
+[[bin]]
+name = "rise-project"
+path = "src/main.rs"
 
 [lib]
 name = "rise_project"

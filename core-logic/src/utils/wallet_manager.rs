@@ -7,7 +7,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::debug;
 
 use std::fmt;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -88,7 +87,7 @@ impl WalletManager {
 
         for wallets_path in candidates {
             if wallets_path.exists() && wallets_path.is_dir() {
-                debug!("Scanning wallets in {:?}", wallets_path);
+                println!("[WalletManager] Scanning wallets in {:?}", wallets_path);
                 let mut entries: Vec<PathBuf> = fs::read_dir(&wallets_path)?
                     .filter_map(|res| res.ok())
                     .map(|e| e.path())
@@ -96,7 +95,11 @@ impl WalletManager {
                     .collect();
 
                 entries.sort();
-                debug!("Found {} wallet files in {:?}", entries.len(), wallets_path);
+                println!(
+                    "[WalletManager] Found {} wallet files in {:?}",
+                    entries.len(),
+                    wallets_path
+                );
 
                 for entry in entries {
                     sources.push(WalletSource::JsonFile(entry));
@@ -111,9 +114,12 @@ impl WalletManager {
 
         // Fallback to pv.txt if no JSON wallets found
         if sources.is_empty() {
+            println!(
+                "[WalletManager] No wallets found in wallet-json/, checking for pv.txt fallback"
+            );
             let pv_path = Path::new(Self::PV_FILE);
             if pv_path.exists() {
-                debug!("Loading raw keys from {}", Self::PV_FILE);
+                println!("[WalletManager] Loading raw keys from {}", Self::PV_FILE);
                 let content = fs::read_to_string(pv_path)?;
                 for line in content.lines() {
                     let trimmed = line.trim();

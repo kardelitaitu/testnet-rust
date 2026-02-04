@@ -7,7 +7,8 @@ use serde::Deserialize;
 pub struct RiseConfig {
     pub rpc_url: String,
     pub chain_id: u64,
-    pub private_key_file: String, // Path to encrypted wallet file
+    #[serde(default)] // Optional - WalletManager auto-detects wallet-json/
+    pub private_key_file: Option<String>,
     pub tps: u32,
     pub worker_amount: Option<usize>,
     pub min_delay_ms: Option<u64>,
@@ -33,7 +34,7 @@ impl RiseConfig {
             target_tps: self.tps,
             duration_seconds: None, // Infinite by default
             wallet_source: core_logic::config::WalletSource::File {
-                path: self.private_key_file.clone(),
+                path: self.private_key_file.clone().unwrap_or_default(),
                 encrypted: true,
             },
         }

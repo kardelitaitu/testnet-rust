@@ -24,7 +24,7 @@ task_interval_min = 100
 task_interval_max = 300
 
 # Task Timeout (in seconds)
-task_timeout = 20h
+task_timeout = 20
 
 # Nonce Management Settings - OPTIMIZED FOR SPEED
 nonce_base_cooldown_ms = 800       # Reduced from 1500ms - 0.8s = faster wallet reuse
