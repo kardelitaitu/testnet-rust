@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use sysinfo::{ProcessExt, System, SystemExt};
-use tracing::{debug, info, warn};
+use sysinfo::{System, Pid};
+use tracing::{info, warn};
 
 /// Memory usage statistics
 #[derive(Debug, Clone)]
@@ -55,7 +55,7 @@ impl MemoryMonitor {
         
         Ok(Self {
             system,
-            config,
+            config: config.clone(),
             history: VecDeque::with_capacity(config.history_size),
             process_id,
             last_alert: None,
@@ -65,7 +65,7 @@ impl MemoryMonitor {
     pub fn sample(&mut self) -> Result<MemoryStats> {
         self.system.refresh_processes();
         
-        let process = self.system.process(self.process_id.into())
+        let process = self.system.process(Pid::from(self.process_id as usize))
             .context("Failed to find current process")?;
         
         let stats = MemoryStats {

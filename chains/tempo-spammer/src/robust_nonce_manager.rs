@@ -94,6 +94,9 @@ struct WalletNonceState {
 
     /// Sync in progress flag
     syncing: Mutex<bool>,
+
+    /// Last time this wallet state was accessed (for eviction)
+    last_accessed: Mutex<Instant>,
 }
 
 impl WalletNonceState {
@@ -107,7 +110,12 @@ impl WalletNonceState {
             failed_nonces: Mutex::new(VecDeque::new()),
             last_sync: Mutex::new(Instant::now()),
             syncing: Mutex::new(false),
+            last_accessed: Mutex::new(Instant::now()),
         }
+    }
+
+    async fn touch(&self) {
+        *self.last_accessed.lock().await = Instant::now();
     }
 }
 
@@ -235,6 +243,7 @@ impl RobustNonceManager {
     pub async fn reserve_nonce(self: &Arc<Self>, address: Address) -> Option<NonceReservation> {
         // Get or create wallet state
         let state = self.get_or_create_wallet(address).await;
+        state.touch().await;
 
         // Try to get a reusable failed nonce first
         let nonce = {
@@ -294,6 +303,7 @@ impl RobustNonceManager {
     /// * `confirmed_count` - The confirmed transaction count from RPC
     pub async fn initialize(&self, address: Address, confirmed_count: u64) {
         let state = self.get_or_create_wallet(address).await;
+        state.touch().await;
 
         let current_cached = state.cached_nonce.load(Ordering::SeqCst);
         let current_confirmed = state.confirmed_nonce.load(Ordering::SeqCst);
@@ -560,6 +570,26 @@ impl RobustNonceManager {
         let mut wallets = self.wallets.write().await;
         wallets.remove(&address);
         info!("Reset nonce state for {:?}", address);
+    }
+
+    /// Evicts wallet states that haven't been used for a long time
+    pub async fn evict_idle_wallets(&self, max_idle: Duration) -> usize {
+        let mut wallets = self.wallets.write().await;
+        let before_count = wallets.len();
+        
+        let mut to_remove = Vec::new();
+        for (addr, state) in wallets.iter() {
+            let last_accessed = *state.last_accessed.lock().await;
+            if last_accessed.elapsed() > max_idle {
+                to_remove.push(*addr);
+            }
+        }
+        
+        for addr in to_remove {
+            wallets.remove(&addr);
+        }
+        
+        before_count - wallets.len()
     }
 
     /// Clean up old confirmed nonces to prevent memory growth

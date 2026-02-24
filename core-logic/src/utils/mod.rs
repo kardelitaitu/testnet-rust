@@ -6,8 +6,9 @@
 // Internal modules - not part of public API
 pub(crate) mod gas;
 pub(crate) mod logger;
-pub(crate) mod memory_monitor;
-pub(crate) mod memory_optimized_logger;
+pub mod memory_monitor;
+pub mod memory_optimized_logger;
+pub mod memory_optimizer;
 pub(crate) mod proxy_manager;
 pub(crate) mod rate_limiter;
 pub(crate) mod retry;

@@ -157,6 +157,14 @@ impl WalletManager {
             .collect()
     }
 
+    /// Clears the decrypted wallet cache to free memory
+    pub async fn clear_cache(&self) {
+        let mut cache = self.cache.lock().await;
+        let count = cache.len();
+        cache.clear();
+        tracing::debug!("Cleared WalletManager cache ({} wallets)", count);
+    }
+
     /// Get a decrypted wallet by index. Decrypts if not cached.
     /// Returns Arc<DecryptedWallet> to avoid cloning sensitive data.
     pub async fn get_wallet(

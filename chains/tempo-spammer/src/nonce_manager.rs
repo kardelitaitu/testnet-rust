@@ -249,4 +249,12 @@ impl NonceManager {
         let mut map = self.nonces.write().await;
         map.remove(&address);
     }
+
+    /// Clears all cached nonces to free memory
+    pub async fn clear(&self) {
+        let mut map = self.nonces.write().await;
+        let count = map.len();
+        map.clear();
+        tracing::debug!("Cleared NonceManager cache ({} addresses)", count);
+    }
 }

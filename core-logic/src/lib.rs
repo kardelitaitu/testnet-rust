@@ -42,6 +42,20 @@ pub use traits::{Spammer as SpammerTrait, SpammerStats, Task, TaskResult, Wallet
 // Utils are pub(crate) - only export specific public utilities
 pub use utils::{setup_logger, GasConfig, ProxyManager, WalletManager, WorkerRunner};
 
+// Export memory optimization utilities
+pub use utils::memory_monitor::{
+    get_memory_report, init_memory_monitoring, sample_memory_usage, MemoryMonitor,
+    MemoryMonitorConfig, MemoryStats, MemoryTrend,
+};
+pub use utils::memory_optimized_logger::{
+    setup_memory_optimized_logger, MemoryOptimizedFileAppender, MemoryOptimizedLayer,
+    MemoryOptimizedLoggerConfig,
+};
+pub use utils::memory_optimizer::{
+    get_memory_status, init_memory_optimization, perform_memory_cleanup, register_memory_cleanup_hook, MemoryOptimizer,
+    MemoryOptimizerConfig,
+};
+
 // Export retry utilities for testing
 pub use utils::retry::{
     is_transient_error, with_retry, CircuitBreaker, CircuitBreakerConfig, RetryConfig,

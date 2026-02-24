@@ -78,11 +78,12 @@ use crate::config::TempoSpammerConfig as Config;
 use crate::tasks::load_proxies;
 use anyhow::{Context, Result};
 use core_logic::WalletManager;
+use parking_lot::{Mutex, RwLock};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::RwLock;
+use std::time::{Instant, Duration};
 
 /// Pool of clients for multi-wallet transaction spamming
 ///
@@ -113,14 +114,15 @@ pub struct ClientPool {
     /// Cache of created clients by wallet index
     clients: RwLock<HashMap<usize, TempoClient>>,
     /// Cache of HTTP clients per proxy (None = direct, Some(url) = proxy)
-    /// This enables connection reuse for better performance
-    http_clients: RwLock<HashMap<Option<String>, reqwest::Client>>,
+    /// Store with last_used timestamp for eviction (Phase 1.2)
+    http_clients: RwLock<HashMap<Option<String>, (reqwest::Client, Instant)>>,
     /// Available proxy configurations
     proxies: Vec<crate::tasks::ProxyConfig>,
     /// Spammer configuration
     pub config: Config,
     /// Set of wallet indices currently in use (leased)
-    pub locked_wallets: tokio::sync::Mutex<std::collections::HashSet<usize>>,
+    /// Using parking_lot::Mutex for synchronous access in Drop
+    pub locked_wallets: Mutex<std::collections::HashSet<usize>>,
     /// Optional nonce manager for caching (legacy) - shared across all wallets
     pub nonce_manager: Option<Arc<crate::NonceManager>>,
     /// Optional robust nonce manager with per-request tracking (recommended) - shared across all wallets
@@ -188,61 +190,63 @@ pub struct ClientLease {
     pool: Arc<ClientPool>,
     /// Connection permit that is released when lease is dropped
     pub permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    /// Whether the lease has been explicitly released
+    released: bool,
 }
 
 impl ClientLease {
     /// Explicitly release the client back to the pool
     ///
     /// For the spammer, we prefer IMMEDIATE release to maximize throughput.
-    /// The cooldown was adding artificial latency.
-    pub async fn release(self) {
-        // Optimization: Skip cooldown for high-throughput spamming
-        // Only use cooldown if explicitly configured to be very high (>2s)
+    pub async fn release(mut self) {
+        if self.released {
+            return;
+        }
+        self.released = true;
+
         let pool = self.pool.clone();
         let index = self.index;
         let nonce_config = pool.config.nonce.clone();
         
         // If cooldown is small (<1s), ignore it and release immediately
-        // This is safe because RobustNonceManager handles the ordering
         if nonce_config.base_cooldown_ms < 1000 {
-             pool.release_wallet(index).await;
+             pool.release_wallet(index);
         } else {
             tokio::spawn(async move {
                 let cooldown_ms = nonce_config
                     .base_cooldown_ms
                     .max(nonce_config.min_cooldown_ms);
 
-                // tracing::debug!("Releasing wallet {} with {}ms cooldown", index, cooldown_ms);
                 tokio::time::sleep(std::time::Duration::from_millis(cooldown_ms)).await;
-                pool.release_wallet(index).await;
+                pool.release_wallet(index);
             });
         }
     }
 
     /// Release immediately without cooldown
-    ///
-    /// **WARNING**: This may cause nonce races if used incorrectly.
-    /// Only use this if you're certain the transaction has been confirmed.
-    pub async fn release_immediate(self) {
-        self.pool.release_wallet(self.index).await;
+    pub async fn release_immediate(mut self) {
+        if !self.released {
+            self.released = true;
+            self.pool.release_wallet(self.index);
+        }
     }
 }
 
 impl Drop for ClientLease {
-    /// Automatic release on drop (with warning)
+    /// Automatic release on drop
     fn drop(&mut self) {
-        // Optimization: Skip warning and cooldown on drop for speed
+        if self.released {
+            return;
+        }
+        self.released = true;
+
         if let Some(permit) = self.permit.take() {
             drop(permit);
         }
         
-        let pool = self.pool.clone();
-        let index = self.index;
-        
-        // Fire and forget release
-        tokio::spawn(async move {
-            pool.release_wallet(index).await;
-        });
+        // Phase 2.1: Synchronous release from Drop
+        // Now that release_wallet is synchronous, we can call it directly
+        self.pool.release_wallet(self.index);
     }
 }
 
@@ -311,7 +315,6 @@ impl ClientPool {
         let robust_nonce_manager = Some(Arc::new(crate::RobustNonceManager::new()));
 
         // Initialize sharded nonce managers for per-wallet isolation
-        // This reduces contention when managing 2500+ wallets
         let shard_count = config.nonce.shard_count;
         let sharded_nonce_managers: Vec<_> = (0..shard_count)
             .map(|_| Arc::new(crate::NonceManager::new()))
@@ -333,9 +336,9 @@ impl ClientPool {
             wallet_password,
             clients: RwLock::new(HashMap::new()),
             http_clients: RwLock::new(HashMap::new()),
-            proxies: Vec::new(), // Empty initially, use with_proxies() to add
+            proxies: Vec::new(),
             config,
-            locked_wallets: tokio::sync::Mutex::new(std::collections::HashSet::new()),
+            locked_wallets: Mutex::new(std::collections::HashSet::new()),
             nonce_manager,
             robust_nonce_manager,
             sharded_nonce_managers,
@@ -353,50 +356,18 @@ impl ClientPool {
     }
 
     /// Sets the proxies for this pool
-    ///
-    /// This is a builder-style method that consumes self and returns it
-    /// with the proxies configured.
-    ///
-    /// # Arguments
-    ///
-    /// * `proxies` - Vector of proxy configurations
-    ///
-    /// # Returns
-    ///
-    /// Self with proxies configured
     pub fn with_proxies(mut self, proxies: Vec<crate::tasks::ProxyConfig>) -> Self {
         self.proxies = proxies;
         self
     }
 
     /// Sets the proxy banlist for this pool
-    ///
-    /// This is a builder-style method that consumes self and returns it
-    /// with the proxy banlist configured.
-    ///
-    /// # Arguments
-    ///
-    /// * `banlist` - Proxy banlist for health tracking
-    ///
-    /// # Returns
-    ///
-    /// Self with proxy banlist configured
     pub fn with_proxy_banlist(mut self, banlist: crate::proxy_health::ProxyBanlist) -> Self {
         self.proxy_banlist = Some(banlist);
         self
     }
 
     /// Attempts to acquire an available client using O(1) fast path
-    ///
-    /// This is the primary method for acquiring clients. It uses an optimized O(1)
-    /// algorithm that maintains an incremental set of available wallets.
-    ///
-    /// Falls back to legacy O(n) method if fast path fails.
-    ///
-    /// # Returns
-    ///
-    /// - `Some(ClientLease)` - A leased client ready for use
-    /// - `None` - No wallets available (all in use)
     pub async fn try_acquire_client(self: &Arc<Self>) -> Option<ClientLease> {
         // Try fast O(1) path first
         if let Some(lease) = self.try_acquire_client_fast().await {
@@ -408,12 +379,8 @@ impl ClientPool {
     }
 
     /// Fast O(1) client acquisition
-    ///
-    /// Uses swap-remove technique for O(1) wallet selection.
-    /// Maintains available_wallets vec and available_positions map.
     async fn try_acquire_client_fast(self: &Arc<Self>) -> Option<ClientLease> {
-        // 0. Acquire connection permit (prevents overload before we even lock a wallet)
-        // If pool is saturated, return None immediately to trigger backoff in worker loop
+        // 0. Acquire connection permit
         let permit = match self.connection_semaphore.clone().try_acquire_owned() {
             Ok(p) => p,
             Err(_) => return None,
@@ -421,7 +388,7 @@ impl ClientPool {
 
         // 1. Fast check: Get available count
         let available_count = {
-            let available = self.available_wallets.read().await;
+            let available = self.available_wallets.read();
             available.len()
         };
 
@@ -431,17 +398,16 @@ impl ClientPool {
 
         // 2. Random selection with retry logic for banned proxies
         let mut retry_count = 0;
-        const MAX_RETRIES: u32 = 5; // Increased from 1 to 5 for better resilience
+        const MAX_RETRIES: u32 = 5;
 
         loop {
-            // Pick random wallet from available set using fast RNG
+            // Pick random wallet from available set
             let (selected_wallet, random_idx) = {
-                let available = self.available_wallets.read().await;
+                let available = self.available_wallets.read();
                 if available.is_empty() {
                     return None;
                 }
 
-                // Use fastrand for better performance (no expensive RNG initialization)
                 let idx = fastrand::usize(0..available.len());
                 (available[idx], idx)
             };
@@ -450,22 +416,17 @@ impl ClientPool {
             let proxy_ok = self.check_proxy_cached(selected_wallet).await;
 
             if !proxy_ok {
-                // Proxy banned - don't remove wallet, just retry with different wallet
-                // This prevents wallet starvation when proxies fail
                 if retry_count < MAX_RETRIES {
                     retry_count += 1;
-                    // Brief delay to let proxy recover and avoid hammering
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
                     continue;
                 } else {
-                    // Max retries reached, return None to try legacy path
                     return None;
                 }
             }
 
             // 4. Lock the wallet (O(1) swap-remove)
-            if !self.lock_wallet_fast(selected_wallet, random_idx).await {
-                // Race condition - wallet was taken, try again
+            if !self.lock_wallet_fast(selected_wallet, random_idx) {
                 if retry_count < MAX_RETRIES {
                     retry_count += 1;
                     continue;
@@ -482,6 +443,7 @@ impl ClientPool {
                         index: selected_wallet,
                         pool: self.clone(),
                         permit: Some(permit),
+                        released: false,
                     });
                 }
                 Err(e) => {
@@ -490,7 +452,7 @@ impl ClientPool {
                         selected_wallet,
                         e
                     );
-                    self.unlock_wallet_fast(selected_wallet).await;
+                    self.unlock_wallet_fast(selected_wallet);
                     return None;
                 }
             }
@@ -498,35 +460,26 @@ impl ClientPool {
     }
 
     /// Legacy O(n) client acquisition (kept as fallback)
-    ///
-    /// Scans all wallets linearly. Slower but handles edge cases.
     async fn try_acquire_client_legacy(self: &Arc<Self>) -> Option<ClientLease> {
         let total_wallets = self.wallet_manager.count();
         if total_wallets == 0 {
             return None;
         }
 
-        // Get locked wallets
-        let locked = self.locked_wallets.lock().await;
-
         // Build list of available wallet indices - O(n) scan
-        let mut available: Vec<usize> =
-            (0..total_wallets).filter(|i| !locked.contains(i)).collect();
-
-        drop(locked);
+        let available: Vec<usize> = {
+            let locked = self.locked_wallets.lock();
+            (0..total_wallets).filter(|i| !locked.contains(i)).collect()
+        };
 
         if available.is_empty() {
             return None;
         }
 
-        // Filter by proxy health - check if ANY proxy is available for this wallet
-        // With rotating proxy assignment, wallets can use any healthy proxy
+        // Filter by proxy health
         if let Some(ref banlist) = self.proxy_banlist {
-            // Check if at least one proxy is healthy
-            let mut has_healthy_proxy = self.proxies.is_empty(); // true if no proxies
-
+            let mut has_healthy_proxy = self.proxies.is_empty();
             if !has_healthy_proxy {
-                // Check if any proxy is not banned
                 for idx in 0..self.proxies.len() {
                     if !banlist.is_banned(idx).await {
                         has_healthy_proxy = true;
@@ -534,27 +487,21 @@ impl ClientPool {
                     }
                 }
             }
-
             if !has_healthy_proxy {
-                // All proxies banned - try direct connection
                 tracing::warn!("All proxies banned, falling back to direct connection");
             }
-            // Don't filter wallets - with rotation they can use any healthy proxy
         }
 
-        if available.is_empty() {
-            return None;
-        }
-
-        // Random selection using fastrand
+        // Random selection
         let selected_idx = available[fastrand::usize(0..available.len())];
 
         // Lock the wallet
-        let mut locked = self.locked_wallets.lock().await;
-        if !locked.insert(selected_idx) {
-            return None;
+        {
+            let mut locked = self.locked_wallets.lock();
+            if !locked.insert(selected_idx) {
+                return None;
+            }
         }
-        drop(locked);
 
         // Get or create the client
         let client = self.get_or_create_client(selected_idx).await;
@@ -564,14 +511,12 @@ impl ClientPool {
                 client,
                 index: selected_idx,
                 pool: self.clone(),
-                // Legacy path doesn't limit connections strictly, or acquire explicitly here if needed
-                // For now we can assume fast path is primary
                 permit: None,
+                released: false,
             }),
             Err(e) => {
-                // Failed to create client, release the lock
                 tracing::error!("Failed to create client for wallet {}: {}", selected_idx, e);
-                self.release_wallet(selected_idx).await;
+                self.release_wallet(selected_idx);
                 None
             }
         }
@@ -581,7 +526,7 @@ impl ClientPool {
     async fn get_or_create_client(&self, wallet_idx: usize) -> Result<TempoClient> {
         // Check cache first
         {
-            let clients = self.clients.read().await;
+            let clients = self.clients.read();
             if let Some(client) = clients.get(&wallet_idx) {
                 return Ok(client.clone());
             }
@@ -594,8 +539,7 @@ impl ClientPool {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get wallet {}: {}", wallet_idx, e))?;
 
-        // Phase 2: Atomic proxy selection - calculate once, use everywhere
-        // This prevents race conditions where proxy_idx changes between selection and client creation
+        // Phase 2: Atomic proxy selection
         let proxy_idx = if self.proxies.is_empty() {
             None
         } else {
@@ -608,8 +552,7 @@ impl ClientPool {
         let proxy_config = proxy_idx.map(|idx| &self.proxies[idx]);
 
         // Get or create HTTP client for this proxy configuration
-        // Try to create client with proxy first, fallback to direct connection
-        let (client, used_proxy_idx) = match self
+        let (client, _used_proxy_idx) = match self
             .try_create_client_with_fallback(
                 wallet_idx,
                 &wallet.evm_private_key,
@@ -621,11 +564,8 @@ impl ClientPool {
             Ok((c, idx)) => (c, idx),
             Err(e) => {
                 tracing::error!(
-                    "Failed to create TempoClient for wallet {}: {:?}. RPC: {}, Proxy: {:?}",
-                    wallet_idx,
-                    e,
-                    self.config.rpc_url,
-                    proxy_config.map(|p| &p.url)
+                    "Failed to create TempoClient for wallet {}: {:?}",
+                    wallet_idx, e
                 );
                 return Err(e).with_context(|| {
                     format!("Failed to create TempoClient for wallet {}", wallet_idx)
@@ -633,19 +573,14 @@ impl ClientPool {
             }
         };
 
-        // Update proxy_idx_for_client to reflect what was actually used
-        let proxy_idx_for_client = used_proxy_idx;
-
         // Cache the client
-        let mut clients = self.clients.write().await;
+        let mut clients = self.clients.write();
         clients.insert(wallet_idx, client.clone());
 
         Ok(client)
     }
 
     /// Get the appropriate nonce manager for a wallet index
-    ///
-    /// Returns sharded manager if per_wallet is enabled, otherwise returns shared manager
     fn get_nonce_manager(&self, wallet_idx: usize) -> Option<Arc<crate::NonceManager>> {
         if self.config.nonce.per_wallet && !self.sharded_nonce_managers.is_empty() {
             let shard = wallet_idx % self.sharded_nonce_managers.len();
@@ -656,8 +591,6 @@ impl ClientPool {
     }
 
     /// Get the appropriate robust nonce manager for a wallet index
-    ///
-    /// Returns sharded manager if per_wallet is enabled, otherwise returns shared manager
     fn get_robust_nonce_manager(
         &self,
         wallet_idx: usize,
@@ -754,18 +687,19 @@ impl ClientPool {
     ) -> Result<reqwest::Client> {
         // Check cache first
         {
-            let http_clients = self.http_clients.read().await;
-            if let Some(client) = http_clients.get(&proxy_url) {
+            let mut http_clients = self.http_clients.write();
+            if let Some((client, last_used)) = http_clients.get_mut(&proxy_url) {
+                *last_used = Instant::now();
                 return Ok(client.clone());
             }
         }
 
-        // Create new HTTP client with connection limits to prevent pool exhaustion
+        // Create new HTTP client
         let mut client_builder = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(60)) // Increased for large batches
+            .timeout(std::time::Duration::from_secs(60))
             .connect_timeout(std::time::Duration::from_secs(10))
-            .pool_idle_timeout(std::time::Duration::from_secs(30)) // Close idle connections after 30s
-            .pool_max_idle_per_host(10); // Limit connections per proxy to prevent exhaustion
+            .pool_idle_timeout(std::time::Duration::from_secs(30))
+            .pool_max_idle_per_host(10);
 
         // Configure proxy if specified
         if let Some(ref url) = proxy_url {
@@ -788,106 +722,90 @@ impl ClientPool {
             .build()
             .context("Failed to build reqwest client")?;
 
-        // Phase 4: Pre-warm the connection pool by sending a dummy request
-        // This establishes initial connections before real traffic hits the pool
-        let warmup_client = client.clone();
-        let warmup_url = self.config.rpc_url.clone();
-        let proxy_url_for_warmup = proxy_url.clone();
-        tokio::spawn(async move {
-            match warmup_client
-                .head(&warmup_url)
-                .timeout(std::time::Duration::from_secs(3))
-                .send()
-                .await
-            {
-                Ok(_) => tracing::debug!(
-                    "HTTP client pool warmed up for proxy: {:?}",
-                    proxy_url_for_warmup
-                ),
-                Err(e) => tracing::warn!(
-                    "Pool warmup failed for proxy {:?}: {}",
-                    proxy_url_for_warmup,
-                    e
-                ),
-            }
-        });
-
         // Cache the HTTP client
-        let mut http_clients = self.http_clients.write().await;
-        http_clients.insert(proxy_url, client.clone());
+        let mut http_clients = self.http_clients.write();
+        http_clients.insert(proxy_url, (client.clone(), Instant::now()));
 
         Ok(client)
     }
 
+    /// Evicts idle HTTP clients from the cache (Phase 1.2)
+    pub fn evict_idle_http_clients(&self, max_idle: Duration) -> usize {
+        let mut http_clients = self.http_clients.write();
+        let before_count = http_clients.len();
+        
+        // Don't evict the direct connection client (None)
+        http_clients.retain(|key, (_, last_used)| {
+            key.is_none() || last_used.elapsed() < max_idle
+        });
+        
+        before_count - http_clients.len()
+    }
+
+    /// Clears the client cache to free up memory (Phase 3.3)
+    pub fn clear_client_cache(&self) {
+        let mut clients = self.clients.write();
+        let count = clients.len();
+        clients.clear();
+        tracing::debug!("Cleared ClientPool client cache ({} entries)", count);
+    }
+
+    /// Performs a comprehensive cleanup of all internal caches to free RAM
+    pub async fn cleanup(&self) {
+        self.clear_client_cache();
+        self.evict_idle_http_clients(Duration::from_secs(600));
+        
+        if let Some(nm) = &self.nonce_manager {
+            nm.clear().await;
+        }
+        
+        if let Some(rnm) = &self.robust_nonce_manager {
+            rnm.evict_idle_wallets(Duration::from_secs(3600)).await;
+        }
+        
+        for snm in &self.sharded_nonce_managers {
+            snm.clear().await;
+        }
+        
+        for srnm in &self.sharded_robust_nonce_managers {
+            srnm.evict_idle_wallets(Duration::from_secs(3600)).await;
+        }
+
+        self.wallet_manager.clear_cache().await;
+        crate::proxy_health::clear_client_cache().await;
+    }
+
     /// Releases a wallet back to the pool
-    ///
-    /// Internal method called automatically by [`ClientLease::drop`].
-    /// Removes the wallet index from the locked set and adds back to available,
-    /// making it available for other workers.
-    ///
-    /// # Arguments
-    ///
-    /// * `index` - The wallet index to release
-    ///
-    /// # Note
-    ///
-    /// This method is typically not called directly. Use the [`ClientLease`]
-    /// RAII pattern instead for automatic release.
-    ///
-    /// Uses O(1) fast path for adding back to available set.
-    pub async fn release_wallet(&self, index: usize) {
+    pub fn release_wallet(&self, index: usize) {
         // Use O(1) fast unlock
-        self.unlock_wallet_fast(index).await;
+        self.unlock_wallet_fast(index);
     }
 
     /// Returns the number of available (non-locked) wallets
-    ///
-    /// Useful for monitoring pool saturation and load balancing decisions.
-    /// Uses O(1) available_wallets vec for fast lookup.
-    ///
-    /// # Returns
-    ///
-    /// The count of wallets not currently leased.
-    pub async fn available_count(&self) -> usize {
-        let available = self.available_wallets.read().await;
+    pub fn available_count(&self) -> usize {
+        let available = self.available_wallets.read();
         available.len()
     }
 
     /// Returns the total number of wallets in the pool
-    ///
-    /// # Returns
-    ///
-    /// Total count of wallets managed by this pool.
     pub fn total_count(&self) -> usize {
         self.wallet_manager.count()
     }
 
-    /// Returns the total number of wallets in the pool
-    ///
     /// Alias for `total_count()` for convenience.
-    ///
-    /// # Returns
-    ///
-    /// Total count of wallets managed by this pool.
     pub fn count(&self) -> usize {
         self.total_count()
     }
 
     // === O(1) Wallet Selection Helper Methods ===
 
-    /// Check proxy health with 30-second caching
-    ///
-    /// Returns true if any proxy is available (not banned or no proxy)
-    /// With rotating proxy assignment, we check if there are ANY healthy proxies
+    /// Check proxy health with caching
     async fn check_proxy_cached(&self, _wallet_idx: usize) -> bool {
         if self.proxies.is_empty() {
-            return true; // No proxy = always available
+            return true;
         }
 
-        // With rotating assignment, check if at least one proxy is healthy
-        // The rotation logic will skip banned proxies automatically
         if let Some(ref banlist) = self.proxy_banlist {
-            // Check if any proxy is healthy (not banned)
             let mut has_healthy_proxy = false;
             for idx in 0..self.proxies.len() {
                 if !banlist.is_banned(idx).await {
@@ -897,21 +815,17 @@ impl ClientPool {
             }
 
             if !has_healthy_proxy {
-                tracing::warn!("All proxies currently banned - will retry with backoff");
                 return false;
             }
         }
 
-        // At least one proxy is available
         true
     }
 
     /// O(1) removal from available set using swap-remove
-    ///
-    /// Removes wallet from available_wallets vec and updates positions map
-    async fn remove_from_available(&self, wallet_idx: usize) {
-        let mut available = self.available_wallets.write().await;
-        let mut positions = self.available_positions.write().await;
+    fn remove_from_available(&self, wallet_idx: usize) {
+        let mut available = self.available_wallets.write();
+        let mut positions = self.available_positions.write();
 
         if let Some(&pos) = positions.get(&wallet_idx) {
             let last_idx = available.len().saturating_sub(1);
@@ -934,13 +848,10 @@ impl ClientPool {
     }
 
     /// O(1) wallet lock using swap-remove
-    ///
-    /// Removes from available and adds to locked set
-    /// Returns false if wallet already locked (race condition)
-    async fn lock_wallet_fast(&self, wallet_idx: usize, available_idx: usize) -> bool {
+    fn lock_wallet_fast(&self, wallet_idx: usize, available_idx: usize) -> bool {
         // Add to locked set first
         {
-            let mut locked = self.locked_wallets.lock().await;
+            let mut locked = self.locked_wallets.lock();
             if !locked.insert(wallet_idx) {
                 return false; // Already locked
             }
@@ -948,8 +859,8 @@ impl ClientPool {
 
         // Remove from available using swap-remove
         {
-            let mut available = self.available_wallets.write().await;
-            let mut positions = self.available_positions.write().await;
+            let mut available = self.available_wallets.write();
+            let mut positions = self.available_positions.write();
 
             if available_idx < available.len() && available[available_idx] == wallet_idx {
                 let last_idx = available.len() - 1;
@@ -972,19 +883,17 @@ impl ClientPool {
     }
 
     /// O(1) wallet unlock - adds back to available
-    ///
-    /// Removes from locked set and pushes to available vec
-    async fn unlock_wallet_fast(&self, wallet_idx: usize) {
+    fn unlock_wallet_fast(&self, wallet_idx: usize) {
         // Remove from locked
         {
-            let mut locked = self.locked_wallets.lock().await;
+            let mut locked = self.locked_wallets.lock();
             locked.remove(&wallet_idx);
         }
 
         // Add back to available
         {
-            let mut available = self.available_wallets.write().await;
-            let mut positions = self.available_positions.write().await;
+            let mut available = self.available_wallets.write();
+            let mut positions = self.available_positions.write();
 
             let new_pos = available.len();
             available.push(wallet_idx);
@@ -993,19 +902,6 @@ impl ClientPool {
     }
 
     /// Gets a client by wallet index
-    ///
-    /// This method retrieves or creates a client for the specified wallet index.
-    /// Unlike `try_acquire_client`, this does not lock the wallet - it's meant for
-    /// direct access when you know which wallet you want to use.
-    ///
-    /// # Arguments
-    ///
-    /// * `wallet_idx` - The index of the wallet to get a client for
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(TempoClient)` if successful, `Err` if the wallet index is out of bounds
-    /// or if client creation fails.
     pub async fn get_client(&self, wallet_idx: usize) -> Result<TempoClient> {
         // Check if wallet index is valid
         if wallet_idx >= self.wallet_manager.count() {
@@ -1017,19 +913,6 @@ impl ClientPool {
     }
 
     /// Gets a client with a rotated proxy
-    ///
-    /// This method creates a new client for the specified wallet with a different
-    /// proxy than what would normally be assigned. This is useful for retry logic
-    /// when a proxy is failing.
-    ///
-    /// # Arguments
-    ///
-    /// * `wallet_idx` - The index of the wallet to get a client for
-    /// * `rotation_offset` - Offset to apply to proxy selection (allows trying different proxies)
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(TempoClient)` if successful, `Err` if client creation fails.
     pub async fn get_client_with_rotated_proxy(
         &self,
         wallet_idx: usize,
@@ -1047,8 +930,7 @@ impl ClientPool {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get wallet {}: {}", wallet_idx, e))?;
 
-        // Select a different proxy (rotate by using wallet_idx + offset)
-        // Ensure offset is non-zero if possible to actually rotate
+        // Select a different proxy
         let proxy_config = if self.proxies.is_empty() {
             None
         } else {
@@ -1056,7 +938,7 @@ impl ClientPool {
             Some(&self.proxies[proxy_idx])
         };
 
-        // Create a fresh HTTP client (don't use cache for rotated proxy)
+        // Create a fresh HTTP client
         let mut client_builder = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .connect_timeout(std::time::Duration::from_secs(10))
@@ -1092,13 +974,7 @@ impl ClientPool {
             self.robust_nonce_manager.clone(),
             self.config.nonce.use_pending_count,
         )
-        .await
-        .with_context(|| {
-            format!(
-                "Failed to create TempoClient for wallet {} with rotated proxy",
-                wallet_idx
-            )
-        })?;
+        .await?;
 
         Ok(client)
     }

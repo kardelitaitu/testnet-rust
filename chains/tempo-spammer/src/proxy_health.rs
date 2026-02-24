@@ -198,6 +198,17 @@ impl ProxyBanlist {
         banned.retain(|_, ban_time| (now - *ban_time) < self.ban_duration);
     }
 }
+
+/// Clears the proxy health check client cache to free memory
+pub async fn clear_client_cache() {
+    if let Some(cache) = CLIENT_CACHE.get() {
+        let mut write = cache.write().await;
+        let count = write.len();
+        write.clear();
+        tracing::debug!("Cleared Proxy Health client cache ({} clients)", count);
+    }
+}
+
 use std::sync::OnceLock;
 
 static CLIENT_CACHE: OnceLock<tokio::sync::RwLock<HashMap<String, reqwest::Client>>> =

@@ -2,7 +2,10 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use core_logic::WalletManager;
 use core_logic::database::{AsyncDbConfig, DatabaseManager, FallbackStrategy, QueuedTaskResult};
-use core_logic::setup_logger;
+use core_logic::{
+    setup_logger, init_memory_optimization, perform_memory_cleanup, register_memory_cleanup_hook,
+    setup_memory_optimized_logger,
+};
 use dialoguer::{Input, Password, theme::ColorfulTheme};
 use dotenv::dotenv;
 use futures::future::join_all;
@@ -72,20 +75,21 @@ async fn main() -> Result<()> {
     };
 
     if !is_quiet {
-        let _log_guard = setup_logger();
-        // Keep guard alive for file logging - will be dropped at end of main()
-        std::mem::forget(_log_guard);
+        // Phase 4.1: Switch to Memory-Optimized Logger
+        if let Err(e) = setup_memory_optimized_logger() {
+            eprintln!("Failed to setup memory-optimized logger: {}. Falling back to standard.", e);
+            let _log_guard = setup_logger();
+            std::mem::forget(_log_guard);
+        }
     } else {
-        // Minimal logger for quiet mode (Errors only, or muted stdout)
-        // For now, we just skip setup_logger which typically enables the flashy output
-        // We might want `tracing_subscriber::fmt().with_max_level(Level::ERROR).init();`
-        // But the user asked for "quiet", so let's stick to minimal.
-        // Assuming core_logic::utils::logger configures global default.
-        // We'll initialize a basic one if quiet.
+        // Minimal logger for quiet mode
         tracing_subscriber::fmt()
             .with_max_level(tracing::Level::ERROR)
             .init();
     }
+
+    // Phase 3.1: Initialize Memory Optimizer
+    init_memory_optimization().await?;
 
     // Auto-detect config path if default is not found
     let config_path = if std::path::Path::new(&args.config).exists() {
@@ -275,7 +279,7 @@ async fn main() -> Result<()> {
         DatabaseManager::new_with_async(
             "tempo-spammer.db",
             async_db_config,
-            FallbackStrategy::Hybrid, // Drop + warning when full
+            FallbackStrategy::Drop, // Drop when full to prevent memory sink
         )
         .await?,
     );
@@ -294,6 +298,15 @@ async fn main() -> Result<()> {
         .with_proxies(proxies)
         .with_proxy_banlist(proxy_banlist.unwrap_or_else(|| ProxyBanlist::new(10))),
     );
+
+    // Phase 3.2: Register cleanup hook for ClientPool
+    let cp_for_hook = client_pool.clone();
+    register_memory_cleanup_hook(move || {
+        let cp = cp_for_hook.clone();
+        async move {
+            cp.cleanup().await;
+        }
+    });
 
     // wallet_password (Zeroizing<String>) is dropped here and automatically zeroized from memory
 
@@ -781,10 +794,22 @@ async fn run_spammer(
         }
     });
 
+    // Phase 3.3: Spawn memory cleanup background task
+    let memory_cleanup_handle = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            if let Err(e) = perform_memory_cleanup().await {
+                warn!("Memory cleanup failed: {}", e);
+            }
+        }
+    });
+
     join_all(handles).await;
 
-    // Cancel monitor task
+    // Cancel monitor tasks
     monitor_handle.abort();
+    memory_cleanup_handle.abort();
 }
 
 async fn run_single_task(

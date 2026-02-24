@@ -47,6 +47,7 @@ fastrand = "2.3"
 bytes = "1.0"
 dialoguer = "0.11"
 zeroize = { version = "1.7", features = ["derive"] }
+parking_lot = "0.12"
 
 core-logic = { path = "../../core-logic" }
 tempo-primitives = { path = "src/utils/primitives" }

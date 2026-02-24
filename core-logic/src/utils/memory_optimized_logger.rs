@@ -9,9 +9,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::{
-    fmt::{format::Writer, FmtContext, FormatEvent, FormatFields},
     registry::LookupSpan,
     Layer,
+    prelude::*,
 };
 
 /// Configuration for memory-optimized logging
@@ -74,13 +74,12 @@ impl MemoryOptimizedFileAppender {
     }
     
     pub fn write(&mut self, message: &str) -> Result<()> {
-        let mut writer = self.writer.lock().unwrap();
-        
         // Check if we need to rotate
         if self.bytes_written >= self.config.max_file_size {
             self.rotate()?;
         }
         
+        let mut writer = self.writer.lock().unwrap();
         let line = format!("{} {}\n", Local::now().format("%Y-%m-%d %H:%M:%S"), message);
         let bytes = line.as_bytes();
         
@@ -175,18 +174,19 @@ impl MemoryOptimizedLayer {
     }
 }
 
-impl<S, N> Layer<S> for MemoryOptimizedLayer
+impl<S> Layer<S> for MemoryOptimizedLayer
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
-    N: for<'a> FormatFields<'a> + 'static,
 {
-    fn on_event(&self, event: &Event<'_>, _ctx: &FmtContext<'_, S, N>) {
+    fn on_event(&self, event: &Event<'_>, _ctx: tracing_subscriber::layer::Context<'_, S>) {
+        // Only log INFO and above to file to save space/memory
         if event.metadata().level() <= &Level::INFO {
             let mut message = String::new();
             let mut visitor = MessageVisitor { message: &mut message };
             event.record(&mut visitor);
             
             if let Ok(mut appender) = self.file_appender.lock() {
+                // Use FileFormatter style or similar
                 let _ = appender.write(&message);
             }
         }
@@ -216,9 +216,24 @@ pub fn setup_memory_optimized_logger() -> Result<()> {
     let config = MemoryOptimizedLoggerConfig::default();
     let layer = MemoryOptimizedLayer::new("logs", config)?;
     
+    // Use filters similar to setup_logger
+    let file_filter = tracing_subscriber::filter::Targets::new()
+        .with_target("task_result", tracing::Level::INFO)
+        .with_default(tracing::Level::WARN);
+
+    let console_filter = tracing_subscriber::filter::Targets::new()
+        .with_target("task_result", tracing::Level::INFO)
+        .with_default(tracing::Level::ERROR);
+
     let subscriber = tracing_subscriber::registry()
-        .with(layer)
-        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout));
+        .with(layer.with_filter(file_filter))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::io::stdout)
+                .with_ansi(true)
+                .event_format(crate::utils::logger::TerminalFormatter)
+                .with_filter(console_filter)
+        );
     
     tracing::subscriber::set_global_default(subscriber)
         .context("Failed to set global subscriber")?;
