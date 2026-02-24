@@ -73,34 +73,43 @@ impl TempoTask for DeployViralNftTask {
             .gas_limit(5_000_000);
         deploy_tx.to = Some(alloy::primitives::TxKind::Create);
 
-        // Send with retry logic for nonce errors (1 retry)
-        let pending_deploy = match client.provider.send_transaction(deploy_tx.clone()).await {
-            Ok(p) => p,
-            Err(e) => {
-                let err_str = e.to_string().to_lowercase();
-                if err_str.contains("nonce too low") || err_str.contains("already known") {
-                    tracing::warn!(
-                        "Nonce error on deploy_viral_nft, resetting cache and retrying..."
-                    );
-                    client.reset_nonce_cache().await;
-                    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-                    // Rebuild with fresh nonce
-                    let fresh_nonce = client.get_pending_nonce(&ctx.config.rpc_url).await?;
-                    let mut retry_tx = TransactionRequest::default()
-                        .input(full_bytecode_for_retry.into())
-                        .from(address)
-                        .nonce(fresh_nonce)
-                        .max_fee_per_gas(150_000_000_000u128)
-                        .max_priority_fee_per_gas(1_500_000_000u128)
-                        .gas_limit(5_000_000);
-                    retry_tx.to = Some(alloy::primitives::TxKind::Create);
-                    client
-                        .provider
-                        .send_transaction(retry_tx)
-                        .await
-                        .context("Failed to send deploy tx")?
-                } else {
-                    return Err(e).context("Failed to send deploy tx");
+        // Send with retry logic for nonce errors (3 retries with exponential backoff)
+        let mut attempt = 0;
+        let max_retries = 3;
+        let pending_deploy = loop {
+            match client.provider.send_transaction(deploy_tx.clone()).await {
+                Ok(p) => break p,
+                Err(e) => {
+                    let err_str = e.to_string().to_lowercase();
+                    attempt += 1;
+
+                    // Handle rate limiting specifically
+                    if err_str.contains("rate limited") || err_str.contains("429") {
+                         if attempt >= max_retries {
+                             return Err(e).context("Rate limit exceeded after max retries");
+                         }
+                         let backoff = 2u64.pow(attempt as u32) * 100; // 200, 400, 800ms
+                         tracing::warn!("Rate limited on deploy, backing off {}ms (attempt {}/{})", backoff, attempt, max_retries);
+                         tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
+                         continue;
+                    }
+
+                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
+                        && attempt < max_retries
+                    {
+                        tracing::warn!(
+                            "Nonce error on deploy_viral_nft, resetting cache and retrying..."
+                        );
+                        client.reset_nonce_cache().await;
+                        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                        
+                        // Rebuild with fresh nonce
+                        let fresh_nonce = client.get_pending_nonce(&ctx.config.rpc_url).await?;
+                        deploy_tx.nonce = Some(fresh_nonce); // Update nonce in existing tx
+                        continue;
+                    } else {
+                        return Err(e).context("Failed to send deploy tx");
+                    }
                 }
             }
         };

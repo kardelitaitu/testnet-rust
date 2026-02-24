@@ -182,10 +182,13 @@ async fn main() -> Result<()> {
     let proxies_path = config_dir.join("proxies.txt");
     let proxies = load_proxies(proxies_path.to_str().unwrap_or("config/proxies.txt"))?;
 
+    let wallet_manager_arc = std::sync::Arc::new(wallet_manager);
+
     let client_pool = Arc::new(
         tempo_spammer::ClientPool::new(
             config.clone(),
             db_arc.clone(),
+            wallet_manager_arc.clone(),
             wallet_password.clone(),
             config.connection_semaphore,
         )

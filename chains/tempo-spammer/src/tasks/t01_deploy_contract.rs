@@ -50,7 +50,7 @@ impl TempoTask for DeployContractTask {
                     if attempt >= max_retries {
                         return Err(e).context("Failed to get nonce after max retries");
                     }
-                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     continue;
                 }
             };
@@ -59,7 +59,7 @@ impl TempoTask for DeployContractTask {
                 .input(bytecode.clone().into())
                 .from(ctx.address())
                 .nonce(nonce) // EXPLICIT NONCE - prevents race conditions
-                .gas_limit(500_000);
+                .gas_limit(1_000_000);
             tx.to = Some(alloy::primitives::TxKind::Create);
 
             match client.provider.send_transaction(tx).await {
@@ -71,15 +71,15 @@ impl TempoTask for DeployContractTask {
                     if (err_str.contains("nonce too low") || err_str.contains("already known"))
                         && attempt < max_retries
                     {
-                        tracing::warn!(
-                            "Nonce error on contract deploy, attempt {}/{}, resetting cache...",
-                            attempt,
-                            max_retries
-                        );
+                        // tracing::warn!(
+                        //     "Nonce error on contract deploy, attempt {}/{}, resetting cache...",
+                        //     attempt,
+                        //     max_retries
+                        // );
 
                         // Reset nonce cache and wait
                         client.reset_nonce_cache().await;
-                        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                         continue;
                     } else {
                         return Err(e).context("Failed to send deployment transaction");

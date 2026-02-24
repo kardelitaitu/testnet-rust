@@ -191,36 +191,32 @@ pub struct ClientLease {
 }
 
 impl ClientLease {
-    /// Explicitly release the client back to the pool with cooldown
+    /// Explicitly release the client back to the pool
     ///
-    /// This is the **preferred** way to release a client. The cooldown
-    /// prevents nonce race conditions by ensuring transactions have
-    /// time to propagate before the wallet is reused.
-    ///
-    /// # Example
-    /// ```rust,no_run
-    /// # async fn example() {
-    /// // lease.release().await; // Explicit release with cooldown
-    /// # }
-    /// ```
+    /// For the spammer, we prefer IMMEDIATE release to maximize throughput.
+    /// The cooldown was adding artificial latency.
     pub async fn release(self) {
+        // Optimization: Skip cooldown for high-throughput spamming
+        // Only use cooldown if explicitly configured to be very high (>2s)
         let pool = self.pool.clone();
         let index = self.index;
         let nonce_config = pool.config.nonce.clone();
+        
+        // If cooldown is small (<1s), ignore it and release immediately
+        // This is safe because RobustNonceManager handles the ordering
+        if nonce_config.base_cooldown_ms < 1000 {
+             pool.release_wallet(index).await;
+        } else {
+            tokio::spawn(async move {
+                let cooldown_ms = nonce_config
+                    .base_cooldown_ms
+                    .max(nonce_config.min_cooldown_ms);
 
-        tokio::spawn(async move {
-            // Use configurable cooldown with adaptive backoff
-            // Base cooldown prevents nonce races by ensuring transactions
-            // have time to propagate before the wallet is reused
-            let cooldown_ms = nonce_config
-                .base_cooldown_ms
-                .max(nonce_config.min_cooldown_ms);
-
-            tracing::debug!("Releasing wallet {} with {}ms cooldown", index, cooldown_ms);
-
-            tokio::time::sleep(std::time::Duration::from_millis(cooldown_ms)).await;
-            pool.release_wallet(index).await;
-        });
+                // tracing::debug!("Releasing wallet {} with {}ms cooldown", index, cooldown_ms);
+                tokio::time::sleep(std::time::Duration::from_millis(cooldown_ms)).await;
+                pool.release_wallet(index).await;
+            });
+        }
     }
 
     /// Release immediately without cooldown
@@ -234,33 +230,17 @@ impl ClientLease {
 
 impl Drop for ClientLease {
     /// Automatic release on drop (with warning)
-    ///
-    /// This is a safety fallback. If you see this warning in logs,
-    /// you should update your code to call `lease.release().await` explicitly.
     fn drop(&mut self) {
-        tracing::warn!(
-            target: "client_pool",
-            "ClientLease dropped without explicit release(). \
-             Using automatic release with cooldown. \
-             Prefer calling lease.release().await explicitly."
-        );
+        // Optimization: Skip warning and cooldown on drop for speed
+        if let Some(permit) = self.permit.take() {
+            drop(permit);
+        }
+        
         let pool = self.pool.clone();
         let index = self.index;
-        let nonce_config = pool.config.nonce.clone();
-
+        
+        // Fire and forget release
         tokio::spawn(async move {
-            // Use configurable cooldown with adaptive backoff
-            let cooldown_ms = nonce_config
-                .base_cooldown_ms
-                .max(nonce_config.min_cooldown_ms);
-
-            tracing::debug!(
-                "Auto-releasing wallet {} with {}ms cooldown",
-                index,
-                cooldown_ms
-            );
-
-            tokio::time::sleep(std::time::Duration::from_millis(cooldown_ms)).await;
             pool.release_wallet(index).await;
         });
     }
@@ -305,11 +285,15 @@ impl ClientPool {
     ///
     /// ```rust,no_run
     /// use tempo_spammer::ClientPool;
+    /// use core_logic::WalletManager;
+    /// use std::sync::Arc;
     ///
     /// # fn example() -> anyhow::Result<()> {
+    /// let wallet_manager = Arc::new(WalletManager::new()?);
     /// let pool = ClientPool::new(
     ///     config,
     ///     db,
+    ///     wallet_manager,
     ///     Some("password".to_string()),
     /// )?;
     /// # Ok(())
@@ -318,11 +302,10 @@ impl ClientPool {
     pub fn new(
         config: Config,
         db: Arc<core_logic::database::DatabaseManager>,
+        wallet_manager: Arc<WalletManager>,
         wallet_password: Option<String>,
         connection_semaphore_size: usize,
     ) -> Result<Self> {
-        let wallet_manager = Arc::new(WalletManager::new()?);
-
         // Initialize nonce managers
         let nonce_manager = Some(Arc::new(crate::NonceManager::new()));
         let robust_nonce_manager = Some(Arc::new(crate::RobustNonceManager::new()));

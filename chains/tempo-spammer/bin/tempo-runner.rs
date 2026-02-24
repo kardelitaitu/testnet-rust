@@ -39,7 +39,15 @@ struct TaskRunResult {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Try loading .env from multiple locations
     dotenv().ok();
+    if env::var("WALLET_PASSWORD").is_err() {
+        // Try loading from current directory explicitly
+        dotenv::from_filename(".env").ok();
+        // Try loading from chains/tempo-spammer/.env
+        dotenv::from_filename("chains/tempo-spammer/.env").ok();
+    }
+
     let args = Args::parse();
 
     // 1. Load Config
@@ -56,7 +64,7 @@ async fn main() -> Result<()> {
 
     // 2. Load Wallets
     let wallet_password = env::var("WALLET_PASSWORD").ok();
-    let wallet_manager = WalletManager::new()?;
+    let wallet_manager = std::sync::Arc::new(WalletManager::new()?);
     let total_wallets = wallet_manager.count();
     if total_wallets == 0 {
         return Err(anyhow::anyhow!("No wallets found"));
@@ -66,8 +74,28 @@ async fn main() -> Result<()> {
     let config_dir = std::path::Path::new(&config_path)
         .parent()
         .unwrap_or(std::path::Path::new("."));
-    let proxies_path = config_dir.join("proxies.txt");
-    let proxies = load_proxies(proxies_path.to_str().unwrap_or("config/proxies.txt"))?;
+    
+    // Check multiple locations for proxies.txt
+    let possible_paths = vec![
+        std::path::PathBuf::from("../../proxies.txt"),
+        config_dir.join("proxies.txt"),
+        std::path::PathBuf::from("proxies.txt"),
+        std::path::PathBuf::from("config/proxies.txt"),
+    ];
+
+    let mut proxies = Vec::new();
+    for path in possible_paths {
+        if path.exists() {
+            println!("Loading proxies from {:?}", path);
+            if let Ok(p) = load_proxies(path.to_str().unwrap_or("")) {
+                if !p.is_empty() {
+                    proxies = p;
+                    break;
+                }
+            }
+        }
+    }
+    
     let total_proxies = proxies.len();
 
     // 4. Initialize DB and ClientPool
@@ -91,6 +119,7 @@ async fn main() -> Result<()> {
     let client_pool = tempo_spammer::ClientPool::new(
         config.clone(),
         db_arc.clone(),
+        wallet_manager.clone(),
         wallet_password.clone(),
         config.connection_semaphore,
     )

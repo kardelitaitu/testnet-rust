@@ -2,6 +2,10 @@
 
 Multi-worker transaction spammer for the Tempo blockchain using Alloy v1.0.
 
+debug:
+cargo run -p tempo-spammer --bin tempo-runner -- --no-proxy
+
+
 ## Overview
 
 This project provides a high-performance transaction spammer for the Tempo blockchain with:

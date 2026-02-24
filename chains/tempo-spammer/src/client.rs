@@ -191,22 +191,6 @@ impl TempoClient {
                 .connect_client(client),
         );
 
-        // Phase 1: Warm up the connection by sending HTTP HEAD request
-        // This establishes TCP/TLS connection before first real use, preventing race conditions
-        let warmup_client = reqwest::Client::new();
-        match warmup_client
-            .head(rpc_url)
-            .timeout(std::time::Duration::from_secs(5))
-            .send()
-            .await
-        {
-            Ok(_) => tracing::debug!(
-                "Connection warmed up successfully for proxy {:?}",
-                proxy_index
-            ),
-            Err(e) => tracing::warn!("Connection warmup failed (will retry on first use): {}", e),
-        }
-
         let client = Self {
             provider,
             signer,
@@ -218,9 +202,8 @@ impl TempoClient {
             use_pending_count,
         };
 
-        // Phase 3: Verify provider is ready before returning
-        // This ensures the connection is fully established and can reach the RPC endpoint
-        client.verify_provider_ready().await?;
+        // Removed Phase 1 (Warmup) and Phase 3 (Verify) for maximum speed
+        // Spammers prefer speed over connection certainty
 
         Ok(client)
     }
@@ -292,8 +275,8 @@ impl TempoClient {
         }
 
         let reqwest_client = client_builder
-            .timeout(std::time::Duration::from_secs(30))
-            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(10)) // Reduced from 30s - fail fast if proxy hangs
+            .connect_timeout(std::time::Duration::from_secs(5))
             .pool_idle_timeout(std::time::Duration::from_secs(30)) // Reuse connections
             .pool_max_idle_per_host(5) // Limit cached connections
             .build()
@@ -307,7 +290,7 @@ impl TempoClient {
 
         let client = ClientBuilder::default()
             .layer(alloy::transports::layers::RetryBackoffLayer::new(
-                5, 100, 2000,
+                3, 50, 500, // Reduced from 5/100/2000 - fail fast, retry quickly
             ))
             .transport(http_transport, true);
 

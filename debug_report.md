@@ -1,58 +1,55 @@
 # Tempo Debug Report
-*Generated: 2026-01-30 02:49:20*
+*Generated: 2026-02-24 08:32:44*
 
 | # | Task Name | Status | Duration | Wallet | Proxy | Tx Hash | Error |
 |---|---|---|---|---|---|---|---|
-| 01 | Deploy Counter Contract | ✅ | 18.87s | 437 | Proxy 389 | 0xcb422366... | - |
-| 02 | Claim Faucet | ✅ | 17.08s | 172 | Proxy 378 | 0xd246ce31... | - |
-| 03 | Send Token | ✅ | 19.09s | 100 | Proxy 147 | 0xfe84283d... | - |
-| 04 | Create Stablecoin | ✅ | 24.81s | 134 | Proxy 074 | 0xc7962928... | - |
-| 05 | Swap Stablecoin | ✅ | 31.70s | 56 | Proxy 294 | 0x594612ab... | - |
-| 06 | Add Liquidity | ✅ | 23.44s | 49 | Proxy 223 | 0xb88d4add... | - |
-| 07 | Mint Stablecoin | ✅ | 23.57s | 251 | Proxy 029 | 0x39f95038... | - |
-| 08 | Burn Stablecoin | ✅ | 19.59s | 424 | Proxy 116 | 0x0dfa709a... | - |
-| 09 | Transfer Token | ✅ | 10.70s | 469 | Proxy 302 | 0x292fb0af... | - |
-| 10 | Transfer with Memo | ✅ | 11.40s | 159 | Proxy 314 | 0x866ea21d... | - |
-| 11 | Limit Order | ✅ | 16.24s | 451 | Proxy 082 | 0xa0cf6aae... | - |
-| 12 | Remove Liquidity | ✅ | 4.91s | 102 | Proxy 345 | - | - |
-| 13 | Grant Role | ✅ | 4.52s | 35 | Proxy 223 | 0x76ea3eef... | - |
-| 14 | NFT Create & Mint | ✅ | 26.92s | 270 | Proxy 322 | 0x03bd7ed5... | - |
-| 15 | Mint Domain | ✅ | 20.06s | 397 | Proxy 046 | 0x2252b0e8... | - |
-| 16 | Mint Random NFT | ✅ | 30.48s | 384 | Proxy 146 | 0xec2c1324... | - |
-| 17 | Batch EIP-7702 | ✅ | 18.33s | 245 | Proxy 253 | 0x8da845f2... | - |
-| 18 | TIP-403 Policies | ✅ | 12.53s | 66 | Proxy 213 | 0x730d5440... | - |
-| 19 | Wallet Analytics | ✅ | 14.86s | 79 | Proxy 250 | - | - |
-| 20 | Wallet Activity | ✅ | 8.12s | 112 | Proxy 290 | - | - |
-| 21 | Create Meme | ✅ | 16.57s | 137 | Proxy 369 | 0xcf12d844... | - |
-| 22 | Mint Meme | ✅ | 11.88s | 3 | Proxy 323 | 0x21203c39... | - |
-| 23 | Transfer Meme | ✅ | 7.87s | 19 | Proxy 124 | 0x9e863756... | - |
-| 24 | Batch Swap | ✅ | 8.17s | 449 | Proxy 090 | 0x17a918cd... | - |
-| 25 | Batch System Token | ✅ | 8.70s | 177 | Proxy 022 | 0xa5e2f112... | - |
-| 26 | Batch Stable Token | ✅ | 25.67s | 80 | Proxy 283 | 0x3ff2aa79... | - |
-| 27 | Batch Meme Token | ✅ | 30.43s | 163 | Proxy 002 | 0x457f83e4... | - |
-| 28 | Multi-Send Disperse | ✅ | 27.13s | 265 | Proxy 368 | 0x4e2b890b... | - |
-| 29 | Multi-Send Stable | ✅ | 23.27s | 442 | Proxy 250 | 0x28d6f096... | - |
-| 30 | Multi-Send Meme | ✅ | 22.95s | 247 | Proxy 070 | 0x61aed78b... | - |
-| 31 | Multi-Send Concurrent | ✅ | 18.85s | 273 | Proxy 228 | 0xb6fe66e8... | - |
-| 32 | Concurrent Stable | ✅ | 16.78s | 250 | Proxy 338 | 0xc12a1b51... | - |
-| 33 | Concurrent Meme | ✅ | 14.90s | 345 | Proxy 218 | 0xd4d4dee1... | - |
-| 34 | Batch Send Tx | ✅ | 12.68s | 430 | Proxy 300 | 0xd924a8cb... | - |
-| 35 | Batch Send Stable | ✅ | 34.25s | 16 | Proxy 012 | 0x2411afe3... | - |
-| 36 | Batch Send Meme | ✅ | 19.29s | 354 | Proxy 324 | 0x2ed90ae1... | - |
-| 37 | Transfer Later | ✅ | 11.16s | 204 | Proxy 175 | 0xceffd571... | - |
-| 38 | Transfer Later Stable | ✅ | 9.44s | 66 | Proxy 213 | 0x9b826406... | - |
-| 39 | Transfer Later Meme | ❌ | 9.20s | 442 | Proxy 250 | - | Failed to send raw Tempo tx
-
-Caused by:
-    server returned an error response: error code -32000: replacement transaction underpriced |
-| 40 | Distribute Shares | ✅ | 9.09s | 300 | Proxy 325 | 0xb788f72d... | - |
-| 41 | Distribute Shares Stable | ✅ | 7.93s | 479 | Proxy 335 | 0xb9f79f4f... | - |
-| 42 | Distribute Shares Meme | ✅ | 5.74s | 104 | Proxy 342 | 0x90e24eab... | - |
-| 43 | Batch Mint Stable | ✅ | 8.88s | 447 | Proxy 252 | 0x0d1e3643... | - |
-| 44 | Batch Mint Meme | ✅ | 4.73s | 442 | Proxy 250 | 0xda76d39e... | - |
-| 45 | Deploy Viral Faucet | ✅ | 25.95s | 33 | Proxy 199 | 0xca7b570e... | - |
-| 46 | Claim Viral Faucet | ✅ | 13.75s | 101 | Proxy 087 | 0x22203943... | - |
-| 47 | Deploy Viral NFT | ✅ | 11.24s | 208 | Proxy 032 | 0xd645e952... | - |
-| 48 | Mint Viral NFT | ✅ | 9.76s | 4 | Proxy 007 | 0x7590e38b... | - |
-| 49 | Time Bomb | ✅ | 5.23s | 254 | Proxy 127 | 0x9acfe8c4... | - |
-| 50 | Deploy Storm | ✅ | 4.14s | 34 | Proxy 231 | 0x2a1c837a... | - |
+| 01 | Deploy Counter Contract | ✅ | 18.59s | 2413 | Proxy 000 | 0x83517bb1... | - |
+| 02 | Claim Faucet | ✅ | 16.84s | 2499 | Proxy 001 | 0x2e621f87... | - |
+| 03 | Send Token | ✅ | 15.02s | 1070 | Proxy 002 | 0x81ccae9d... | - |
+| 04 | Create Stablecoin | ✅ | 23.70s | 560 | Proxy 003 | 0xd1ec8af3... | - |
+| 05 | Swap Stablecoin | ✅ | 19.86s | 1340 | Proxy 004 | 0xdc29840a... | - |
+| 06 | Add Liquidity | ✅ | 19.63s | 787 | Proxy 005 | 0x02ac1bbb... | - |
+| 07 | Mint Stablecoin | ✅ | 17.55s | 1635 | Proxy 006 | 0x541a2657... | - |
+| 08 | Burn Stablecoin | ✅ | 11.58s | 2469 | Proxy 007 | 0xfecb4567... | - |
+| 09 | Transfer Token | ✅ | 10.80s | 434 | Proxy 008 | 0x96866879... | - |
+| 10 | Transfer with Memo | ✅ | 9.74s | 1829 | Proxy 009 | 0xae5e7272... | - |
+| 11 | Limit Order | ✅ | 9.48s | 738 | Proxy 010 | 0xa39a9af8... | - |
+| 12 | Remove Liquidity | ✅ | 4.73s | 1383 | Proxy 011 | - | - |
+| 13 | Grant Role | ✅ | 4.54s | 800 | Proxy 012 | 0x4511bc7a... | - |
+| 14 | NFT Create & Mint | ✅ | 7.66s | 173 | Proxy 174 | 0xb63b8bcb... | - |
+| 15 | Mint Domain | ✅ | 20.05s | 175 | Proxy 014 | 0x06af691a... | - |
+| 16 | Mint Random NFT | ✅ | 21.67s | 1994 | Proxy 015 | 0xc11f3ffc... | - |
+| 17 | Batch EIP-7702 | ✅ | 16.03s | 125 | Proxy 016 | 0x48771c82... | - |
+| 18 | TIP-403 Policies | ✅ | 12.14s | 2170 | Proxy 017 | 0xc4f86ded... | - |
+| 19 | Wallet Analytics | ✅ | 10.87s | 1644 | Proxy 018 | - | - |
+| 20 | Wallet Activity | ✅ | 7.87s | 1182 | Proxy 019 | - | - |
+| 21 | Create Meme | ✅ | 11.18s | 1466 | Proxy 020 | 0x2a52dc46... | - |
+| 22 | Mint Meme | ✅ | 7.45s | 541 | Proxy 021 | 0x56c2a07f... | - |
+| 23 | Transfer Meme | ✅ | 4.76s | 1137 | Proxy 022 | 0xa365e7e0... | - |
+| 24 | Batch Swap | ✅ | 21.60s | 1893 | Proxy 023 | 0xae2f18da... | - |
+| 25 | Batch System Token | ✅ | 21.89s | 1099 | Proxy 024 | 0x5d307d50... | - |
+| 26 | Batch Stable Token | ✅ | 16.80s | 860 | Proxy 025 | 0x2787e531... | - |
+| 27 | Batch Meme Token | ✅ | 23.56s | 1147 | Proxy 026 | 0xa08b05d3... | - |
+| 28 | Multi-Send Disperse | ✅ | 21.79s | 114 | Proxy 027 | 0x902eb6c3... | - |
+| 29 | Multi-Send Stable | ✅ | 20.05s | 481 | Proxy 028 | 0xa97919c3... | - |
+| 30 | Multi-Send Meme | ✅ | 18.27s | 3 | Proxy 029 | 0x64f094dc... | - |
+| 31 | Multi-Send Concurrent | ✅ | 11.43s | 1931 | Proxy 030 | 0xee713e35... | - |
+| 32 | Concurrent Stable | ❌ | 4.95s | 1514 | Proxy 031 | - | Completed 0/2 concurrent Asset_20c000 transfers. |
+| 33 | Concurrent Meme | ✅ | 11.48s | 2120 | Proxy 032 | 0xaad84db1... | - |
+| 34 | Batch Send Tx | ✅ | 21.77s | 610 | Proxy 033 | 0xb6a03387... | - |
+| 35 | Batch Send Stable | ✅ | 21.95s | 1387 | Proxy 034 | 0x8719c39c... | - |
+| 36 | Batch Send Meme | ✅ | 23.29s | 1168 | Proxy 035 | 0x8bb2d16f... | - |
+| 37 | Transfer Later | ✅ | 13.49s | 1271 | Proxy 036 | 0x004cf0ac... | - |
+| 38 | Transfer Later Stable | ✅ | 11.78s | 714 | Proxy 037 | 0xd3b9e8ce... | - |
+| 39 | Transfer Later Meme | ✅ | 10.37s | 2228 | Proxy 038 | 0xdb14318e... | - |
+| 40 | Distribute Shares | ✅ | 8.15s | 44 | Proxy 039 | 0xc8a4acc0... | - |
+| 41 | Distribute Shares Stable | ✅ | 6.78s | 1405 | Proxy 040 | 0x98b1d332... | - |
+| 42 | Distribute Shares Meme | ✅ | 4.71s | 373 | Proxy 041 | 0xc5bb18eb... | - |
+| 43 | Batch Mint Stable | ✅ | 2.59s | 1751 | Proxy 002 | - | - |
+| 44 | Batch Mint Meme | ✅ | 16.02s | 1113 | Proxy 043 | 0x32a37b9c... | - |
+| 45 | Deploy Viral Faucet | ✅ | 17.27s | 78 | Proxy 044 | 0x9713211b... | - |
+| 46 | Claim Viral Faucet | ✅ | 12.75s | 1226 | Proxy 045 | 0x69043267... | - |
+| 47 | Deploy Viral NFT | ✅ | 8.98s | 1237 | Proxy 046 | 0x90301ba8... | - |
+| 48 | Mint Viral NFT | ✅ | 7.95s | 1309 | Proxy 047 | 0x0785454e... | - |
+| 49 | Time Bomb | ✅ | 4.48s | 797 | Proxy 048 | 0x53644e57... | - |
+| 50 | Deploy Storm | ✅ | 3.80s | 1836 | Proxy 049 | 0x4ab52067... | - |

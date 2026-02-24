@@ -94,34 +94,34 @@ impl TempoTask for LimitOrderTask {
             // Approve PathUSD for DEX
             let approve_calldata = build_approve_calldata(dex_addr, U256::MAX);
 
-            // Get robust nonce for approval
-            let approve_reservation = client
-                .get_robust_nonce(&ctx.config.rpc_url)
-                .await
-                .context("Failed to reserve nonce for PathUSD approval")?;
-
-            let approve_tx = TransactionRequest::default()
-                .to(pathusd_addr)
-                .input(TransactionInput::from(approve_calldata))
-                .from(address)
-                .nonce(approve_reservation.nonce);
-
-            let approve_receipt = client
-                .provider
-                .send_transaction(approve_tx)
-                .await
-                .context("Failed to approve PathUSD")?;
-
-            approve_reservation.mark_submitted().await;
-
-            let approve_receipt = approve_receipt
-                .get_receipt()
-                .await
-                .context("Failed to get approve receipt")?;
-
-            if !approve_receipt.inner.status() {
-                anyhow::bail!("PathUSD approval failed");
+            // Send approval with retry logic (Simplified)
+            let mut attempt = 0;
+            loop {
+                let nonce = match client.get_pending_nonce(&ctx.config.rpc_url).await {
+                     Ok(n) => n,
+                     Err(_) => break, // Skip approval if nonce fetch fails, try order anyway
+                };
+                
+                let approve_tx = TransactionRequest::default()
+                    .to(pathusd_addr)
+                    .input(TransactionInput::from(approve_calldata.clone()))
+                    .from(address)
+                    .nonce(nonce);
+                
+                match client.provider.send_transaction(approve_tx).await {
+                    Ok(_) => break, // Approval sent (fire and forget)
+                    Err(e) => {
+                        let err = e.to_string().to_lowercase();
+                        if (err.contains("nonce") || err.contains("known")) && attempt < 2 {
+                             client.reset_nonce_cache().await;
+                             attempt += 1;
+                             continue;
+                        }
+                        break;
+                    }
+                }
             }
+
             // println!("PathUSD approved for DEX");
         } else {
             // SELL: use random 500-1000 of the system token for PathUSD
@@ -147,35 +147,35 @@ impl TempoTask for LimitOrderTask {
 
             // Approve system token for DEX
             let approve_calldata = build_approve_calldata(dex_addr, U256::MAX);
-
-            // Get robust nonce for approval
-            let approve_reservation = client
-                .get_robust_nonce(&ctx.config.rpc_url)
-                .await
-                .context("Failed to reserve nonce for token approval")?;
-
-            let approve_tx = TransactionRequest::default()
-                .to(token_addr)
-                .input(TransactionInput::from(approve_calldata))
-                .from(address)
-                .nonce(approve_reservation.nonce);
-
-            let approve_receipt = client
-                .provider
-                .send_transaction(approve_tx)
-                .await
-                .context("Failed to approve token")?;
-
-            approve_reservation.mark_submitted().await;
-
-            let approve_receipt = approve_receipt
-                .get_receipt()
-                .await
-                .context("Failed to get approve receipt")?;
-
-            if !approve_receipt.inner.status() {
-                anyhow::bail!("Token approval failed");
+            
+            // Send approval with retry logic (Simplified)
+            let mut attempt = 0;
+            loop {
+                let nonce = match client.get_pending_nonce(&ctx.config.rpc_url).await {
+                     Ok(n) => n,
+                     Err(_) => break, 
+                };
+                
+                let approve_tx = TransactionRequest::default()
+                    .to(token_addr)
+                    .input(TransactionInput::from(approve_calldata.clone()))
+                    .from(address)
+                    .nonce(nonce);
+                
+                match client.provider.send_transaction(approve_tx).await {
+                    Ok(_) => break, 
+                    Err(e) => {
+                        let err = e.to_string().to_lowercase();
+                        if (err.contains("nonce") || err.contains("known")) && attempt < 2 {
+                             client.reset_nonce_cache().await;
+                             attempt += 1;
+                             continue;
+                        }
+                        break;
+                    }
+                }
             }
+            
             // println!("{} approved for DEX", token_name);
         }
 
@@ -183,66 +183,57 @@ impl TempoTask for LimitOrderTask {
 
         let place_calldata = build_place_calldata(token_addr, amount_u128, is_bid, tick);
 
-        // Get robust nonce for place order
-        let place_reservation = match client.get_robust_nonce(&ctx.config.rpc_url).await {
-            Ok(r) => r,
-            Err(e) => {
-                return Ok(TaskResult {
-                    success: false,
-                    message: format!("Failed to reserve nonce for limit order: {}", e),
-                    tx_hash: None,
-                });
-            }
-        };
+        // Send place order with retry logic
+        let mut attempt = 0;
+        let max_retries = 3;
+        
+        loop {
+            let nonce = match client.get_pending_nonce(&ctx.config.rpc_url).await {
+                Ok(n) => n,
+                Err(e) => return Ok(TaskResult { success: false, message: format!("Nonce error: {}", e), tx_hash: None }),
+            };
 
-        let tx = TransactionRequest::default()
-            .to(dex_addr)
-            .input(TransactionInput::from(place_calldata))
-            .from(address)
-            .nonce(place_reservation.nonce)
-            .max_fee_per_gas(150_000_000_000u128)
-            .max_priority_fee_per_gas(1_500_000_000u128);
+            let tx = TransactionRequest::default()
+                .to(dex_addr)
+                .input(TransactionInput::from(place_calldata.clone()))
+                .from(address)
+                .nonce(nonce)
+                .max_fee_per_gas(150_000_000_000u128)
+                .max_priority_fee_per_gas(1_500_000_000u128);
 
-        match client.provider.send_transaction(tx).await {
-            Ok(pending) => {
-                place_reservation.mark_submitted().await;
-                let tx_hash = *pending.tx_hash();
-                let receipt = pending
-                    .get_receipt()
-                    .await
-                    .context("Failed to get receipt")?;
-
-                if !receipt.inner.status() {
+            match client.provider.send_transaction(tx).await {
+                Ok(pending) => {
+                    let tx_hash = *pending.tx_hash();
+                    // Fire and forget
+                    return Ok(TaskResult {
+                        success: true,
+                        message: format!(
+                            "Placed Limit Order ({}): {} {} {} PathUSD @ Tick {}. Tx: {:?}",
+                            if is_bid { "BUY" } else { "SELL" },
+                            amount_u128 / 1_000_000,
+                            token_symbol,
+                            if is_bid { "<-" } else { "->" },
+                            if is_bid { "-20" } else { "+20" },
+                            tx_hash
+                        ),
+                        tx_hash: Some(format!("{:?}", tx_hash)),
+                    })
+                }
+                Err(e) => {
+                    let err = e.to_string().to_lowercase();
+                    if (err.contains("nonce") || err.contains("known")) && attempt < max_retries {
+                        client.reset_nonce_cache().await;
+                        attempt += 1;
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                        continue;
+                    }
+                    
                     return Ok(TaskResult {
                         success: false,
-                        message: "Limit order reverted".to_string(),
-                        tx_hash: Some(format!("{:?}", tx_hash)),
+                        message: format!("Limit order reverted: {}", e),
+                        tx_hash: None,
                     });
                 }
-
-                Ok(TaskResult {
-                    success: true,
-                    message: format!(
-                        "Placed Limit Order ({}): {} {} {} PathUSD @ Tick {}. Tx: {:?}",
-                        if is_bid { "BUY" } else { "SELL" },
-                        amount_u128 / 1_000_000,
-                        token_symbol,
-                        if is_bid { "<-" } else { "->" },
-                        if is_bid { "-20" } else { "+20" },
-                        tx_hash
-                    ),
-                    tx_hash: Some(format!("{:?}", tx_hash)),
-                })
-            }
-            Err(e) => {
-                drop(place_reservation);
-                let err_msg = e.to_string();
-                tracing::warn!("Limit order revert details: {}", err_msg);
-                return Ok(TaskResult {
-                    success: false,
-                    message: format!("Limit order reverted: {}", err_msg),
-                    tx_hash: None,
-                });
             }
         }
     }

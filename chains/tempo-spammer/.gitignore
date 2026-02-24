@@ -2,3 +2,5 @@ target/
 target_analyzer/
 target-temp/
 *.log
+.env
+wallet-json/

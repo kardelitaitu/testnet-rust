@@ -46,49 +46,13 @@ impl TempoTask for SendTokenTask {
         };
         let token_address = Address::from_str(token_addr_str)?;
 
-        let mut balance_data = hex::decode("70a08231000000000000000000000000").unwrap();
-        balance_data.extend_from_slice(address.as_slice());
-
-        let response = client
-            .provider
-            .call(
-                TransactionRequest::default()
-                    .to(token_address)
-                    .input(balance_data.into()),
-            )
-            .await?;
-
-        let balance = if response.0.len() == 32 {
-            let mut bytes = [0u8; 32];
-            bytes.copy_from_slice(&response.0[..32]);
-            U256::from_be_bytes(bytes)
-        } else {
-            U256::ZERO
-        };
-
-        let min_balance = U256::from(1_000_000u64);
-
-        if balance < min_balance {
-            return Ok(TaskResult {
-                success: false,
-                message: format!("Low {} balance: {} (Need 10^6)", token_name, balance),
-                tx_hash: None,
-            });
-        }
+        // Optimization: Skip balance check to save 1 RPC call
+        // Spammers assume wallets are funded. If not, the tx will fail on chain or be rejected.
+        let amount = U256::from(1000u64); // Send small amount
 
         let dest = get_random_address()?;
 
-        let amount = balance / U256::from(50);
-
-        if amount.is_zero() {
-            return Ok(TaskResult {
-                success: false,
-                message: format!("Balance too low to send 2% (balance: {})", balance),
-                tx_hash: None,
-            });
-        }
-
-        // tracing::info!("Sending 2% of {} balance to {:?}...", token_name, dest);
+        // tracing::info!("Sending token to {:?}...", dest);
 
         let mut transfer_data = hex::decode("a9059cbb000000000000000000000000").unwrap();
         transfer_data.extend_from_slice(dest.as_slice());
@@ -103,16 +67,11 @@ impl TempoTask for SendTokenTask {
                 Ok(n) => n,
                 Err(e) => {
                     attempt += 1;
-                    tracing::error!(
-                        "Failed to get nonce for send_token (attempt {}/{}): {}",
-                        attempt,
-                        max_retries,
-                        e
-                    );
                     if attempt >= max_retries {
                         return Err(e.into());
                     }
-                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    // Reduced sleep for speed
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     continue;
                 }
             };
@@ -132,13 +91,10 @@ impl TempoTask for SendTokenTask {
                     if (err_str.contains("nonce too low") || err_str.contains("already known"))
                         && attempt < max_retries
                     {
-                        tracing::warn!(
-                            "Nonce error on send_token, attempt {}/{}, resetting cache...",
-                            attempt,
-                            max_retries
-                        );
+                        // Reset nonce cache and retry quickly
                         client.reset_nonce_cache().await;
-                        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                        // Reduced sleep for speed
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                         continue;
                     } else {
                         return Err(e.into());

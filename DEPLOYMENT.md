@@ -38,6 +38,8 @@ rustc --version
 ```bash
 # Clone the repo
 git clone https://github.com/kardelitaitu/testnet-rust.git
+sudo apt update && sudo apt install -y build-essential
+sudo apt install -y pkg-config libssl-dev
 cd testnet-rust
 
 # Verify structure

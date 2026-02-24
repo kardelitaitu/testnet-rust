@@ -75,7 +75,8 @@ impl TempoTask for BatchEip7702Task {
             let faucet_tx = TransactionRequest::default()
                 .to(FAUCET_ADDRESS.parse().unwrap())
                 .input(data.into())
-                .from(address);
+                .from(address)
+                .gas_limit(500_000); // Added gas limit
 
             // Send faucet claim with retry for nonce errors
             let mut attempt = 0;
@@ -114,7 +115,7 @@ impl TempoTask for BatchEip7702Task {
             tracing::debug!("New Balance after Faucet: {}", balance);
         }
 
-        let swap_amount = U256::from(1_000_000_000); // 1000 PathUSD
+        let swap_amount = U256::from(100_000); // Reduced from 1_000_000_000 to avoid InsufficientLiquidity
 
         // 2. Approve PathUSD for DEX (2x for safety buffer)
         // println!("Step 1/2: Approving PathUSD for DEX...");
@@ -123,7 +124,8 @@ impl TempoTask for BatchEip7702Task {
         let approve_tx = TransactionRequest::default()
             .to(pathusd_addr)
             .input(approve_calldata.into())
-            .from(address);
+            .from(address)
+            .gas_limit(500_000); // Added gas limit
 
         // Send approval with retry for nonce errors
         let mut attempt = 0;

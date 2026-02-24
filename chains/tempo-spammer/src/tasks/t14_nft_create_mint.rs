@@ -58,7 +58,8 @@ impl TempoTask for NftCreateMintTask {
             .input(TransactionInput::from(bytecode))
             .from(address)
             .max_fee_per_gas(150_000_000_000u128)
-            .max_priority_fee_per_gas(1_500_000_000u128);
+            .max_priority_fee_per_gas(1_500_000_000u128)
+            .gas_limit(5_000_000);
 
         deploy_tx.to = Some(TxKind::Create);
 
@@ -156,7 +157,7 @@ impl TempoTask for NftCreateMintTask {
             .to(contract_address)
             .input(TransactionInput::from(grant_input.clone()))
             .from(address)
-            .gas_limit(200_000)
+            .gas_limit(5_000_000)
             .max_fee_per_gas(150_000_000_000u128)
             .max_priority_fee_per_gas(1_500_000_000u128);
 

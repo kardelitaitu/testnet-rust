@@ -25,13 +25,17 @@
 //!
 //! ```rust,no_run
 //! use tempo_spammer::{ClientPool, proxy_health::ProxyBanlist};
+//! use core_logic::WalletManager;
+//! use std::sync::Arc;
 //!
 //! # async fn example() -> anyhow::Result<()> {
 //! let banlist = ProxyBanlist::new(10); // 10 minute ban duration
+//! let wallet_manager = Arc::new(WalletManager::new()?);
 //!
 //! let pool = ClientPool::new(
 //!     "config/config.toml",
 //!     Some("password".to_string()),
+//!     wallet_manager,
 //!     None,
 //! ).await?;
 //!

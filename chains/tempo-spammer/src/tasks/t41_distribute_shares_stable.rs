@@ -184,8 +184,40 @@ impl TempoTask for DistributeSharesStableTask {
             start_nonce + 2
         );
 
+        let deploy_fut = async {
+            let mut attempt = 0;
+            let max_retries = 3;
+            loop {
+                match client.provider.send_transaction(deploy_tx.clone()).await {
+                    Ok(p) => break Ok(p),
+                    Err(e) => {
+                        let err_str = e.to_string().to_lowercase();
+                        attempt += 1;
+                        if attempt >= max_retries {
+                            return Err(e).context("Failed to deploy splitter after max retries");
+                        }
+
+                        if err_str.contains("rate limited") || err_str.contains("429") {
+                            let backoff = 2u64.pow(attempt as u32) * 200;
+                            tracing::warn!("Rate limited on deploy, backing off {}ms...", backoff);
+                            tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
+                            continue;
+                        }
+
+                        if err_str.contains("nonce too low") || err_str.contains("already known") {
+                            client.reset_nonce_cache().await;
+                            // In pipeline, we try again but we can't easily update subsequent nonces here
+                            continue;
+                        }
+
+                        return Err(e).context("Failed to send deploy tx");
+                    }
+                }
+            }
+        };
+
         let (p1, p2, p3) = tokio::join!(
-            client.provider.send_transaction(deploy_tx),
+            deploy_fut,
             client.provider.send_transaction(fund_tx),
             client.provider.send_transaction(distribute_tx)
         );

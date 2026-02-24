@@ -52,7 +52,14 @@ enum Commands {
 }
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Try loading .env from multiple locations
     dotenv().ok();
+    if env::var("WALLET_PASSWORD").is_err() {
+        // Try loading from current directory explicitly
+        dotenv::from_filename(".env").ok();
+        // Try loading from chains/tempo-spammer/.env
+        dotenv::from_filename("chains/tempo-spammer/.env").ok();
+    }
 
     let args = Args::parse();
 
@@ -122,7 +129,7 @@ async fn main() -> Result<()> {
     );
 
     // Prompt for wallet password at runtime (never stored in binary)
-    let wallet_manager = WalletManager::new()?;
+    let wallet_manager = std::sync::Arc::new(WalletManager::new()?);
     let total_wallets = wallet_manager.count();
 
     if total_wallets == 0 {
@@ -279,6 +286,7 @@ async fn main() -> Result<()> {
         tempo_spammer::ClientPool::new(
             config.clone(),
             db_manager.clone(),                // Use same instance
+            wallet_manager.clone(),            // Use existing wallet manager
             Some(wallet_password.to_string()), // Clone for ClientPool
             config.connection_semaphore,       // Use configurable semaphore size from config
         )

@@ -9,6 +9,7 @@ use rand::Rng;
 use std::env;
 use std::sync::Arc;
 use tempo_spammer::TempoClient;
+use tempo_spammer::RobustNonceManager;
 use tempo_spammer::config::TempoSpammerConfig;
 use tempo_spammer::tasks::{TaskContext, TempoTask, load_proxies};
 use tracing;
@@ -40,7 +41,14 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Try loading .env from multiple locations
     dotenv().ok();
+    if env::var("WALLET_PASSWORD").is_err() {
+        // Try loading from current directory explicitly
+        dotenv::from_filename(".env").ok();
+        // Try loading from chains/tempo-spammer/.env
+        dotenv::from_filename("chains/tempo-spammer/.env").ok();
+    }
 
     // Initialize tracing for debug mode (show everything)
     tracing_subscriber::fmt()
@@ -113,11 +121,31 @@ async fn main() -> Result<()> {
     let config_dir = config_path_obj
         .parent()
         .unwrap_or(std::path::Path::new("."));
-    let proxies_path = config_dir.join("proxies.txt");
+    
+    // Check multiple locations for proxies.txt
+    let possible_paths = vec![
+        std::path::PathBuf::from("../../proxies.txt"),
+        config_dir.join("proxies.txt"),
+        std::path::PathBuf::from("proxies.txt"),
+        std::path::PathBuf::from("config/proxies.txt"),
+    ];
 
-    // Load proxies
-    let proxy_path_str = proxies_path.to_str().unwrap_or("config/proxies.txt");
-    let proxies = load_proxies(proxy_path_str)?;
+    let mut proxies_path = std::path::PathBuf::from("../../proxies.txt");
+    let mut proxies = Vec::new();
+
+    for path in possible_paths {
+        if path.exists() {
+            println!("Loading proxies from {:?}", path);
+            if let Ok(p) = load_proxies(path.to_str().unwrap_or("")) {
+                if !p.is_empty() {
+                    proxies = p;
+                    proxies_path = path;
+                    break;
+                }
+            }
+        }
+    }
+    
     println!(
         "Loaded {} proxies from {}",
         proxies.len(),
@@ -158,13 +186,17 @@ async fn main() -> Result<()> {
         .await?;
 
     // Create client with proxy
-    let client = TempoClient::new(
+    let mut client = TempoClient::new(
         &config.rpc_url,
         &decrypted.evm_private_key,
         proxy,
         proxy_idx,
     )
     .await?;
+
+    // Initialize RobustNonceManager for tasks that require it (like batch tasks)
+    client.robust_nonce_manager = Some(Arc::new(RobustNonceManager::new()));
+
     println!("Wallet address: {:?}", client.address());
     println!(
         "Using proxy {}: {}",
