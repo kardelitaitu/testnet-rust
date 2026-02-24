@@ -301,10 +301,10 @@ async fn main() -> Result<()> {
 
     // Phase 3.2: Register cleanup hook for ClientPool
     let cp_for_hook = client_pool.clone();
-    register_memory_cleanup_hook(move || {
+    register_memory_cleanup_hook(move |is_emergency| {
         let cp = cp_for_hook.clone();
         async move {
-            cp.cleanup().await;
+            cp.cleanup_with_priority(is_emergency).await;
         }
     });
 

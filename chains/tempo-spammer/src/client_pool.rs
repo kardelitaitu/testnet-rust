@@ -116,6 +116,9 @@ pub struct ClientPool {
     /// Cache of HTTP clients per proxy (None = direct, Some(url) = proxy)
     /// Store with last_used timestamp for eviction (Phase 1.2)
     http_clients: RwLock<HashMap<Option<String>, (reqwest::Client, Instant)>>,
+    /// Cache of shared Alloy RpcClients per proxy/RPC configuration
+    /// This significantly reduces memory overhead when managing 2500+ wallets
+    shared_rpc_clients: RwLock<HashMap<Option<String>, (crate::client::SharedRpcClient, Instant)>>,
     /// Available proxy configurations
     proxies: Vec<crate::tasks::ProxyConfig>,
     /// Spammer configuration
@@ -199,6 +202,11 @@ impl ClientLease {
     ///
     /// For the spammer, we prefer IMMEDIATE release to maximize throughput.
     pub async fn release(mut self) {
+        self.release_with_priority(false).await;
+    }
+
+    /// Release with priority (emergency cleanup)
+    pub async fn release_with_priority(&mut self, is_emergency: bool) {
         if self.released {
             return;
         }
@@ -208,8 +216,8 @@ impl ClientLease {
         let index = self.index;
         let nonce_config = pool.config.nonce.clone();
         
-        // If cooldown is small (<1s), ignore it and release immediately
-        if nonce_config.base_cooldown_ms < 1000 {
+        // If emergency or cooldown is small (<1s), ignore it and release immediately
+        if is_emergency || nonce_config.base_cooldown_ms < 1000 {
              pool.release_wallet(index);
         } else {
             tokio::spawn(async move {
@@ -336,6 +344,7 @@ impl ClientPool {
             wallet_password,
             clients: RwLock::new(HashMap::new()),
             http_clients: RwLock::new(HashMap::new()),
+            shared_rpc_clients: RwLock::new(HashMap::new()),
             proxies: Vec::new(),
             config,
             locked_wallets: Mutex::new(std::collections::HashSet::new()),
@@ -622,6 +631,9 @@ impl ClientPool {
                 .await
             {
                 Ok(reqwest_client) => {
+                    // Try to get or create shared RpcClient for this proxy
+                    let shared_rpc = self.get_or_create_shared_rpc_client(Some(config.url.clone()), reqwest_client.clone()).await.ok();
+
                     match TempoClient::new_from_reqwest(
                         &self.config.rpc_url,
                         private_key,
@@ -631,6 +643,7 @@ impl ClientPool {
                         nonce_manager.clone(),
                         robust_nonce_manager.clone(),
                         self.config.nonce.use_pending_count,
+                        shared_rpc,
                     )
                     .await
                     {
@@ -664,6 +677,8 @@ impl ClientPool {
         // Second attempt: Direct connection (no proxy)
         tracing::info!("Using direct connection for wallet {}", wallet_idx);
         let direct_client = self.get_or_create_http_client(None).await?;
+        let shared_rpc = self.get_or_create_shared_rpc_client(None, direct_client.clone()).await.ok();
+
         let client = TempoClient::new_from_reqwest(
             &self.config.rpc_url,
             private_key,
@@ -673,11 +688,62 @@ impl ClientPool {
             nonce_manager,
             robust_nonce_manager,
             self.config.nonce.use_pending_count,
+            shared_rpc,
         )
         .await
         .context("Failed to create TempoClient with direct connection")?;
 
         Ok((client, None))
+    }
+
+    /// Gets or creates a shared Alloy RpcClient for a proxy/RPC configuration
+    async fn get_or_create_shared_rpc_client(
+        &self,
+        proxy_url: Option<String>,
+        reqwest_client: reqwest::Client,
+    ) -> Result<crate::client::SharedRpcClient> {
+        // Check cache first
+        {
+            let mut shared = self.shared_rpc_clients.write();
+            if let Some((rpc_client, last_used)) = shared.get_mut(&proxy_url) {
+                *last_used = Instant::now();
+                return Ok(rpc_client.clone());
+            }
+        }
+
+        // Create a new RpcClient
+        use alloy::transports::http::Http;
+        use alloy::rpc::client::ClientBuilder;
+        use url::Url;
+
+        let http_transport = Http::with_client(
+            reqwest_client,
+            self.config.rpc_url.parse::<Url>().context("Invalid RPC URL")?,
+        );
+
+        let rpc_client = ClientBuilder::default()
+            .layer(alloy::transports::layers::RetryBackoffLayer::new(
+                5, 100, 2000,
+            ))
+            .transport(http_transport, true);
+
+        // Cache the RpcClient
+        let mut shared = self.shared_rpc_clients.write();
+        shared.insert(proxy_url, (rpc_client.clone(), Instant::now()));
+
+        Ok(rpc_client)
+    }
+
+    /// Evicts idle shared RpcClients from the cache
+    pub fn evict_idle_shared_rpc_clients(&self, max_idle: Duration) -> usize {
+        let mut shared = self.shared_rpc_clients.write();
+        let before_count = shared.len();
+        
+        shared.retain(|key, (_, last_used)| {
+            key.is_none() || last_used.elapsed() < max_idle
+        });
+        
+        before_count - shared.len()
     }
 
     /// Gets or creates an HTTP client for a proxy configuration
@@ -752,15 +818,34 @@ impl ClientPool {
 
     /// Performs a comprehensive cleanup of all internal caches to free RAM
     pub async fn cleanup(&self) {
+        self.cleanup_with_priority(false).await;
+    }
+
+    /// Comprehensive cleanup with priority based on memory pressure
+    pub async fn cleanup_with_priority(&self, is_emergency: bool) {
+        // Under emergency, use aggressive 2-minute idle timeout, otherwise 10 minutes
+        let idle_timeout = if is_emergency {
+            Duration::from_secs(120)
+        } else {
+            Duration::from_secs(600)
+        };
+
+        let wallet_idle_timeout = if is_emergency {
+            Duration::from_secs(600) // 10 min
+        } else {
+            Duration::from_secs(3600) // 1 hour
+        };
+
         self.clear_client_cache();
-        self.evict_idle_http_clients(Duration::from_secs(600));
+        self.evict_idle_http_clients(idle_timeout);
+        self.evict_idle_shared_rpc_clients(idle_timeout);
         
         if let Some(nm) = &self.nonce_manager {
             nm.clear().await;
         }
         
         if let Some(rnm) = &self.robust_nonce_manager {
-            rnm.evict_idle_wallets(Duration::from_secs(3600)).await;
+            rnm.evict_idle_wallets(wallet_idle_timeout).await;
         }
         
         for snm in &self.sharded_nonce_managers {
@@ -768,7 +853,7 @@ impl ClientPool {
         }
         
         for srnm in &self.sharded_robust_nonce_managers {
-            srnm.evict_idle_wallets(Duration::from_secs(3600)).await;
+            srnm.evict_idle_wallets(wallet_idle_timeout).await;
         }
 
         self.wallet_manager.clear_cache().await;
@@ -912,25 +997,21 @@ impl ClientPool {
         self.get_or_create_client(wallet_idx).await
     }
 
-    /// Gets a client with a rotated proxy
     pub async fn get_client_with_rotated_proxy(
         &self,
         wallet_idx: usize,
         rotation_offset: usize,
     ) -> Result<TempoClient> {
-        // Check if wallet index is valid
         if wallet_idx >= self.wallet_manager.count() {
             anyhow::bail!("Wallet index {} out of bounds", wallet_idx);
         }
 
-        // Get wallet
         let wallet = self
             .wallet_manager
             .get_wallet(wallet_idx, self.wallet_password.as_deref())
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get wallet {}: {}", wallet_idx, e))?;
 
-        // Select a different proxy
         let proxy_config = if self.proxies.is_empty() {
             None
         } else {
@@ -938,13 +1019,11 @@ impl ClientPool {
             Some(&self.proxies[proxy_idx])
         };
 
-        // Create a fresh HTTP client
         let mut client_builder = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .connect_timeout(std::time::Duration::from_secs(10))
             .pool_idle_timeout(None);
 
-        // Configure proxy if specified
         if let Some(ref proxy_config) = proxy_config {
             let proxy = reqwest::Proxy::all(&proxy_config.url)
                 .with_context(|| format!("Failed to create proxy for URL: {}", proxy_config.url))?;
@@ -963,7 +1042,8 @@ impl ClientPool {
             .build()
             .context("Failed to build reqwest client")?;
 
-        // Create the TempoClient
+        let shared_rpc = self.get_or_create_shared_rpc_client(proxy_config.map(|p| p.url.clone()), reqwest_client.clone()).await.ok();
+
         let client = TempoClient::new_from_reqwest(
             &self.config.rpc_url,
             &wallet.evm_private_key,
@@ -973,6 +1053,7 @@ impl ClientPool {
             self.nonce_manager.clone(),
             self.robust_nonce_manager.clone(),
             self.config.nonce.use_pending_count,
+            shared_rpc,
         )
         .await?;
 

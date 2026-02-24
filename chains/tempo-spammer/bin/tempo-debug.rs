@@ -191,6 +191,8 @@ async fn main() -> Result<()> {
         &decrypted.evm_private_key,
         proxy,
         proxy_idx,
+        None, // No shared provider in debug mode
+        false, // default
     )
     .await?;
 

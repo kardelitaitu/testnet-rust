@@ -12,6 +12,19 @@
 *   **Async Cleanup Pipeline**: Upgraded `MemoryOptimizer` to support asynchronous cleanup hooks, allowing complex resource-clearing operations (like database flushing or remote connection closing) to be handled during RAM pressure.
 *   **Proxy Health Client Eviction**: Implemented a global cleanup for the proxy health check system, ensuring that temporary HTTP clients used for scanning do not leak memory.
 
+## [2026-02-24] - Strict RAM Management & Provider Sharing
+
+### 🧠 Intelligent Memory Pressure Response
+*   **Strict 300MB RAM Target**: Updated the default memory threshold to 300MB to fit within constrained environments.
+*   **Emergency Cleanup Triggers**: `MemoryOptimizer` now monitors usage in 5-second intervals and triggers an immediate "Emergency Cleanup" if usage exceeds 85% of the target (255MB).
+*   **Tiered Eviction Strategy**: Cleanup hooks now receive an `is_emergency` flag. Under pressure, the system uses aggressive 2-minute idle timeouts for proxies and providers, compared to the standard 10 minutes.
+
+### 🔗 Deep Resource Sharing
+*   **RpcClient Sharing (Memory Efficiency Fix)**: Refactored resource sharing to cache the `RpcClient` transport layer instead of the full `Provider`. This ensures that each wallet retains its unique `Signer` (fixing "unknown account" errors) while still sharing connection pools and transport buffers.
+*   **Signer-Enabled Provider Wrappers**: Each wallet now creates a lightweight Alloy `Provider` stack that wraps the shared transport, allowing local transaction signing without redundant memory overhead.
+*   **Adaptive Resource Eviction**: Optimized `ClientPool` to perform tiered cleanup based on memory pressure, using more aggressive timeouts during emergency periods to stay under the 300MB RAM target.
+
+
 ### 🪵 Logging & Database
 *   **Memory-Optimized Logger**: Switched to `MemoryOptimizedLayer` which uses direct `BufWriter` logic for file I/O. This provides more predictable memory usage compared to the standard non-blocking channel appender.
 *   **DB Backpressure Control**: Changed `DatabaseManager` fallback strategy to `Drop` during high-load periods. This prevents the internal `mpsc` channel from acting as a memory sink when disk I/O cannot keep up with transaction throughput.

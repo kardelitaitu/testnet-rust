@@ -28,12 +28,12 @@ impl Default for MemoryOptimizerConfig {
             enable_log_optimization: true,
             enable_gc_tuning: true,
             memory_cleanup_interval_ms: 30000, // 30 seconds
-            max_memory_usage_mb: 512,         // 512MB threshold
+            max_memory_usage_mb: 300,         // Strict 300MB threshold
         }
     }
 }
 
-pub type AsyncCleanupHook = Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
+pub type AsyncCleanupHook = Box<dyn Fn(bool) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 
 /// Memory optimizer that manages various optimization strategies
 pub struct MemoryOptimizer {
@@ -41,6 +41,7 @@ pub struct MemoryOptimizer {
     last_cleanup: Instant,
     cleanup_count: u64,
     cleanup_hooks: Vec<AsyncCleanupHook>,
+    is_emergency_cleaning: bool,
 }
 
 impl MemoryOptimizer {
@@ -50,45 +51,55 @@ impl MemoryOptimizer {
             last_cleanup: Instant::now(),
             cleanup_count: 0,
             cleanup_hooks: Vec::new(),
+            is_emergency_cleaning: false,
         }
     }
     
     /// Register a cleanup hook to be called during perform_cleanup
     pub fn register_hook<F, Fut>(&mut self, hook: F)
     where
-        F: Fn() -> Fut + Send + Sync + 'static,
+        F: Fn(bool) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        self.cleanup_hooks.push(Box::new(move || Box::pin(hook())));
+        self.cleanup_hooks.push(Box::new(move |emergency| Box::pin(hook(emergency))));
     }
     
     /// Initialize all memory optimization features
-    pub async fn initialize(&mut self) -> Result<()> {
-        info!("Initializing memory optimizer with config: {:?}", self.config);
+    pub async fn initialize(optimizer: Arc<tokio::sync::Mutex<Self>>) -> Result<()> {
+        let config = {
+            let opt = optimizer.lock().await;
+            opt.config.clone()
+        };
         
-        if self.config.enable_memory_monitoring {
-            let monitor_config = MemoryMonitorConfig::default();
+        info!("Initializing memory optimizer with config: {:?}", config);
+        
+        if config.enable_memory_monitoring {
+            let monitor_config = MemoryMonitorConfig {
+                sampling_interval_ms: 5000, // 5 seconds
+                memory_threshold_mb: config.max_memory_usage_mb,
+                cpu_threshold_percent: 80.0,
+                history_size: 100,
+            };
             memory_monitor::init_memory_monitoring()?;
             
             // Start background monitoring task
-            self.start_monitoring_task(monitor_config).await?;
+            Self::start_monitoring_task(optimizer.clone(), monitor_config).await?;
         }
         
-        if self.config.enable_log_optimization {
-            self.setup_log_optimization()?;
+        let opt = optimizer.lock().await;
+        if opt.config.enable_log_optimization {
+            opt.setup_log_optimization()?;
         }
         
-        if self.config.enable_gc_tuning {
-            self.tune_garbage_collection()?;
+        if opt.config.enable_gc_tuning {
+            opt.tune_garbage_collection()?;
         }
         
-        info!("Memory optimization initialized successfully");
+        info!("Memory optimization initialized successfully (Target: {}MB)", opt.config.max_memory_usage_mb);
         Ok(())
     }
     
-    async fn start_monitoring_task(&self, config: MemoryMonitorConfig) -> Result<()> {
-        let config = config.clone();
-        
+    async fn start_monitoring_task(optimizer: Arc<tokio::sync::Mutex<Self>>, config: MemoryMonitorConfig) -> Result<()> {
         tokio::spawn(async move {
             let mut interval = time::interval(Duration::from_millis(config.sampling_interval_ms));
             
@@ -98,11 +109,21 @@ impl MemoryOptimizer {
                 if let Ok(stats) = memory_monitor::sample_memory_usage() {
                     let memory_mb = stats.resident_set_size as f64 / 1024.0 / 1024.0;
                     
-                    if memory_mb > config.memory_threshold_mb as f64 {
+                    // Emergency cleanup if we exceed 85% of target
+                    let threshold = config.memory_threshold_mb as f64 * 0.85;
+                    if memory_mb > threshold {
                         warn!(
-                            "High memory usage: {:.1}MB (threshold: {}MB)",
-                            memory_mb, config.memory_threshold_mb
+                            "EMERGENCY: Memory usage {:.1}MB exceeded 85% threshold ({:.1}MB). Triggering immediate cleanup.",
+                            memory_mb, threshold
                         );
+                        
+                        let mut opt = optimizer.lock().await;
+                        if !opt.is_emergency_cleaning {
+                            opt.is_emergency_cleaning = true;
+                            // Force immediate cleanup regardless of interval
+                            let _ = opt.perform_cleanup_forced().await;
+                            opt.is_emergency_cleaning = false;
+                        }
                     }
                     
                     // Log detailed memory info periodically
@@ -118,30 +139,17 @@ impl MemoryOptimizer {
     }
     
     fn setup_log_optimization(&self) -> Result<()> {
-        // This would switch to the memory-optimized logger
-        // For now, we'll just configure the existing logger better
         info!("Log optimization enabled - using buffered file I/O with rotation");
-        
-        // Set up environment variables for better logging behavior
         std::env::set_var("RUST_LOG", "info");
         std::env::set_var("RUST_BACKTRACE", "1");
-        
         Ok(())
     }
     
     fn tune_garbage_collection(&self) -> Result<()> {
-        // Tune Rust's memory allocation and garbage collection behavior
-        // Note: Rust doesn't have a traditional GC, but we can influence allocation patterns
-        
         info!("Garbage collection tuning enabled");
-        
-        // Set environment variables that influence memory behavior
-        std::env::set_var("MALLOC_ARENA_MAX", "2"); // Reduce memory fragmentation
-        std::env::set_var("MALLOC_MMAP_THRESHOLD", "131072"); // 128KB threshold
-        
-        // For jemalloc (if used)
+        std::env::set_var("MALLOC_ARENA_MAX", "2"); 
+        std::env::set_var("MALLOC_MMAP_THRESHOLD", "131072"); 
         std::env::set_var("JE_MALLOC_CONF", "narenas:2,lg_chunk:21");
-        
         Ok(())
     }
     
@@ -150,24 +158,33 @@ impl MemoryOptimizer {
         if self.last_cleanup.elapsed() < Duration::from_millis(self.config.memory_cleanup_interval_ms) {
             return Ok(());
         }
+        self.perform_cleanup_forced().await
+    }
+
+    /// Force cleanup regardless of interval
+    pub async fn perform_cleanup_forced(&mut self) -> Result<()> {
+        debug!("Performing memory cleanup (#{}) (emergency={})", self.cleanup_count + 1, self.is_emergency_cleaning);
         
-        debug!("Performing memory cleanup (#{})", self.cleanup_count + 1);
-        
+        let is_emergency = self.is_emergency_cleaning;
+
         // Call registered hooks
         for hook in &self.cleanup_hooks {
-            hook().await;
+            hook(is_emergency).await;
         }
 
-        // Force garbage collection (Rust doesn't have explicit GC, but we can hint)
+        // Force garbage collection hint
         self.force_memory_release()?;
         
         // Clean up temporary files
         self.cleanup_temp_files()?;
         
-        // Report memory usage
         if let Ok(stats) = memory_monitor::sample_memory_usage() {
             let memory_mb = stats.resident_set_size as f64 / 1024.0 / 1024.0;
-            debug!("Post-cleanup memory: {:.1}MB", memory_mb);
+            if memory_mb > self.config.max_memory_usage_mb as f64 {
+                warn!("Post-cleanup memory still high: {:.1}MB / {}MB limit", memory_mb, self.config.max_memory_usage_mb);
+            } else {
+                debug!("Post-cleanup memory: {:.1}MB", memory_mb);
+            }
         }
         
         self.last_cleanup = Instant::now();
@@ -177,23 +194,16 @@ impl MemoryOptimizer {
     }
     
     fn force_memory_release(&self) -> Result<()> {
-        // Rust doesn't have explicit GC, but we can try to release memory
-        // by dropping caches and encouraging allocator to return memory
-        
-        // Suggest to the allocator to release memory
         #[cfg(not(target_env = "msvc"))]
         {
-            // For jemalloc and other allocators
             unsafe {
                 libc::malloc_trim(0);
             }
         }
-        
         Ok(())
     }
     
     fn cleanup_temp_files(&self) -> Result<()> {
-        // Clean up temporary files that might accumulate
         let temp_dirs = ["tmp", ".tmp", "logs/tmp"];
         
         for dir in temp_dirs {
@@ -201,7 +211,6 @@ impl MemoryOptimizer {
                 for entry in entries.filter_map(|e| e.ok()) {
                     let path = entry.path();
                     if path.is_file() {
-                        // Delete files older than 1 hour
                         if let Ok(metadata) = entry.metadata() {
                             if let Ok(modified) = metadata.modified() {
                                 if modified.elapsed().unwrap_or_default() > Duration::from_secs(3600) {
@@ -223,7 +232,7 @@ impl MemoryOptimizer {
             let memory_mb = stats.resident_set_size as f64 / 1024.0 / 1024.0;
             Ok(memory_mb <= self.config.max_memory_usage_mb as f64)
         } else {
-            Ok(true) // Assume OK if we can't measure
+            Ok(true) 
         }
     }
     
@@ -252,18 +261,15 @@ pub static MEMORY_OPTIMIZER: once_cell::sync::Lazy<Arc<tokio::sync::Mutex<Memory
 
 /// Initialize global memory optimization
 pub async fn init_memory_optimization() -> Result<()> {
-    let mut optimizer = MEMORY_OPTIMIZER.lock().await;
-    optimizer.initialize().await
+    MemoryOptimizer::initialize(MEMORY_OPTIMIZER.clone()).await
 }
 
 /// Register a global memory cleanup hook
 pub fn register_memory_cleanup_hook<F, Fut>(hook: F)
 where
-    F: Fn() -> Fut + Send + Sync + 'static,
+    F: Fn(bool) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = ()> + Send + 'static,
 {
-    // Note: This is synchronous, so we use try_lock or spawn a task
-    // Since it's only called at startup, we can spawn a task
     let optimizer_clone = MEMORY_OPTIMIZER.clone();
     tokio::spawn(async move {
         let mut optimizer = optimizer_clone.lock().await;

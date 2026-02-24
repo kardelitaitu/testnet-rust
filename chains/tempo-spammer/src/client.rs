@@ -67,8 +67,8 @@
 //! This handles transient network issues and RPC rate limiting.
 
 use super::tasks::ProxyConfig;
-use alloy::providers::Provider;
-use alloy::rpc::client::ClientBuilder;
+use alloy::providers::{Provider, ProviderBuilder};
+use alloy::rpc::client::{ClientBuilder, RpcClient};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::transports::http::Http;
 use alloy_primitives::Address;
@@ -76,6 +76,9 @@ use anyhow::{Context, Result};
 use reqwest::{Client, Proxy};
 use std::sync::Arc;
 use url::Url;
+
+/// Type alias for the shared RPC client to ensure consistency
+pub type SharedRpcClient = RpcClient;
 
 /// High-level client for Tempo blockchain interactions
 ///
@@ -97,7 +100,7 @@ use url::Url;
 /// - `nonce_manager`: Optional nonce caching for high-throughput scenarios
 #[derive(Clone)]
 pub struct TempoClient {
-    /// Alloy provider for blockchain interactions
+    /// Alloy provider for blockchain interactions (Unique per wallet, but shares transport)
     pub provider: Arc<dyn Provider + Send + Sync>,
     /// Local signer for transaction signing
     pub signer: PrivateKeySigner,
@@ -117,47 +120,6 @@ pub struct TempoClient {
 
 impl TempoClient {
     /// Creates a new client from an existing reqwest client
-    ///
-    /// This is the advanced constructor that allows full control over the HTTP client
-    /// configuration. Use this when you need custom timeouts, connection pooling, or
-    /// other reqwest-specific settings.
-    ///
-    /// # Arguments
-    ///
-    /// * `rpc_url` - The RPC endpoint URL (e.g., "https://rpc.moderato.tempo.xyz")
-    /// * `private_key` - Hex-encoded private key for signing transactions
-    /// * `reqwest_client` - Pre-configured reqwest client
-    /// * `proxy_config` - Optional proxy configuration for tracking
-    /// * `proxy_index` - Optional index for proxy identification
-    /// * `nonce_manager` - Optional nonce manager for caching
-    ///
-    /// # Returns
-    ///
-    /// Returns `Result<Self>` which is Ok if the client was created successfully,
-    /// or Err if there was an issue parsing the private key or RPC URL.
-    ///
-    /// # Example
-    ///
-    /// ```rust,no_run
-    /// use tempo_spammer::TempoClient;
-    /// use reqwest::Client;
-    ///
-    /// # async fn example() -> anyhow::Result<()> {
-    /// let custom_client = Client::builder()
-    ///     .timeout(std::time::Duration::from_secs(60))
-    ///     .build()?;
-    ///
-    /// let client = TempoClient::new_from_reqwest(
-    ///     "https://rpc.moderato.tempo.xyz",
-    ///     "0x...",
-    ///     custom_client,
-    ///     None,
-    ///     None,
-    ///     None,
-    /// ).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub async fn new_from_reqwest(
         rpc_url: &str,
         private_key: &str,
@@ -167,29 +129,40 @@ impl TempoClient {
         nonce_manager: Option<Arc<crate::NonceManager>>,
         robust_nonce_manager: Option<Arc<crate::RobustNonceManager>>,
         use_pending_count: bool,
+        shared_rpc_client: Option<SharedRpcClient>,
     ) -> Result<Self> {
         let signer: PrivateKeySigner =
             private_key.parse().context("Failed to parse private key")?;
 
         let chain_id = signer.chain_id().unwrap_or(42431);
 
-        // Create a resilient RPC client with retry logic
-        let http_transport = Http::with_client(
-            reqwest_client,
-            rpc_url.parse::<Url>().context("Invalid RPC URL")?,
-        );
+        // Create a provider specifically for THIS wallet but using SHARED transport if available
+        let provider: Arc<dyn Provider + Send + Sync> = if let Some(rpc_client) = shared_rpc_client {
+            // Memory Efficient Path: Use shared RpcClient but unique Wallet layer
+            Arc::new(
+                ProviderBuilder::new()
+                    .wallet(signer.clone())
+                    .connect_client(rpc_client),
+            )
+        } else {
+            // Standard Path: Create everything fresh
+            let http_transport = Http::with_client(
+                reqwest_client,
+                rpc_url.parse::<Url>().context("Invalid RPC URL")?,
+            );
 
-        let client = ClientBuilder::default()
-            .layer(alloy::transports::layers::RetryBackoffLayer::new(
-                5, 100, 2000,
-            ))
-            .transport(http_transport, true);
+            let rpc_client = ClientBuilder::default()
+                .layer(alloy::transports::layers::RetryBackoffLayer::new(
+                    5, 100, 2000,
+                ))
+                .transport(http_transport, true);
 
-        let provider: Arc<dyn Provider + Send + Sync> = Arc::new(
-            alloy::providers::ProviderBuilder::new()
-                .wallet(signer.clone())
-                .connect_client(client),
-        );
+            Arc::new(
+                ProviderBuilder::new()
+                    .wallet(signer.clone())
+                    .connect_client(rpc_client),
+            )
+        };
 
         let client = Self {
             provider,
@@ -202,119 +175,72 @@ impl TempoClient {
             use_pending_count,
         };
 
-        // Removed Phase 1 (Warmup) and Phase 3 (Verify) for maximum speed
-        // Spammers prefer speed over connection certainty
-
         Ok(client)
     }
 
     /// Creates a new client with optional proxy support
-    ///
-    /// This is the primary constructor for creating a TempoClient. It handles
-    /// all HTTP client configuration including proxy setup, timeouts, and
-    /// connection pooling automatically.
-    ///
-    /// # Arguments
-    ///
-    /// * `rpc_url` - The RPC endpoint URL (e.g., "https://rpc.moderato.tempo.xyz")
-    /// * `private_key` - Hex-encoded private key for signing transactions
-    /// * `proxy` - Optional proxy configuration for routing requests
-    /// * `proxy_index` - Optional index for identifying which proxy is in use
-    ///
-    /// # Returns
-    ///
-    /// Returns `Result<Self>` which is Ok if the client was created successfully.
-    /// Errors can occur from:
-    /// - Invalid private key format
-    /// - Invalid RPC URL
-    /// - Proxy configuration issues
-    /// - HTTP client build failures
-    ///
-    /// # Example
-    ///
-    /// ```rust,no_run
-    /// use tempo_spammer::TempoClient;
-    ///
-    /// # async fn example() -> anyhow::Result<()> {
-    /// // Without proxy
-    /// let client = TempoClient::new(
-    ///     "https://rpc.moderato.tempo.xyz",
-    ///     "0x...",
-    ///     None,
-    ///     None,
-    /// ).await?;
-    /// # Ok(())
-    /// # }
-    /// ```
     pub async fn new(
         rpc_url: &str,
         private_key: &str,
         proxy: Option<&ProxyConfig>,
         proxy_index: Option<usize>,
+        shared_rpc_client: Option<SharedRpcClient>,
+        use_pending_count: bool,
     ) -> Result<Self> {
         let signer: PrivateKeySigner =
             private_key.parse().context("Failed to parse private key")?;
 
         let chain_id = signer.chain_id().unwrap_or(42431);
 
-        // Build reqwest client with proxy
-        let mut client_builder = Client::builder();
+        let provider: Arc<dyn Provider + Send + Sync> = if let Some(rpc_client) = shared_rpc_client {
+            Arc::new(
+                ProviderBuilder::new()
+                    .wallet(signer.clone())
+                    .connect_client(rpc_client),
+            )
+        } else {
+            // Build reqwest client with proxy
+            let mut client_builder = Client::builder();
 
-        if let Some(proxy_config) = proxy {
-            let proxy_url = &proxy_config.url;
-            let proxy = Proxy::all(proxy_url).context("Failed to create proxy")?;
+            if let Some(proxy_config) = proxy {
+                let proxy_url = &proxy_config.url;
+                let proxy = Proxy::all(proxy_url).context("Failed to create proxy")?;
 
-            if let (Some(username), Some(password)) =
-                (&proxy_config.username, &proxy_config.password)
-            {
-                let proxy = proxy.basic_auth(username, password);
-                client_builder = client_builder.proxy(proxy);
-            } else {
-                client_builder = client_builder.proxy(proxy);
+                if let (Some(username), Some(password)) =
+                    (&proxy_config.username, &proxy_config.password)
+                {
+                    let proxy = proxy.basic_auth(username, password);
+                    client_builder = client_builder.proxy(proxy);
+                } else {
+                    client_builder = client_builder.proxy(proxy);
+                }
             }
-        }
 
-        let reqwest_client = client_builder
-            .timeout(std::time::Duration::from_secs(10)) // Reduced from 30s - fail fast if proxy hangs
-            .connect_timeout(std::time::Duration::from_secs(5))
-            .pool_idle_timeout(std::time::Duration::from_secs(30)) // Reuse connections
-            .pool_max_idle_per_host(5) // Limit cached connections
-            .build()
-            .context("Failed to build reqwest client")?;
+            let reqwest_client = client_builder
+                .timeout(std::time::Duration::from_secs(10)) 
+                .connect_timeout(std::time::Duration::from_secs(5))
+                .pool_idle_timeout(std::time::Duration::from_secs(30))
+                .pool_max_idle_per_host(5)
+                .build()
+                .context("Failed to build reqwest client")?;
 
-        // Create a resilient RPC client with retry logic
-        let http_transport = Http::with_client(
-            reqwest_client,
-            rpc_url.parse::<Url>().context("Invalid RPC URL")?,
-        );
+            let http_transport = Http::with_client(
+                reqwest_client,
+                rpc_url.parse::<Url>().context("Invalid RPC URL")?,
+            );
 
-        let client = ClientBuilder::default()
-            .layer(alloy::transports::layers::RetryBackoffLayer::new(
-                3, 50, 500, // Reduced from 5/100/2000 - fail fast, retry quickly
-            ))
-            .transport(http_transport, true);
+            let rpc_client = ClientBuilder::default()
+                .layer(alloy::transports::layers::RetryBackoffLayer::new(
+                    3, 50, 500,
+                ))
+                .transport(http_transport, true);
 
-        let provider: Arc<dyn Provider + Send + Sync> = Arc::new(
-            alloy::providers::ProviderBuilder::new()
-                .wallet(signer.clone())
-                .connect_client(client),
-        );
-
-        // Phase 1: Warm up the connection by sending HTTP HEAD request
-        // This establishes TCP/TLS connection before first real use, preventing race conditions
-        let warmup_client = reqwest::Client::new();
-        match warmup_client
-            .head(rpc_url)
-            .timeout(std::time::Duration::from_secs(5))
-            .send()
-            .await
-        {
-            Ok(_) => tracing::debug!(
-                "Connection warmed up successfully for proxy {:?}",
-                proxy_index
-            ),
-            Err(e) => tracing::warn!("Connection warmup failed (will retry on first use): {}", e),
-        }
+            Arc::new(
+                ProviderBuilder::new()
+                    .wallet(signer.clone())
+                    .connect_client(rpc_client),
+            )
+        };
 
         let client = Self {
             provider,
@@ -324,12 +250,8 @@ impl TempoClient {
             proxy_index,
             nonce_manager: None,
             robust_nonce_manager: None,
-            use_pending_count: false,
+            use_pending_count,
         };
-
-        // Phase 3: Verify provider is ready before returning
-        // This ensures the connection is fully established and can reach the RPC endpoint
-        client.verify_provider_ready().await?;
 
         Ok(client)
     }
