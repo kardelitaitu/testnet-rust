@@ -55,7 +55,11 @@ async fn main() -> Result<()> {
     );
 
     // Load Wallet Manager with password handling
-    let manager = Arc::new(core_logic::WalletManager::new()?);
+    let manager = if let Some(ref dir) = config.wallet_dir {
+        Arc::new(core_logic::WalletManager::with_wallet_dir(dir)?)
+    } else {
+        Arc::new(core_logic::WalletManager::new()?)
+    };
     let total_wallets = manager.count();
 
     info!("Found {} wallet files.", total_wallets);

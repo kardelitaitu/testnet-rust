@@ -16,6 +16,8 @@ pub struct DaChainConfig {
     pub min_delay_ms: Option<u64>,
     pub max_delay_ms: Option<u64>,
     pub create2_factory: Option<String>,
+    #[serde(default)]
+    pub wallet_dir: Option<String>, // NEW: Custom wallet directory
     #[allow(dead_code)]
     pub proxies: Option<Vec<ProxyConfig>>,
 }

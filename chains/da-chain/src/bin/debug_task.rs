@@ -56,7 +56,11 @@ async fn main() -> Result<()> {
 
     // 2. Load Wallets
     let password = env::var("WALLET_PASSWORD").ok();
-    let manager = core_logic::WalletManager::new()?;
+    let manager = if let Some(ref dir) = cfg.wallet_dir {
+        core_logic::WalletManager::with_wallet_dir(dir)?
+    } else {
+        core_logic::WalletManager::new()?
+    };
 
     // Initialize Address Cache
     da_chain_project::utils::address_cache::AddressCache::init()?;

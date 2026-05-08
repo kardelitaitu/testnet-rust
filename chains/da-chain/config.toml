@@ -5,6 +5,9 @@ symbol = "DACC"
 tps = 10
 worker_amount = 5
 
+# Custom wallet directory for da-chain
+wallet_dir = "chains/da-chain/wallets-json-da-chain"
+
 # Optional: min and max delay between transactions (in milliseconds)
 # min_delay_ms = 100
 # max_delay_ms = 1000
