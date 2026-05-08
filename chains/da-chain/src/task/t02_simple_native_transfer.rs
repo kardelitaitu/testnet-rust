@@ -44,34 +44,34 @@ impl DaChainTask for SimpleNativeTransferTask {
 
         // Get nonce
         println!("[DEBUG] Getting nonce...");
-        let mut nonce = ctx
+        let confirmed_nonce = ctx
             .provider
             .get_transaction_count(wallet_address, None)
             .await?;
-        println!("[DEBUG] Initial nonce (confirmed): {}", nonce);
+        println!("[DEBUG] Initial nonce (confirmed): {}", confirmed_nonce);
 
-        // Check for pending transactions with higher nonce
+        // Check for pending transactions
         let pending_nonce = ctx
             .provider
             .get_transaction_count(wallet_address, Some(BlockId::Number(BlockNumber::Pending)))
             .await?;
         println!("[DEBUG] Pending nonce: {}", pending_nonce);
 
-        if pending_nonce > nonce {
+        let mut nonce = confirmed_nonce;
+        let mut replacing = false;
+
+        if pending_nonce > confirmed_nonce {
             println!(
-                "[WARNING] Pending transactions detected ({} pending)",
-                pending_nonce - nonce
+                "[INFO] Detected {} pending transaction(s), will replace with higher gas",
+                pending_nonce - confirmed_nonce
             );
-            println!("[INFO] Waiting for pending transactions to clear...");
-            // Wait for pending transactions
-            tokio::time::sleep(Duration::from_secs(30)).await;
-            let new_nonce = ctx
-                .provider
-                .get_transaction_count(wallet_address, None)
-                .await?;
-            println!("[DEBUG] Updated nonce after waiting: {}", new_nonce);
-            // Use the new nonce
-            nonce = new_nonce;
+            // Use the confirmed nonce to replace the stuck transaction
+            nonce = confirmed_nonce;
+            replacing = true;
+            println!(
+                "[INFO] Using nonce {} to replace pending transaction",
+                nonce
+            );
         }
 
         // Get wallet balance
@@ -93,8 +93,14 @@ impl DaChainTask for SimpleNativeTransferTask {
         let mut rng = StdRng::from_entropy();
         let percentage: f64 = rng.gen_range(0.005..=0.01); // 0.5% to 1.0%
         println!("[DEBUG] Transfer percentage: {:.2}%", percentage * 100.0);
-        let amount = balance.as_u128() as f64 * percentage;
-        let amount_u256 = ethers::utils::parse_ether(format!("{:.18}", amount / 1e18))?;
+
+        // Convert percentage to wei scale and calculate amount directly with U256
+        let percentage_wei = (percentage * 1e18) as u128;
+        let amount_u256 = balance * U256::from(percentage_wei) / U256::from(1e18 as u128);
+        println!(
+            "[DEBUG] Calculated amount: {} DACC",
+            ethers::utils::format_ether(amount_u256)
+        );
         println!(
             "[DEBUG] Calculated amount: {} DACC",
             ethers::utils::format_ether(amount_u256)
@@ -115,7 +121,19 @@ impl DaChainTask for SimpleNativeTransferTask {
 
         // Get automatic gas fees (EIP-1559 if supported, else legacy)
         println!("[DEBUG] Getting gas fees...");
-        let (max_fee, priority_fee) = ctx.gas_manager.get_fees().await?;
+        let (mut max_fee, mut priority_fee) = ctx.gas_manager.get_fees().await?;
+
+        // If replacing a pending transaction, increase gas to ensure replacement
+        if replacing {
+            println!("[INFO] Increasing gas price for transaction replacement...");
+            max_fee = max_fee * 110 / 100; // Increase by 10%
+            priority_fee = priority_fee * 110 / 100;
+            println!(
+                "[DEBUG] Increased gas - max: {} wei, priority: {} wei",
+                max_fee, priority_fee
+            );
+        }
+
         println!(
             "[DEBUG] Gas fees - max: {} wei, priority: {} wei",
             max_fee, priority_fee

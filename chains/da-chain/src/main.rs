@@ -29,6 +29,8 @@ struct Args {
     no_proxy: bool,
     #[arg(long, default_value = "10")]
     max_tps: u32,
+    #[arg(long)]
+    workers: Option<usize>,
 }
 
 #[tokio::main]
@@ -69,7 +71,13 @@ async fn main() -> Result<()> {
         let mut password = env::var("WALLET_PASSWORD").ok();
 
         // Validate password or prompt
-        if password.is_none() || manager.as_ref().get_wallet(0, password.as_deref()).await.is_err() {
+        if password.is_none()
+            || manager
+                .as_ref()
+                .get_wallet(0, password.as_deref())
+                .await
+                .is_err()
+        {
             if password.is_none() {
                 error!("WALLET_PASSWORD environment variable is not set.");
             } else {
@@ -109,7 +117,7 @@ async fn main() -> Result<()> {
     };
 
     // Load proxies unless explicitly disabled
-    let proxy_pool: Arc<tokio::sync::RwLock<Vec<core_logic::config::ProxyConfig>>> = 
+    let proxy_pool: Arc<tokio::sync::RwLock<Vec<core_logic::config::ProxyConfig>>> =
         if args.no_proxy {
             info!("Proxy loading disabled by --no-proxy");
             Arc::new(tokio::sync::RwLock::new(Vec::new()))
@@ -133,19 +141,28 @@ async fn main() -> Result<()> {
     let db_manager = core_logic::database::DatabaseManager::new("da-chain.db").await?;
     let db_arc = std::sync::Arc::new(db_manager);
 
-    // Ask for worker count (default: 5)
-    let max_workers: usize = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("How many workers?")
-        .default(5)
-        .interact_text()?
-        .min(total_wallets);
+    // Get worker count: CLI arg or interactive prompt
+    let max_workers: usize = if let Some(w) = args.workers {
+        info!("Using {} workers from CLI argument", w);
+        w
+    } else {
+        // Try interactive prompt
+        match Input::with_theme(&ColorfulTheme::default())
+            .with_prompt("How many workers?")
+            .default(5)
+            .interact_text()
+        {
+            Ok(w) => w.min(total_wallets),
+            Err(_) => {
+                info!("Non-interactive mode: using default 5 workers");
+                5
+            }
+        }
+    };
 
-    // Ask for max TPS per proxy (default: from CLI or 10)
-    let max_tps: u32 = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("Max TPS per proxy?")
-        .default(args.max_tps as u64)
-        .interact_text()?
-        .clamp(1, 100) as u32;
+    // Get TPS: use CLI arg (with default 10)
+    let max_tps = args.max_tps;
+    info!("Using TPS per proxy: {}", max_tps);
 
     info!(
         "Starting {} workers, {} TPS per proxy (Available: {})",

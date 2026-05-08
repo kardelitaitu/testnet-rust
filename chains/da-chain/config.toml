@@ -9,8 +9,9 @@ worker_amount = 5
 wallet_dir = "chains/da-chain/wallets-json-da-chain"
 
 # Optional: min and max delay between transactions (in milliseconds)
-# min_delay_ms = 100
-# max_delay_ms = 1000
+# For da-chain: random 1-2 minutes between tasks
+min_delay_ms = 60000
+max_delay_ms = 120000
 
 # Optional: Create2 factory address for contract deployment
 # create2_factory = "0x..."
