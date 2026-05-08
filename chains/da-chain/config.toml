@@ -1,0 +1,19 @@
+rpc_url = "https://rpctest.dachain.tech"
+chain_id = 21894
+explorer = "https://dachain.tech"
+symbol = "DACC"
+tps = 10
+worker_amount = 5
+
+# Optional: min and max delay between transactions (in milliseconds)
+# min_delay_ms = 100
+# max_delay_ms = 1000
+
+# Optional: Create2 factory address for contract deployment
+# create2_factory = "0x..."
+
+# Optional: Proxies (or use proxies.txt in root)
+# [[proxies]]
+# url = "http://proxy1:port"
+# username = "user"
+# password = "pass"

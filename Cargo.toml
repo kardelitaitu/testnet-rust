@@ -2,7 +2,10 @@
 members = [
     "core-logic",
     "chains/risechain",
+    "chains/xenea",
+    "chains/da-chain",
     "chains/tempo-spammer",
+    "chains/robinhood",
 ]
 
 resolver = "2"
