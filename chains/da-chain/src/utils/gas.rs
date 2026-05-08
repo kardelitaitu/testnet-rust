@@ -10,8 +10,8 @@ pub struct GasManager {
 }
 
 impl GasManager {
-    pub const MAX_FEE_GWEI_DEFAULT: f64 = 0.000000009;
-    pub const PRIORITY_FEE_GWEI_DEFAULT: f64 = 0.000000001;
+    pub const MAX_FEE_GWEI_DEFAULT: f64 = 20000.0;
+    pub const PRIORITY_FEE_GWEI_DEFAULT: f64 = 10.0;
     pub const LIMIT_DEPLOY: U256 = U256([1_200_000, 0, 0, 0]);
     pub const LIMIT_TRANSFER: U256 = U256([21_000, 0, 0, 0]);
     pub const LIMIT_COUNTER_INTERACT: U256 = U256([50_000, 0, 0, 0]);
@@ -20,8 +20,8 @@ impl GasManager {
     pub fn new(provider: Arc<Provider<Http>>) -> Self {
         Self {
             config: GasConfig::new()
-                .with_max_fee(0.000000009)
-                .with_priority_fee(0.000000001),
+                .with_max_fee(Self::MAX_FEE_GWEI_DEFAULT)
+                .with_priority_fee(Self::PRIORITY_FEE_GWEI_DEFAULT),
             provider,
         }
     }

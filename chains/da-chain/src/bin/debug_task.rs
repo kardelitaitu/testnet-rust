@@ -1,16 +1,15 @@
 use anyhow::Result;
 use clap::Parser;
 use core_logic::setup_logger;
+use da_chain_project::config::DaChainConfig;
+use da_chain_project::task::{
+    t01_check_balance::DaChainCheckBalanceTask,
+    t02_simple_native_transfer::SimpleNativeTransferTask, DaChainTask, TaskContext,
+};
 use dialoguer::{theme::ColorfulTheme, Select};
 use dotenv::dotenv;
 use ethers::prelude::*;
 use reqwest;
-use da_chain_project::config::DaChainConfig;
-use da_chain_project::task::{
-    t01_check_balance::DaChainCheckBalanceTask,
-    t02_simple_native_transfer::SimpleNativeTransferTask,
-    DaChainTask, TaskContext,
-};
 use std::env;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -108,7 +107,7 @@ async fn main() -> Result<()> {
     }
     println!("Wallet decryption verified.");
 
-    // 5. Create provider
+    // 5. Create provider with timeout
     let proxy_url = if args.no_proxy {
         None
     } else if std::path::Path::new("proxies.txt").exists() {
@@ -124,22 +123,32 @@ async fn main() -> Result<()> {
     };
 
     let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(reqwest::header::USER_AGENT, reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"));
-    let client_builder = reqwest::Client::builder().default_headers(headers);
+    headers.insert(
+        reqwest::header::USER_AGENT,
+        reqwest::header::HeaderValue::from_static(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        ),
+    );
+    let client_builder = reqwest::Client::builder()
+        .default_headers(headers)
+        .timeout(std::time::Duration::from_secs(30));
     let client = if let Some(ref proxy_str) = proxy_url {
-        println!("Using proxy: {}", proxy_str.split('@').last().unwrap_or("..."));
+        println!(
+            "Using proxy: {}",
+            proxy_str.split('@').last().unwrap_or("...")
+        );
         match reqwest::Proxy::all(proxy_str) {
-            Ok(p) => client_builder.proxy(p).build().unwrap_or(reqwest::Client::new()),
+            Ok(p) => client_builder
+                .proxy(p)
+                .build()
+                .unwrap_or(reqwest::Client::new()),
             Err(_) => client_builder.build().unwrap_or(reqwest::Client::new()),
         }
     } else {
         client_builder.build().unwrap_or(reqwest::Client::new())
     };
 
-    let provider = Provider::new(Http::new_with_client(
-        Url::parse(&cfg.rpc_url)?,
-        client,
-    ));
+    let provider = Provider::new(Http::new_with_client(Url::parse(&cfg.rpc_url)?, client));
 
     // 6. Create task list
     let tasks: Vec<Box<dyn DaChainTask>> = vec![
@@ -152,12 +161,16 @@ async fn main() -> Result<()> {
     let task_idx = if let Some(t_id) = args.task {
         let prefix1 = format!("{}_", t_id);
         let prefix2 = format!("{:02}_", t_id);
-        if let Some(pos) = tasks.iter().position(|t| {
-            t.name().starts_with(&prefix1) || t.name().starts_with(&prefix2)
-        }) {
+        if let Some(pos) = tasks
+            .iter()
+            .position(|t| t.name().starts_with(&prefix1) || t.name().starts_with(&prefix2))
+        {
             pos
         } else if t_id < tasks.len() {
-            println!("??  Warning: Task ID {} not found by name, using index {}", t_id, t_id);
+            println!(
+                "??  Warning: Task ID {} not found by name, using index {}",
+                t_id, t_id
+            );
             t_id
         } else {
             error!("Invalid task ID: {}", t_id);
@@ -181,9 +194,9 @@ async fn main() -> Result<()> {
     println!("Using wallet: {:?}", wallet.address());
 
     // 9. Create GasManager
-    let gas_manager = Arc::new(da_chain_project::utils::gas::GasManager::new(
-        Arc::new(provider.clone()),
-    ));
+    let gas_manager = Arc::new(da_chain_project::utils::gas::GasManager::new(Arc::new(
+        provider.clone(),
+    )));
 
     // 10. Create TaskContext
     let ctx = TaskContext {
