@@ -1,9 +1,6 @@
 use crate::config::DaChainConfig;
 use crate::task::t01_check_balance::DaChainCheckBalanceTask;
 use crate::task::t02_simple_native_transfer::SimpleNativeTransferTask;
-use crate::task::t03_deploy_contract::DaChainDeployContractTask;
-use crate::task::t04_interact_contract::DaChainInteractContractTask;
-use crate::task::t05_self_transfer::SelfTransferTask;
 use crate::task::{TaskContext, DaChainTask};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -86,9 +83,6 @@ impl EvmSpammer {
         let tasks: Vec<Box<dyn DaChainTask>> = vec![
             Box::new(DaChainCheckBalanceTask),
             Box::new(SimpleNativeTransferTask),
-            Box::new(DaChainDeployContractTask),
-            Box::new(DaChainInteractContractTask),
-            Box::new(SelfTransferTask),
         ];
 
         let gas_manager = Arc::new(crate::utils::gas::GasManager::new(Arc::new(

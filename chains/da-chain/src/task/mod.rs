@@ -24,12 +24,6 @@ pub trait DaChainTask: Send + Sync {
 
 pub mod t01_check_balance;
 pub mod t02_simple_native_transfer;
-pub mod t03_deploy_contract;
-pub mod t04_interact_contract;
-pub mod t05_self_transfer;
 
 pub use t01_check_balance::DaChainCheckBalanceTask;
 pub use t02_simple_native_transfer::SimpleNativeTransferTask;
-pub use t03_deploy_contract::DaChainDeployContractTask;
-pub use t04_interact_contract::DaChainInteractContractTask;
-pub use t05_self_transfer::SelfTransferTask;
