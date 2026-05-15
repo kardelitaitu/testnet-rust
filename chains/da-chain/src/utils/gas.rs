@@ -1,12 +1,16 @@
 use anyhow::Result;
 use core_logic::GasConfig;
 use ethers::prelude::*;
+use serde_json::json;
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub struct GasManager {
     config: GasConfig,
     provider: Arc<Provider<Http>>,
+    rpc_url: String,
+    rpc_client: reqwest::Client,
+    min_fee_gwei: f64,
 }
 
 impl GasManager {
@@ -17,12 +21,15 @@ impl GasManager {
     pub const LIMIT_COUNTER_INTERACT: U256 = U256([50_000, 0, 0, 0]);
     pub const LIMIT_SEND_MEME: U256 = U256([100_000, 0, 0, 0]);
 
-    pub fn new(provider: Arc<Provider<Http>>) -> Self {
+    pub fn new(rpc_url: String, provider: Arc<Provider<Http>>, min_fee_gwei: f64) -> Self {
         Self {
             config: GasConfig::new()
                 .with_max_fee(Self::MAX_FEE_GWEI_DEFAULT)
                 .with_priority_fee(Self::PRIORITY_FEE_GWEI_DEFAULT),
             provider,
+            rpc_url,
+            rpc_client: reqwest::Client::new(),
+            min_fee_gwei,
         }
     }
 
@@ -32,11 +39,31 @@ impl GasManager {
     }
 
     pub async fn get_gas_price(&self) -> Result<U256> {
-        let gas_price = self
-            .provider
-            .get_gas_price()
-            .await
-            .unwrap_or_else(|_| U256::from(1u64));
+        let response = self
+            .rpc_client
+            .post(&self.rpc_url)
+            .json(&json!({
+                "jsonrpc": "2.0",
+                "id": 1u64,
+                "method": "eth_gasPrice",
+                "params": [],
+            }))
+            .send()
+            .await;
+
+        let response = match response {
+            Ok(resp) => resp,
+            Err(_) => return Ok(U256::zero()),
+        };
+
+        let payload: serde_json::Value = response.json().await?;
+        let gas_price_hex = payload
+            .get("result")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow::anyhow!("eth_gasPrice returned no result"))?;
+
+        let gas_price = U256::from_str_radix(gas_price_hex.trim_start_matches("0x"), 16)
+            .unwrap_or_else(|_| U256::from(0u64));
         Ok(gas_price)
     }
 
@@ -57,10 +84,20 @@ impl GasManager {
             return Ok((fee, fee.min(config_prio)));
         };
 
-        let (mut est_max, mut est_prio) = match self.provider.estimate_eip1559_fees(None).await {
-            Ok(fees) => fees,
-            Err(_) => (base_fee + config_prio, config_prio),
-        };
+        let oracle_fees = self.provider.estimate_eip1559_fees(None).await.ok();
+        let (mut est_max, mut est_prio) = oracle_fees.unwrap_or((base_fee + config_prio, config_prio));
+
+        // Keep the fee suggestion grounded in the actual chain state.
+        // Some RPCs return stale or overly conservative oracle values, so we
+        // use both the RPC gas price and a stronger base-fee-derived floor
+        // before clamping to config caps.
+        let base_fee_floor = base_fee.saturating_mul(U256::from(2u64)) + config_prio;
+        est_max = est_max.max(base_fee_floor).max(gas_price);
+        let min_fee_floor: U256 = parse_units(self.min_fee_gwei, "gwei")?.into();
+        est_max = est_max.max(min_fee_floor);
+        if est_prio < config_prio {
+            est_prio = config_prio;
+        }
 
         if est_max > config_max {
             est_max = config_max;

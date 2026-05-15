@@ -126,8 +126,8 @@ impl DaChainTask for SimpleNativeTransferTask {
         // If replacing a pending transaction, increase gas to ensure replacement
         if replacing {
             println!("[INFO] Increasing gas price for transaction replacement...");
-            max_fee = max_fee * 110 / 100; // Increase by 10%
-            priority_fee = priority_fee * 110 / 100;
+            max_fee = max_fee * 200 / 100; // Increase by 100%
+            priority_fee = priority_fee * 200 / 100;
             println!(
                 "[DEBUG] Increased gas - max: {} wei, priority: {} wei",
                 max_fee, priority_fee
@@ -187,6 +187,16 @@ impl DaChainTask for SimpleNativeTransferTask {
                 .interval(Duration::from_millis(500))
                 .await?;
 
+            match &receipt {
+                Some(r) => {
+                    println!("[DEBUG] Receipt status: {:?}", r.status);
+                    println!("[DEBUG] Receipt block number: {:?}", r.block_number);
+                }
+                None => {
+                    println!("[WARNING] No receipt returned after waiting for 1 confirmation");
+                }
+            }
+
             Ok(TaskResult {
                 success: receipt.is_some(),
                 message: format!(
@@ -213,6 +223,16 @@ impl DaChainTask for SimpleNativeTransferTask {
                 .confirmations(1)
                 .interval(Duration::from_millis(500))
                 .await?;
+
+            match &receipt {
+                Some(r) => {
+                    println!("[DEBUG] Receipt status: {:?}", r.status);
+                    println!("[DEBUG] Receipt block number: {:?}", r.block_number);
+                }
+                None => {
+                    println!("[WARNING] No receipt returned after waiting for 1 confirmation");
+                }
+            }
 
             Ok(TaskResult {
                 success: receipt.is_some(),

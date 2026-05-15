@@ -52,6 +52,12 @@ $env:WALLET_PASSWORD="password"
 cargo run --release -p da-chain-project -- --config chains/da-chain/config.toml --workers 1 --max-tps 5
 ```
 
+To force a higher fee floor on noisy networks:
+
+```powershell
+cargo run --release -p da-chain-project -- --config chains/da-chain/config.toml --workers 1 --max-tps 5 --min-gwei 700
+```
+
 **Command Prompt / .bat file (`_start-da-chain.bat`):**
 ```batch
 @echo off
@@ -65,6 +71,7 @@ cargo run --release -p da-chain-project -- --config chains/da-chain/config.toml 
 | `--config <path>` | Path to config file | `chains/da-chain/config.toml` |
 | `--workers N` | Number of workers (overrides interactive prompt) | Interactive prompt |
 | `--max-tps N` | Max transactions per second per proxy | 10 |
+| `--min-gwei N` | Minimum max-fee floor in gwei | 700 |
 | `--no-proxy` | Disable proxy usage | false |
 | `--export-metrics <path>` | Export metrics to file | None |
 | `--metrics-interval N` | Metrics export interval in seconds | 30 |

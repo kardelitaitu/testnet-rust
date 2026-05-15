@@ -1,7 +1,7 @@
 use crate::config::DaChainConfig;
 use crate::task::t01_check_balance::DaChainCheckBalanceTask;
 use crate::task::t02_simple_native_transfer::SimpleNativeTransferTask;
-use crate::task::{TaskContext, DaChainTask};
+use crate::task::{DaChainTask, TaskContext};
 use anyhow::Result;
 use async_trait::async_trait;
 use colored::Colorize;
@@ -65,11 +65,15 @@ impl EvmSpammer {
         wallet_password: Option<String>,
         total_wallets: usize,
         busy_wallets: Arc<Mutex<HashSet<usize>>>,
+        rpc_url: String,
+        min_gwei: f64,
     ) -> Result<Self> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
+            reqwest::header::HeaderValue::from_static(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            ),
         );
 
         let client_builder = Client::builder().default_headers(headers);
@@ -85,9 +89,11 @@ impl EvmSpammer {
             Box::new(SimpleNativeTransferTask),
         ];
 
-        let gas_manager = Arc::new(crate::utils::gas::GasManager::new(Arc::new(
-            provider.clone(),
-        )));
+        let gas_manager = Arc::new(crate::utils::gas::GasManager::new(
+            rpc_url,
+            Arc::new(provider.clone()),
+            min_gwei,
+        ));
 
         let weights: Vec<u32> = tasks
             .iter()
@@ -135,7 +141,9 @@ impl EvmSpammer {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
+            reqwest::header::HeaderValue::from_static(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            ),
         );
 
         let mut client_builder = Client::builder().default_headers(headers);
@@ -170,7 +178,10 @@ impl Spammer for EvmSpammer {
         let span = tracing::info_span!("spammer_context", wallet_id = self.wallet_id.as_str());
 
         async move {
-            info!("DA-CHAIN Spammer started for chain {}", self.config.chain_id);
+            info!(
+                "DA-CHAIN Spammer started for chain {}",
+                self.config.chain_id
+            );
             let mut stats = core_logic::traits::SpammerStats::default();
 
             loop {
@@ -211,7 +222,9 @@ impl Spammer for EvmSpammer {
                     };
 
                     if let Some(ref proxy) = proxy_config {
-                        self.proxy_rate_limiter.wait_until_available(&proxy.url).await;
+                        self.proxy_rate_limiter
+                            .wait_until_available(&proxy.url)
+                            .await;
                     }
 
                     let provider = self.create_provider_with_proxy(&proxy_config).await;

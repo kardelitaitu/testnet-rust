@@ -29,6 +29,8 @@ struct Args {
     no_proxy: bool,
     #[arg(long, default_value = "10")]
     max_tps: u32,
+    #[arg(long, default_value_t = 700.0)]
+    min_gwei: f64,
     #[arg(long)]
     workers: Option<usize>,
 }
@@ -215,6 +217,8 @@ async fn main() -> Result<()> {
             wallet_password.clone(),
             total_wallets,
             busy_wallets.clone(),
+            config.rpc_url.clone(),
+            args.min_gwei,
         )?;
         spammers.push(Box::new(spammer) as Box<dyn core_logic::traits::Spammer>);
     }

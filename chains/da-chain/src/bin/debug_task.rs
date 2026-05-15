@@ -32,6 +32,9 @@ struct Args {
 
     #[arg(long)]
     no_proxy: bool,
+
+    #[arg(long, default_value_t = 700.0)]
+    min_gwei: f64,
 }
 
 #[tokio::main]
@@ -194,9 +197,11 @@ async fn main() -> Result<()> {
     println!("Using wallet: {:?}", wallet.address());
 
     // 9. Create GasManager
-    let gas_manager = Arc::new(da_chain_project::utils::gas::GasManager::new(Arc::new(
-        provider.clone(),
-    )));
+    let gas_manager = Arc::new(da_chain_project::utils::gas::GasManager::new(
+        cfg.rpc_url.clone(),
+        Arc::new(provider.clone()),
+        args.min_gwei,
+    ));
 
     // 10. Create TaskContext
     let ctx = TaskContext {

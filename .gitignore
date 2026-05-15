@@ -8,11 +8,13 @@ test_logs/
 *.db-shm
 *.db-wal
 wallet-json/
+chains/da-chain/wallets-json-da-chain
 address.txt
 proxies.txt
 
 # Secrets
 .env
+_start-dacc.bat
 
 # IDEs and OS files
 .vscode/
