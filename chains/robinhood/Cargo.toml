@@ -1,0 +1,47 @@
+[package]
+name = "robinhood-spammer"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "robinhood_spammer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "robinhood-spammer"
+path = "bin/robinhood-spammer.rs"
+
+[[bin]]
+name = "robinhood-debug"
+path = "bin/robinhood-debug.rs"
+
+[[bin]]
+name = "robinhood-runner"
+path = "bin/robinhood-runner.rs"
+
+[dependencies]
+async-trait = "0.1"
+tokio = { version = "1.43", features = ["full"] }
+ethers = { version = "2.0", features = ["rustls", "ws"] }
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.11", features = ["json", "socks"] }
+config = "0.14"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+url = "2.5"
+dotenv = "0.15"
+rand = "0.8"
+dialoguer = "0.11"
+futures = "0.3"
+chrono = "0.4"
+parking_lot = "0.12"
+fastrand = "2.3"
+zeroize = { version = "1.7", features = ["derive"] }
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio", "tls-native-tls"] }
+clap = { version = "4.5", features = ["derive"] }
+tokio-util = "0.7"
+
+[dependencies.core-logic]
+path = "../../core-logic"

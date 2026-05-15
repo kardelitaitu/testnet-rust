@@ -1,0 +1,4 @@
+rpc_url = "https://robinhood-rpc-testnet.com" # Placeholder
+chain_id = 12345 # Placeholder
+private_key_file = "wallets.json"
+tps = 10

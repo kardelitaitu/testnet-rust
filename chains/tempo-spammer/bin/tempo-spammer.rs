@@ -20,7 +20,7 @@ use tempo_spammer::ProxyBanlist;
 use tempo_spammer::TempoClient;
 use tempo_spammer::bot::notification::spawn_notification_service;
 use tempo_spammer::config::TempoSpammerConfig as Config;
-use tempo_spammer::tasks::{TaskContext, TempoTask, load_proxies};
+use tempo_spammer::tasks::{GasManager, TaskContext, TempoTask, load_proxies};
 use tracing::{error, info, warn};
 use zeroize::Zeroizing;
 
@@ -269,9 +269,9 @@ async fn main() -> Result<()> {
 
     // Configure async database logging
     let async_db_config = AsyncDbConfig {
-        channel_capacity: 1000,
-        batch_size: 200,
-        flush_interval_ms: 200,
+        channel_capacity: 5000,  // Larger buffer for 5s intervals
+        batch_size: 1000,        // Very large batches
+        flush_interval_ms: 5000, // Flush once every 5 seconds
     };
 
     // Create shared database manager with async logging
@@ -456,6 +456,7 @@ async fn run_spammer(
         .collect();
     let dist = WeightedIndex::new(&task_weights).expect("Failed to create weighted distribution");
     let tasks = Arc::new(tasks);
+    let gas_manager = Arc::new(GasManager); // Phase 2.2: Shared GasManager
 
     let config = config.clone();
     let _client_count = client_pool.count();
@@ -468,6 +469,10 @@ async fn run_spammer(
         let db = db_manager.clone();
         let config = config.clone();
         let dist = dist.clone();
+        let gas_manager = gas_manager.clone();
+        
+        // Phase 1.2: Pre-format worker identifier
+        let worker_id_str = format!("{:03}", worker_id);
 
         // Per-worker semaphore to prevent burst patterns
         let worker_semaphore = Arc::new(tokio::sync::Semaphore::new(config.worker_semaphore));
@@ -478,6 +483,9 @@ async fn run_spammer(
             tokio::time::sleep(Duration::from_millis(initial_sleep)).await;
 
             let mut backoff_ms = 10u64; // Start with 10ms backoff
+            
+            // Phase 2.1: Task sampling buffer
+            let mut task_queue = std::collections::VecDeque::with_capacity(50);
 
             loop {
                 // Acquire per-worker permit (prevents burst patterns)
@@ -489,13 +497,7 @@ async fn run_spammer(
                         continue;
                     }
                 };
-                // Check for cancellation
-                if false {
-                    break;
-                } // Placeholder
-
-                // let wallet_idx = rng.gen_range(0..client_count); // Handled by pool
-
+                
                 // Acquire lease on a wallet with exponential backoff
                 let lease = match client_pool.try_acquire_client().await {
                     Some(l) => {
@@ -513,37 +515,32 @@ async fn run_spammer(
                 let wallet_idx = lease.index;
                 let client = lease.client.clone(); // Clone ARC, lease stays alive until end of scope
 
-                let task_idx = dist.sample(&mut rng);
+                // Phase 2.1: Use task queue to reduce RNG calls
+                if task_queue.is_empty() {
+                    for _ in 0..50 {
+                        task_queue.push_back(dist.sample(&mut rng));
+                    }
+                }
+                let task_idx = task_queue.pop_front().unwrap();
                 let task = &tasks[task_idx];
 
-                let ctx = TaskContext::new(client.clone(), config.clone(), Some(db.clone()));
+                let ctx = TaskContext::new(client.clone(), config.clone(), Some(db.clone()), gas_manager.clone());
 
-                let proxy_url_for_span = client
-                    .proxy_config
-                    .as_ref()
-                    .map(|p| p.url.as_str())
-                    .unwrap_or("direct");
-
-                let span = tracing::info_span!(
-                    "task",
-                    worker_id = worker_id,
-                    wallet = ?client.address(),
-                    task = task.name(),
-                    proxy = proxy_url_for_span
-                );
+                // Phase 1.1: Optimize tracing - only create span if debugging or specific conditions met
+                // For high-throughput spamming, dynamic spans are very expensive.
+                
                 let start = std::time::Instant::now();
 
                 match tokio::time::timeout(Duration::from_secs(config.task_timeout), task.run(&ctx))
                     .await
                 {
                     Ok(Ok(result)) => {
-                        let _enter = span.enter();
                         let duration = start.elapsed();
 
                         // Async logging: queue result without blocking
                         if let Some(database) = &ctx.db {
                             let queued_result = QueuedTaskResult {
-                                worker_id: format!("{:03}", worker_id),
+                                worker_id: worker_id_str.clone(),
                                 wallet_address: client.address().to_string(),
                                 task_name: task.name().to_string(),
                                 success: result.success,
@@ -552,11 +549,8 @@ async fn run_spammer(
                                 timestamp: chrono::Utc::now().timestamp(),
                             };
 
-                            // Non-blocking send (returns immediately)
-                            if let Err(e) = database.queue_task_result(queued_result) {
-                                // Log at warn level for visibility - this shouldn't happen often
-                                warn!("Failed to queue task result for DB logging: {}", e);
-                            }
+                            // Non-blocking send
+                            let _ = database.queue_task_result(queued_result);
                         }
 
                         let status_msg = if result.success {
@@ -573,8 +567,8 @@ async fn run_spammer(
 
                         info!(
                             target: "task_result",
-                            "[WK:{:03}][WL:{:03}][P:{}] {} [{}] {} t:{:.1}s",
-                            worker_id,
+                            "[WK:{}][WL:{:03}][P:{}] {} [{}] {} t:{:.1}s",
+                            worker_id_str,
                             wallet_idx,
                             client.proxy_index.map(|i| format!("{:03}", i)).unwrap_or_else(|| "DIR".to_string()),
                             if result.success { "SUCCESS" } else { "FAILED " },
@@ -584,12 +578,10 @@ async fn run_spammer(
                         );
                     }
                     Ok(Err(e)) => {
-                        let _enter = span.enter();
                         let duration = start.elapsed();
                         let error_msg = format!("{:#}", e);
 
                         // === PROXY BANNING LOGIC ===
-                        // Detect connection/tunnel errors that indicate a bad proxy
                         if error_msg.contains("tunnel error")
                             || error_msg.contains("Connect")
                             || error_msg.contains("connection closed")
@@ -598,8 +590,8 @@ async fn run_spammer(
                             if let Some(proxy_idx) = client.proxy_index {
                                 if let Some(banlist) = &client_pool.proxy_banlist {
                                     tracing::warn!(
-                                        "[WK:{:03}][P:{:03}] 🚫 Banning unhealthy proxy due to error: {:.100}...",
-                                        worker_id,
+                                        "[WK:{}][P:{:03}] 🚫 Banning unhealthy proxy due to error: {:.100}...",
+                                        worker_id_str,
                                         proxy_idx,
                                         error_msg
                                     );
@@ -612,11 +604,6 @@ async fn run_spammer(
 
                         // Auto-refresh nonce cache on "nonce too low" errors
                         if error_msg.contains("nonce too low") {
-                            tracing::debug!(
-                                "[WK:{:03}] Detected stale nonce, refreshing from blockchain...",
-                                worker_id
-                            );
-
                             // Force refresh nonce from blockchain
                             if let Some(robust_manager) = &ctx.client.robust_nonce_manager {
                                 let mut handled = false;
@@ -626,7 +613,6 @@ async fn run_spammer(
                                 {
                                     let next_str = &error_msg[next_pos + 11..tx_pos];
                                     let tx_str_check = &error_msg[tx_pos + 11..];
-                                    // tx_str might have trailing chars, take until non-digit
                                     let tx_str = tx_str_check
                                         .chars()
                                         .take_while(|c| c.is_ascii_digit())
@@ -639,58 +625,30 @@ async fn run_spammer(
                                         robust_manager
                                             .handle_nonce_error(ctx.address(), tx_nonce, next_nonce)
                                             .await;
-                                        tracing::info!(
-                                            "[WK:{:03}] Robust recovery: failed {} -> actual {}",
-                                            worker_id,
-                                            tx_nonce,
-                                            next_nonce
-                                        );
                                         handled = true;
                                         recovered = true;
                                     }
                                 }
 
                                 if !handled {
-                                    // Fallback: use get_pending_nonce which handles "pending" tag correctly manual
                                     match ctx.client.get_pending_nonce(&ctx.config.rpc_url).await {
                                         Ok(fresh_nonce) => {
                                             robust_manager
                                                 .initialize(ctx.address(), fresh_nonce)
                                                 .await;
-                                            tracing::debug!(
-                                                "[WK:{:03}] RobustNonceManager re-initialized to {}",
-                                                worker_id,
-                                                fresh_nonce
-                                            );
                                             recovered = true;
                                         }
-                                        Err(e) => tracing::warn!(
-                                            "[WK:{:03}] Failed to refresh robust nonce: {:?}",
-                                            worker_id,
-                                            e
-                                        ),
+                                        Err(_) => {}
                                     }
                                 }
                             }
-                            // Legacy Manager
                             else if let Some(manager) = &ctx.client.nonce_manager {
                                 match ctx.client.get_pending_nonce(&ctx.config.rpc_url).await {
                                     Ok(fresh_nonce) => {
                                         manager.set(ctx.address(), fresh_nonce).await;
-                                        tracing::debug!(
-                                            "[WK:{:03}] Nonce cache refreshed to {}",
-                                            worker_id,
-                                            fresh_nonce
-                                        );
                                         recovered = true;
                                     }
-                                    Err(refresh_err) => {
-                                        tracing::warn!(
-                                            "[WK:{:03}] Failed to refresh nonce: {:?}",
-                                            worker_id,
-                                            refresh_err
-                                        );
-                                    }
+                                    Err(_) => {}
                                 }
                             }
                         }
@@ -698,7 +656,7 @@ async fn run_spammer(
                         // Async logging for error
                         if let Some(database) = &ctx.db {
                             let queued_result = QueuedTaskResult {
-                                worker_id: format!("{:03}", worker_id),
+                                worker_id: worker_id_str.clone(),
                                 wallet_address: client.address().to_string(),
                                 task_name: task.name().to_string(),
                                 success: false,
@@ -706,24 +664,20 @@ async fn run_spammer(
                                 duration_ms: duration.as_millis() as u64,
                                 timestamp: chrono::Utc::now().timestamp(),
                             };
-
-                            if let Err(e) = database.queue_task_result(queued_result) {
-                                warn!("Failed to queue error result for DB logging: {}", e);
-                            }
+                            let _ = database.queue_task_result(queued_result);
                         }
 
                         if recovered {
-                            // Log as INFO/WARN - it's a recovered error, normal operation
-                            info!(target: "task_result", "[WK:{:03}][WL:{:03}][P:{}] \x1b[33mRETRY\x1b[0m [{}] Nonce mismatch (recovered) t:{:.1}s",
-                                worker_id,
+                            info!(target: "task_result", "[WK:{}][WL:{:03}][P:{}] \x1b[33mRETRY\x1b[0m [{}] Nonce mismatch (recovered) t:{:.1}s",
+                                worker_id_str,
                                 wallet_idx,
                                 client.proxy_index.map(|i| format!("{:03}", i)).unwrap_or_else(|| "DIR".to_string()),
                                 task.name(),
                                 duration.as_secs_f32()
                             );
                         } else {
-                            error!(target: "task_result", "[WK:{:03}][WL:{:03}][P:{}] \x1b[31mERROR\x1b[0m [{}] Task error: {} t:{:.1}s",
-                                worker_id,
+                            error!(target: "task_result", "[WK:{}][WL:{:03}][P:{}] \x1b[31mERROR\x1b[0m [{}] Task error: {} t:{:.1}s",
+                                worker_id_str,
                                 wallet_idx,
                                 client.proxy_index.map(|i| format!("{:03}", i)).unwrap_or_else(|| "DIR".to_string()),
                                 task.name(),
@@ -733,14 +687,12 @@ async fn run_spammer(
                         }
                     }
                     Err(_) => {
-                        let _enter = span.enter();
                         let duration = start.elapsed();
                         let error_msg = "Task timed out".to_string();
 
-                        // Async logging for timeout
                         if let Some(database) = &ctx.db {
                             let queued_result = QueuedTaskResult {
-                                worker_id: format!("{:03}", worker_id),
+                                worker_id: worker_id_str.clone(),
                                 wallet_address: client.address().to_string(),
                                 task_name: task.name().to_string(),
                                 success: false,
@@ -748,13 +700,10 @@ async fn run_spammer(
                                 duration_ms: duration.as_millis() as u64,
                                 timestamp: chrono::Utc::now().timestamp(),
                             };
-
-                            if let Err(e) = database.queue_task_result(queued_result) {
-                                warn!("Failed to queue timeout result for DB logging: {}", e);
-                            }
+                            let _ = database.queue_task_result(queued_result);
                         }
-                        error!(target: "task_result", "[WK:{:03}][WL:{:03}][P:{}] \x1b[31mERROR\x1b[0m [{}] {} t:{:.1}s",
-                            worker_id,
+                        error!(target: "task_result", "[WK:{}][WL:{:03}][P:{}] \x1b[31mERROR\x1b[0m [{}] {} t:{:.1}s",
+                            worker_id_str,
                             wallet_idx,
                             client.proxy_index.map(|i| format!("{:03}", i)).unwrap_or_else(|| "DIR".to_string()),
                             task.name(),
@@ -764,7 +713,7 @@ async fn run_spammer(
                     }
                 }
 
-                // Explicitly release the lease with cooldown
+                // Explicitly release the lease with priority (Phase 1.2)
                 lease.release().await;
 
                 let sleep_ms = config.random_interval();
@@ -829,7 +778,7 @@ async fn run_single_task(
         })
         .expect("Task not found");
 
-    let ctx = TaskContext::new(client.clone(), config.clone(), Some(db_manager.clone()));
+    let ctx = TaskContext::new(client.clone(), config.clone(), Some(db_manager.clone()), Arc::new(GasManager));
 
     match task.run(&ctx).await {
         Ok(result) => {

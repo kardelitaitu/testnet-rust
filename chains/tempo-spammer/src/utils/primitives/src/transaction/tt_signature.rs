@@ -58,7 +58,7 @@ const ED: u8 = 0x80; // Extension data present (bit 7)
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "reth-codec", derive(reth_codecs::Compact))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(test, reth_codecs::add_arbitrary_tests(compact))]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact))]
 pub struct P256SignatureWithPreHash {
     pub r: B256,
     pub s: B256,
@@ -73,7 +73,7 @@ pub struct P256SignatureWithPreHash {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "reth-codec", derive(reth_codecs::Compact))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(test, reth_codecs::add_arbitrary_tests(compact))]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact))]
 pub struct WebAuthnSignature {
     pub r: B256,
     pub s: B256,
@@ -359,7 +359,7 @@ impl reth_codecs::Compact for PrimitiveSignature {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-#[cfg_attr(test, reth_codecs::add_arbitrary_tests(compact))]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact))]
 pub struct KeychainSignature {
     /// Root account address that this transaction is being executed for
     pub user_address: Address,
@@ -480,7 +480,7 @@ impl<'a> arbitrary::Arbitrary<'a> for KeychainSignature {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(untagged, rename_all = "camelCase"))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(test, reth_codecs::add_arbitrary_tests(compact, rlp))]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
 pub enum TempoSignature {
     /// Primitive signature types: Secp256k1, P256, or WebAuthn
     Primitive(PrimitiveSignature),

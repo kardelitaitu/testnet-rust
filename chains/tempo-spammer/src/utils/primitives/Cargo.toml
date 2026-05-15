@@ -15,7 +15,7 @@ reth-codecs = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", op
 reth-rpc-convert = { git = "https://github.com/paradigmxyz/reth", rev = "f0c9cb9", optional = true }
 
 # revm
-revm = { version = "34.0.0", features = ["optional_fee_charge"] }
+revm = { version = "34.0.0", features = ["optional_fee_charge"], optional = true }
 
 # Alloy
 alloy-consensus = { version = "1.4.3", default-features = false, features = ["secp256k1", "k256"] }
@@ -51,8 +51,9 @@ rand = "0.9"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [features]
-default = ["reth", "serde", "reth-codec", "serde-bincode-compat", "rpc"]
+default = ["serde"]
 reth = ["dep:reth-ethereum-primitives", "dep:reth-primitives-traits"]
+revm = ["dep:revm"]
 serde = [
 	"dep:alloy-serde",
 	"alloy-consensus/serde",

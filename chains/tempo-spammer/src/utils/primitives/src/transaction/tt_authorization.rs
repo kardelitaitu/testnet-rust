@@ -2,6 +2,7 @@ use alloy_eips::eip7702::{Authorization, RecoveredAuthority, RecoveredAuthorizat
 use alloy_primitives::{Address, B256, U256, keccak256};
 use alloy_rlp::{BufMut, Decodable, Encodable, Header, Result as RlpResult, length_of_length};
 use core::ops::Deref;
+#[cfg(feature = "revm")]
 use revm::context::transaction::AuthorizationTr;
 use std::sync::OnceLock;
 
@@ -21,7 +22,7 @@ pub const MAGIC: u8 = 0x05;
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(test, reth_codecs::add_arbitrary_tests(compact, rlp))]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
 pub struct TempoSignedAuthorization {
     /// Inner authorization (reuses alloy's Authorization)
     #[cfg_attr(feature = "serde", serde(flatten))]
@@ -294,6 +295,7 @@ impl Deref for RecoveredTempoAuthorization {
     }
 }
 
+#[cfg(feature = "revm")]
 impl AuthorizationTr for RecoveredTempoAuthorization {
     fn chain_id(&self) -> U256 {
         self.chain_id

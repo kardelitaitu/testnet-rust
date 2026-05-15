@@ -24,6 +24,30 @@
 *   **Signer-Enabled Provider Wrappers**: Each wallet now creates a lightweight Alloy `Provider` stack that wraps the shared transport, allowing local transaction signing without redundant memory overhead.
 *   **Adaptive Resource Eviction**: Optimized `ClientPool` to perform tiered cleanup based on memory pressure, using more aggressive timeouts during emergency periods to stay under the 300MB RAM target.
 
+## [2026-02-24] - Polymorphic Wallet Management
+
+### 🧬 Architecture Evolution
+*   **Targeted Decryption**: Refactored `WalletManager` to support chain-specific decryption. When running the Tempo spammer, only EVM keys are extracted from the encrypted JSON and loaded into heap memory, drastically reducing the RAM footprint for multi-chain wallet files.
+*   **Chain-Agnostic API**: Introduced the `ChainType` enum and polymorphic methods (`private_key()`, `address()`) to `DecryptedWallet`. This allows the framework to be reused for Solana, SUI, and Aptos without modifying the core wallet logic.
+*   **Multi-Chain Cache Segmenting**: Upgraded the internal cache to be chain-aware, ensuring that a single wallet index can be loaded for different blockchain architectures simultaneously without collision.
+*   **Backward Compatibility**: Maintained the legacy field structure for `evm_private_key` and others to ensure existing spammers continue to function without breaking changes.
+
+## [2026-02-24] - CPU Efficiency & VPS Optimization
+
+### ⚡ Hot-Path Optimization
+*   **Task Sampling Buffer**: Implemented a pre-sampled task queue for workers. Instead of sampling the weighted distribution once per loop, workers now batch-sample 50 tasks at once, significantly reducing RNG overhead.
+*   **Pre-Formatted Identifiers**: Worker and wallet string identifiers are now pre-formatted at startup. This eliminates redundant `format!` calls and heap allocations within the high-frequency execution loop.
+*   **Shared Gas Manager**: Refactored `TaskContext` to use a pre-allocated, shared `Arc<GasManager>`. This prevents thousands of redundant heap allocations per minute.
+*   **Reduced Tracing Overhead**: Removed expensive dynamic `info_span!` creation from the hot loop. Tracing context is now handled via more efficient static logging patterns.
+
+*   **Aggressive DB Batching**: Increased database batch size to 1000 and flush interval to 5000ms. This drastically reduces disk I/O and CPU context switching by only performing SQLite commits once every 5 seconds, ideal for low-spec VPS environments.
+*   **Channel Capacity Scaling**: Expanded the async logging channel capacity to 5000 to safely buffer transaction bursts during the longer 5-second flush windows.
+
+## [2026-02-24] - Memory Stability Stabilization
+*   **Rollback of mimalloc**: Reverted to the system allocator to resolve unexpected RAM reporting spikes observed during high-concurrency sessions.
+*   **Revert of Arc<str> Interning**: Restored standard string handling in the database pipeline to maintain a predictable heap profile.
+
+
 
 ### 🪵 Logging & Database
 *   **Memory-Optimized Logger**: Switched to `MemoryOptimizedLayer` which uses direct `BufWriter` logic for file I/O. This provides more predictable memory usage compared to the standard non-blocking channel appender.

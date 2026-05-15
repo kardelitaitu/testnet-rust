@@ -138,7 +138,7 @@ impl Encodable for SubBlock {
 /// A subblock with a signature.
 #[derive(Debug, Clone, derive_more::Deref, derive_more::DerefMut, PartialEq, Eq)]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(test, reth_codecs::add_arbitrary_tests(rlp))]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(rlp))]
 pub struct SignedSubBlock {
     /// The subblock.
     #[deref]

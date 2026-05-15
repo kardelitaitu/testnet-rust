@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo clean *)",
+      "Bash(cargo check *)",
+      "Bash($env:wallet_password=\"password\")",
+      "Bash(cargo run *)",
+      "Bash(set *)",
+      "Bash(powershell *)",
+      "Bash(cargo test *)",
+      "Bash(solc *)",
+      "Bash(cmd *)",
+      "mcp__Tavily__tavily_extract",
+      "Bash(dir *)",
+      "Bash(git checkout *)",
+      "Bash(\"c:\\my script\\testnet-framework\\solc.exe\" *)",
+      "Bash(timeout *)",
+      "mcp__context-mode__ctx_execute",
+      "mcp__Sequential Thinking__sequentialthinking",
+      "mcp__Tavily__tavily_search",
+      "mcp__Memory__delete_entities",
+      "mcp__context-mode__ctx_batch_execute"
+    ]
+  },
+  "$version": 3
+}

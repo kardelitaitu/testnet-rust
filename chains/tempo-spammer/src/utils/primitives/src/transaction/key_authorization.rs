@@ -13,7 +13,7 @@ use alloy_rlp::Encodable;
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "reth-codec", derive(reth_codecs::Compact))]
-#[cfg_attr(test, reth_codecs::add_arbitrary_tests(compact, rlp))]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
 pub struct TokenLimit {
     /// TIP20 token address
     pub token: Address,
@@ -35,7 +35,7 @@ pub struct TokenLimit {
 #[rlp(trailing)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-#[cfg_attr(test, reth_codecs::add_arbitrary_tests(rlp))]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(rlp))]
 pub struct KeyAuthorization {
     /// Chain ID for replay protection (0 = valid on any chain)
     #[cfg_attr(feature = "serde", serde(with = "alloy_serde::quantity"))]
@@ -111,7 +111,7 @@ impl KeyAuthorization {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
 #[rlp(trailing)]
-#[cfg_attr(test, reth_codecs::add_arbitrary_tests(compact, rlp))]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
 pub struct SignedKeyAuthorization {
     /// Key authorization for provisioning access keys
     #[cfg_attr(feature = "serde", serde(flatten))]

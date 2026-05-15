@@ -546,6 +546,36 @@ impl DatabaseManager {
         }
     }
 
+    pub async fn get_latest_asset_by_type(
+        &self,
+        wallet: &str,
+        asset_type: &str,
+    ) -> Result<Option<String>> {
+        let start = std::time::Instant::now();
+
+        let row = sqlx::query_as::<_, (String,)>(
+            "SELECT asset_address FROM created_assets WHERE wallet_address = ? AND asset_type = ? ORDER BY id DESC LIMIT 1",
+        )
+        .bind(wallet)
+        .bind(asset_type)
+        .fetch_optional(&self.pool)
+        .await;
+
+        self.metrics.total_selects.fetch_add(1, Ordering::SeqCst);
+        self.record_query_time(start, row.is_ok());
+
+        match row {
+            Ok(row) => {
+                self.metrics.total_queries.fetch_add(1, Ordering::SeqCst);
+                Ok(row.map(|r| r.0))
+            }
+            Err(e) => {
+                self.metrics.total_errors.fetch_add(1, Ordering::SeqCst);
+                Err(e).context("Failed to query latest asset by type")
+            }
+        }
+    }
+
     pub async fn get_all_assets_by_type(&self, asset_type: &str) -> Result<Vec<String>> {
         let start = std::time::Instant::now();
 
@@ -597,6 +627,59 @@ impl DatabaseManager {
             Err(e) => {
                 self.metrics.total_errors.fetch_add(1, Ordering::SeqCst);
                 Err(e).context("Failed to query deployed contracts")
+            }
+        }
+    }
+
+    pub async fn get_all_deployed_counter_contracts(&self, chain_id: u64) -> Result<Vec<String>> {
+        let start = std::time::Instant::now();
+
+        let rows = sqlx::query_as::<_, (String,)>(
+            "SELECT contract_address FROM created_counter_contracts WHERE chain_id = ?",
+        )
+        .bind(chain_id as i64)
+        .fetch_all(&self.pool)
+        .await;
+
+        self.metrics.total_selects.fetch_add(1, Ordering::SeqCst);
+        self.record_query_time(start, rows.is_ok());
+
+        match rows {
+            Ok(rows) => {
+                self.metrics.total_queries.fetch_add(1, Ordering::SeqCst);
+                Ok(rows.into_iter().map(|r| r.0).collect())
+            }
+            Err(e) => {
+                self.metrics.total_errors.fetch_add(1, Ordering::SeqCst);
+                Err(e).context("Failed to query all deployed contracts")
+            }
+        }
+    }
+
+    pub async fn get_all_deployed_counter_contracts_with_wallets(
+        &self,
+        chain_id: u64,
+    ) -> Result<Vec<(String, String)>> {
+        let start = std::time::Instant::now();
+
+        let rows = sqlx::query_as::<_, (String, String)>(
+            "SELECT wallet_address, contract_address FROM created_counter_contracts WHERE chain_id = ?",
+        )
+        .bind(chain_id as i64)
+        .fetch_all(&self.pool)
+        .await;
+
+        self.metrics.total_selects.fetch_add(1, Ordering::SeqCst);
+        self.record_query_time(start, rows.is_ok());
+
+        match rows {
+            Ok(rows) => {
+                self.metrics.total_queries.fetch_add(1, Ordering::SeqCst);
+                Ok(rows.into_iter().collect())
+            }
+            Err(e) => {
+                self.metrics.total_errors.fetch_add(1, Ordering::SeqCst);
+                Err(e).context("Failed to query all deployed contracts with wallets")
             }
         }
     }

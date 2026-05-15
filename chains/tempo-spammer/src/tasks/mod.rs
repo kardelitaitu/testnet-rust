@@ -183,12 +183,13 @@ impl TaskContext {
         client: TempoClient,
         config: TempoSpammerConfig,
         db: Option<Arc<DatabaseManager>>,
+        gas_manager: Arc<GasManager>,
     ) -> Self {
         Self {
             client,
             config,
             db,
-            gas_manager: Arc::new(GasManager),
+            gas_manager,
             timeout: Duration::from_secs(180),
         }
     }

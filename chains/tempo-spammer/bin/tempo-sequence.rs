@@ -10,7 +10,7 @@ use rand::Rng;
 use std::sync::Arc;
 use std::time::Duration;
 use tempo_spammer::config::TempoSpammerConfig;
-use tempo_spammer::tasks::{TaskContext, TempoTask, load_proxies};
+use tempo_spammer::tasks::{GasManager, TaskContext, TempoTask, load_proxies};
 use tokio::sync::Semaphore;
 
 // Include compile-time configuration from build.rs
@@ -272,7 +272,7 @@ async fn main() -> Result<()> {
                         wallet_idx, task_id, proxy_idx_str, attempt
                     );
 
-                    let context = TaskContext::new(client, config.clone(), db.clone());
+                    let context = TaskContext::new(client, config.clone(), db.clone(), Arc::new(GasManager));
                     let start = std::time::Instant::now();
 
                     // 3. Run Task

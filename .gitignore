@@ -11,6 +11,7 @@ wallet-json/
 chains/da-chain/wallets-json-da-chain
 address.txt
 proxies.txt
+target-xenea
 
 # Secrets
 .env

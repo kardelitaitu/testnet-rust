@@ -1,0 +1,5 @@
+pub const COUNTER_BYTECODE: &str = "6080604052348015600f57600080fd5b5060cc80601d6000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c806306661abd146037578063d09de08a146051575b600080fd5b603f60005481565b60405190815260200160405180910390f35b60576059565b005b6001600080828254606991906070565b9091555050565b80820180821115609057634e487b7160e01b600052601160045260246000fd5b9291505056fea26469706673582212203af3d70a5ed5834a581b0344939e8fd4e44f6503934583524c24253e2da1fdb964736f6c63430008210033";
+pub const COUNTER_ABI: &str = r#"[{"inputs":[],"name":"count","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"increment","outputs":[],"stateMutability":"nonpayable","type":"function"}]"#;
+
+pub const MEME_TOKEN_BYTECODE: &str = include_str!("../../contracts/MemeToken_bytecode.txt");
+pub const MEME_TOKEN_ABI: &str = include_str!("../../contracts/MemeToken_abi.txt");

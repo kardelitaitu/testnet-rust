@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tempo_spammer::TempoClient;
 use tempo_spammer::RobustNonceManager;
 use tempo_spammer::config::TempoSpammerConfig;
-use tempo_spammer::tasks::{TaskContext, TempoTask, load_proxies};
+use tempo_spammer::tasks::{GasManager, TaskContext, TempoTask, load_proxies};
 use tracing;
 use tracing_subscriber;
 
@@ -554,7 +554,7 @@ async fn main() -> Result<()> {
     };
 
     // Create context with optional database
-    let ctx = TaskContext::new(client.clone(), config, db);
+    let ctx = TaskContext::new(client.clone(), config, db, Arc::new(GasManager));
 
     // Run task with timeout
     let start_time = std::time::Instant::now();

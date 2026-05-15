@@ -1,0 +1,11 @@
+# Xenea Spammer Configuration
+# Uses wallet-json/ folder at root automatically
+
+rpc_url = "https://rpc-ubusuna.xeneascan.com"
+chain_id = 1096
+explorer = "https://ubusuna.xeneascan.com"
+symbol = "TXENE"
+tps = 100
+worker_amount = 5
+min_delay_ms = 100
+max_delay_ms = 200

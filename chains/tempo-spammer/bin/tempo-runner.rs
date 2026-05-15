@@ -5,10 +5,11 @@ use core_logic::database::DatabaseManager;
 use dotenv::dotenv;
 use std::env;
 use std::io::Write;
+use std::sync::Arc;
 
 use std::time::Duration;
 use tempo_spammer::config::TempoSpammerConfig;
-use tempo_spammer::tasks::{TaskContext, TempoTask, load_proxies};
+use tempo_spammer::tasks::{GasManager, TaskContext, TempoTask, load_proxies};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -239,7 +240,7 @@ async fn main() -> Result<()> {
                     .map(|idx| format!("{:03}", idx))
                     .unwrap_or_else(|| "DIR".to_string());
 
-                let context = TaskContext::new(client, config.clone(), db.clone());
+                let context = TaskContext::new(client, config.clone(), db.clone(), Arc::new(GasManager));
                 let result = tokio::time::timeout(context.timeout, task.run(&context)).await;
                 let duration = start.elapsed();
 

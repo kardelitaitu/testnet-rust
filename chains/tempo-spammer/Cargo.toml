@@ -19,7 +19,6 @@ alloy = { version = "1.4.3", default-features = false, features = [
     "consensus",
     "rlp",
     "network", 
-    "node-bindings",
 ] }
 alloy-transport-http = "1.4.3"
 alloy-sol-macro = "1.4.3"
