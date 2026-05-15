@@ -65,7 +65,7 @@ impl EvmSpammer {
         wallet_password: Option<String>,
         total_wallets: usize,
         busy_wallets: Arc<Mutex<HashSet<usize>>>,
-        rpc_url: String,
+        gas_tracker: Option<core_logic::ExplorerGasTracker>,
         min_gwei: f64,
     ) -> Result<Self> {
         let mut headers = reqwest::header::HeaderMap::new();
@@ -90,9 +90,9 @@ impl EvmSpammer {
         ];
 
         let gas_manager = Arc::new(crate::utils::gas::GasManager::new(
-            rpc_url,
             Arc::new(provider.clone()),
             min_gwei,
+            gas_tracker,
         ));
 
         let weights: Vec<u32> = tasks

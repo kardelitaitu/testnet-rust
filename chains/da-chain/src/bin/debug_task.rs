@@ -15,6 +15,8 @@ use std::sync::Arc;
 use tracing::{error, info};
 use url::Url;
 
+const GAS_TRACKER_URL: &str = "https://exptest.dachain.tech/gas-tracker";
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -197,10 +199,25 @@ async fn main() -> Result<()> {
     println!("Using wallet: {:?}", wallet.address());
 
     // 9. Create GasManager
+    let gas_tracker_proxies = proxy_url
+        .as_ref()
+        .map(|proxy_str| {
+            vec![core_logic::config::ProxyConfig {
+                url: proxy_str.clone(),
+                username: None,
+                password: None,
+            }]
+        })
+        .unwrap_or_default();
+
     let gas_manager = Arc::new(da_chain_project::utils::gas::GasManager::new(
-        cfg.rpc_url.clone(),
         Arc::new(provider.clone()),
         args.min_gwei,
+        core_logic::ExplorerGasTracker::new(
+            core_logic::ExplorerGasTrackerPayload::new(GAS_TRACKER_URL)
+                .with_proxies(gas_tracker_proxies),
+        )
+        .ok(),
     ));
 
     // 10. Create TaskContext

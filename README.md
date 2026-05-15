@@ -13,6 +13,7 @@ A modular, high-performance optimization of the testnet automation framework, re
     *   **Core Logic**: Shared library for Wallet Manager, Logging, and Proxy management.
     *   **Task System**: Trait-based task definition (`RiseTask`) for easy extension.
     *   **Centralized Logging**: `tracing`-based structured logging with file and console output.
+    *   **Gas Strategy**: `ExplorerGasTracker` reads explorer gas pages when RPC fee estimates are flaky.
 *   **Robust Tooling**:
     *   **Debugger (`debug_task`)**: Interactive CLI to test individual tasks, check balances, and debug specific wallets.
     *   **Spammer**: High-throughput automated transaction generator with random delays and proxy rotation.
@@ -126,6 +127,10 @@ pub fn new() -> Self {
         chat_id: "YOUR_CHAT_ID".to_string(),
     }
 }
+
+## Gas Fee Strategy
+
+`ExplorerGasTracker` is a custom gas source you can use when the RPC fee estimate is flaky. It reads the explorer's published normal gas value and gives the framework a cleaner fallback path than trusting the node alone.
 
 ## 📦 Build-Time Configuration (No .env files needed!)
 

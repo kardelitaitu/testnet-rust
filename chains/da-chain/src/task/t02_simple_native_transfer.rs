@@ -24,6 +24,54 @@ fn get_random_recipient() -> Result<Address> {
     Ok(addr_str.parse::<Address>()?)
 }
 
+fn bump_for_replacement(max_fee: U256, priority_fee: U256) -> (U256, U256) {
+    let bumped_max_fee = max_fee * 300 / 100;
+    let bumped_priority_fee = priority_fee * 300 / 100;
+    (bumped_max_fee, bumped_priority_fee)
+}
+
+async fn try_cancel_pending_tx(
+    ctx: &TaskContext,
+    wallet_address: Address,
+    nonce: U256,
+    max_fee: U256,
+    priority_fee: U256,
+) -> Result<()> {
+    println!("[INFO] Sending cancellation tx for pending nonce {}...", nonce);
+    let middleware = SignerMiddleware::new(ctx.provider.clone(), ctx.wallet.clone());
+    let cancel_tx = Eip1559TransactionRequest::new()
+        .to(wallet_address)
+        .value(U256::zero())
+        .nonce(nonce)
+        .gas(21000)
+        .max_fee_per_gas(max_fee)
+        .max_priority_fee_per_gas(priority_fee)
+        .from(wallet_address);
+
+    let pending_tx = middleware.send_transaction(cancel_tx, None).await?;
+    let tx_hash = pending_tx.tx_hash();
+    println!("[DEBUG] Cancellation tx sent: {:?}", tx_hash);
+
+    let receipt = pending_tx
+        .confirmations(1)
+        .interval(Duration::from_millis(500))
+        .await?;
+
+    match &receipt {
+        Some(r) => {
+            println!("[DEBUG] Cancellation receipt status: {:?}", r.status);
+            println!("[DEBUG] Cancellation receipt block: {:?}", r.block_number);
+        }
+        None => {
+            println!(
+                "[WARNING] No receipt returned for cancellation tx after waiting"
+            );
+        }
+    }
+
+    Ok(())
+}
+
 pub struct SimpleNativeTransferTask;
 
 #[async_trait]
@@ -65,13 +113,53 @@ impl DaChainTask for SimpleNativeTransferTask {
                 "[INFO] Detected {} pending transaction(s), will replace with higher gas",
                 pending_nonce - confirmed_nonce
             );
-            // Use the confirmed nonce to replace the stuck transaction
-            nonce = confirmed_nonce;
-            replacing = true;
+            let (cancel_max_fee, cancel_priority_fee) = ctx.gas_manager.get_fees().await?;
+            let (cancel_max_fee, cancel_priority_fee) =
+                bump_for_replacement(cancel_max_fee, cancel_priority_fee);
+
+            if let Err(e) = try_cancel_pending_tx(
+                &ctx,
+                wallet_address,
+                confirmed_nonce,
+                cancel_max_fee,
+                cancel_priority_fee,
+            )
+            .await
+            {
+                println!("[WARNING] Failed to send cancellation tx: {}", e);
+            }
+
+            // Re-read nonce state after the cancellation attempt.
+            let refreshed_confirmed_nonce = ctx
+                .provider
+                .get_transaction_count(wallet_address, None)
+                .await?;
+            let refreshed_pending_nonce = ctx
+                .provider
+                .get_transaction_count(
+                    wallet_address,
+                    Some(BlockId::Number(BlockNumber::Pending)),
+                )
+                .await?;
             println!(
-                "[INFO] Using nonce {} to replace pending transaction",
-                nonce
+                "[DEBUG] Refreshed confirmed nonce: {}",
+                refreshed_confirmed_nonce
             );
+            println!(
+                "[DEBUG] Refreshed pending nonce: {}",
+                refreshed_pending_nonce
+            );
+
+            nonce = refreshed_confirmed_nonce;
+            replacing = refreshed_pending_nonce > refreshed_confirmed_nonce;
+            if replacing {
+                println!(
+                    "[INFO] Pending tx still exists, will keep using nonce {}",
+                    nonce
+                );
+            } else {
+                println!("[INFO] Pending tx cleared, continuing with nonce {}", nonce);
+            }
         }
 
         // Get wallet balance

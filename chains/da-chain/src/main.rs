@@ -16,6 +16,8 @@ use std::sync::Arc;
 use tokio::time::{interval, Duration};
 use tracing::{error, info};
 
+const GAS_TRACKER_URL: &str = "https://exptest.dachain.tech/gas-tracker";
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -134,6 +136,17 @@ async fn main() -> Result<()> {
     // Proxy health manager (3 failures = 5 min pause)
     let proxy_health = Arc::new(core_logic::ProxyHealthManager::new(3, 5));
 
+    let gas_tracker_proxies = if args.no_proxy {
+        Vec::new()
+    } else {
+        proxy_pool.read().await.clone()
+    };
+    let gas_tracker = core_logic::ExplorerGasTracker::new(
+        core_logic::ExplorerGasTrackerPayload::new(GAS_TRACKER_URL)
+            .with_proxies(gas_tracker_proxies),
+    )
+    .ok();
+
     // Initialize Address Cache from root address.txt
     use da_chain_project::utils::address_cache::AddressCache;
     AddressCache::init()?;
@@ -217,7 +230,7 @@ async fn main() -> Result<()> {
             wallet_password.clone(),
             total_wallets,
             busy_wallets.clone(),
-            config.rpc_url.clone(),
+            gas_tracker.clone(),
             args.min_gwei,
         )?;
         spammers.push(Box::new(spammer) as Box<dyn core_logic::traits::Spammer>);
