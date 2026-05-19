@@ -6,6 +6,7 @@ members = [
     "chains/da-chain",
     "chains/tempo-spammer",
     "chains/robinhood",
+    "chains/sepolia-overlayer",
 ]
 
 resolver = "2"

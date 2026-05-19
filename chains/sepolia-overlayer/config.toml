@@ -1,0 +1,20 @@
+rpc_url = "https://ethereum-sepolia-rpc.publicnode.com"
+chain_id = 11155111
+explorer = "https://sepolia.etherscan.io"
+symbol = "ETH"
+tps = 10
+worker_amount = 5
+
+# Custom wallet directory for sepolia wallets
+wallet_dir = "chains/sepolia-overlayer/wallets-json-sepolia-overlayer"
+
+# Optional: min and max delay between transactions (in milliseconds)
+# For sepolia: random 5-15 seconds between tasks
+min_delay_ms = 5000
+max_delay_ms = 15000
+
+# Optional: Proxies (or use proxies.txt in root)
+# [[proxies]]
+# url = "http://proxy1:port"
+# username = "user"
+# password = "pass"

@@ -160,6 +160,7 @@ Need external app integration (GitHub, Slack)?
   - `chains/da-chain`
   - `chains/tempo-spammer`
   - `chains/robinhood`
+  - `chains/sepolia-overlayer`
 - Chain templates exist as folders only: `_template_evm`, `_template_solana`.
 
 ## 3) Fast command reference
@@ -201,6 +202,12 @@ cargo run -p robinhood-spammer --bin robinhood-spammer -- --config chains/robinh
 
 # Tempo
 cargo run -p tempo-spammer --bin tempo-spammer -- --config chains/tempo-spammer/config/config.toml
+
+# Sepolia
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer -- --config chains/sepolia-overlayer/config.toml
+
+# Sepolia debugger
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin sepolia-debug_task -- --config chains/sepolia-overlayer/config.toml --all
 ```
 
 Alternative execution path if `cargo run` is slow:
@@ -247,6 +254,12 @@ Robinhood:
 Tempo:
 - bins in `chains/tempo-spammer/bin/`
 - task catalog in `chains/tempo-spammer/src/tasks/`
+
+Sepolia:
+- Main: `chains/sepolia-overlayer/src/main.rs`
+- Spammer: `chains/sepolia-overlayer/src/spammer/mod.rs`
+- Task registry/context: `chains/sepolia-overlayer/src/task/mod.rs`
+- Debug tool: `chains/sepolia-overlayer/src/bin/debug_task.rs`
 
 ## 5) RISE task wiring (important)
 

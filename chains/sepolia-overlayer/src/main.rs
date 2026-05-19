@@ -1,17 +1,17 @@
-use da_chain_project::config;
-use da_chain_project::spammer;
+use sepolia_overlayer::config;
+use sepolia_overlayer::spammer;
 
 use anyhow::Result;
 use clap::Parser;
-use config::DaChainConfig;
+use config::SepoliaConfig;
 use core_logic::metrics::MetricsCollector;
 use core_logic::{setup_logger, WorkerRunner};
 use dialoguer::{theme::ColorfulTheme, Input, Password};
-use dotenv::dotenv;
 use ethers::prelude::*;
 use rand::seq::SliceRandom;
 use spammer::EvmSpammer;
 use std::env;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
 use tracing::{error, info};
@@ -19,7 +19,7 @@ use tracing::{error, info};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value = "chains/da-chain/config.toml")]
+    #[arg(short, long, default_value = "chains/sepolia-overlayer/config.toml")]
     config: String,
     #[arg(short, long)]
     export_metrics: Option<String>,
@@ -29,7 +29,7 @@ struct Args {
     no_proxy: bool,
     #[arg(long, default_value = "10")]
     max_tps: u32,
-    #[arg(long, default_value_t = 700.0)]
+    #[arg(long, default_value_t = 0.01)]
     min_gwei: f64,
     #[arg(long)]
     workers: Option<usize>,
@@ -38,14 +38,20 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     let _log_guard = setup_logger();
-    // Keep guard alive for file logging
     std::mem::forget(_log_guard);
-    dotenv().ok();
 
     let args = Args::parse();
     info!("Loading config from: {}", args.config);
 
-    let config = match DaChainConfig::load(&args.config) {
+    // Load .env from same directory as config
+    if let Some(parent) = Path::new(&args.config).parent() {
+        let env_path = parent.join(".env");
+        if env_path.exists() {
+            let _ = dotenv::from_path(&env_path);
+        }
+    }
+
+    let config = match SepoliaConfig::load(&args.config) {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to load config: {}", e);
@@ -72,7 +78,6 @@ async fn main() -> Result<()> {
     let wallet_password = if total_wallets > 0 {
         let mut password = env::var("WALLET_PASSWORD").ok();
 
-        // Validate password or prompt
         if password.is_none()
             || manager
                 .as_ref()
@@ -86,14 +91,12 @@ async fn main() -> Result<()> {
                 error!("Wallet decryption failed with provided password.");
             }
 
-            // Try interactive prompt
             match Password::with_theme(&ColorfulTheme::default())
                 .with_prompt("Enter wallet password")
                 .interact()
             {
                 Ok(input) => {
                     password = Some(input);
-                    // Validate interactive password
                     if let Err(e) = manager.as_ref().get_wallet(0, password.as_deref()).await {
                         error!("Interactive password also failed: {}", e);
                         return Ok(());
@@ -101,7 +104,6 @@ async fn main() -> Result<()> {
                     info!("Interactive password validated successfully.");
                 }
                 Err(_) => {
-                    // Non-interactive mode - show helpful error
                     error!("Cannot prompt for password (not a terminal).");
                     error!("Please set WALLET_PASSWORD environment variable:");
                     error!("  PowerShell: $env:WALLET_PASSWORD='your_password'");
@@ -131,16 +133,10 @@ async fn main() -> Result<()> {
             Arc::new(tokio::sync::RwLock::new(proxies))
         };
 
-    // Proxy health manager (3 failures = 5 min pause)
     let proxy_health = Arc::new(core_logic::ProxyHealthManager::new(3, 5));
 
-    // Initialize Address Cache from root address.txt
-    use da_chain_project::utils::address_cache::AddressCache;
-    AddressCache::init()?;
-    info!("Address cache initialized from root address.txt");
-
     // Initialize Database
-    let db_manager = core_logic::database::DatabaseManager::new("da-chain.db").await?;
+    let db_manager = core_logic::database::DatabaseManager::new("sepolia-overlayer.db").await?;
     let db_arc = std::sync::Arc::new(db_manager);
 
     // Get worker count: CLI arg or interactive prompt
@@ -148,7 +144,6 @@ async fn main() -> Result<()> {
         info!("Using {} workers from CLI argument", w);
         w
     } else {
-        // Try interactive prompt
         match Input::with_theme(&ColorfulTheme::default())
             .with_prompt("How many workers?")
             .default(5)
@@ -162,7 +157,6 @@ async fn main() -> Result<()> {
         }
     };
 
-    // Get TPS: use CLI arg (with default 10)
     let max_tps = args.max_tps;
     info!("Using TPS per proxy: {}", max_tps);
 
@@ -171,21 +165,18 @@ async fn main() -> Result<()> {
         max_workers, max_tps, total_wallets
     );
 
-    // Create rate limiter with user-specified TPS
     let proxy_rate_limiter = Arc::new(core_logic::ProxyRateLimiter::new(max_tps));
 
     let mut rng = rand::thread_rng();
     let mut wallet_indices: Vec<usize> = (0..total_wallets).collect();
     wallet_indices.shuffle(&mut rng);
 
-    // Shared wallet lock across all workers
     let busy_wallets: Arc<tokio::sync::Mutex<std::collections::HashSet<usize>>> =
         Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new()));
 
     let mut spammers = Vec::new();
     for i in 0..max_workers {
         let wallet_idx = wallet_indices[i];
-        // Get a wallet for initial setup (spammer will rotate per task)
         let decrypted = match manager
             .as_ref()
             .get_wallet(wallet_idx, wallet_password.as_deref())
@@ -201,7 +192,6 @@ async fn main() -> Result<()> {
         let key = decrypted.evm_private_key.clone();
         let wallet = key.parse::<ethers::signers::LocalWallet>()?;
 
-        // No static proxy assignment - workers will rotate proxies per-task
         let wallet_id_str = format!("{:03}", wallet_idx + 1);
 
         let spammer = EvmSpammer::new_with_signer(
@@ -244,12 +234,10 @@ async fn main() -> Result<()> {
 
     WorkerRunner::run_spammers(spammers).await?;
 
-    // Cancel metrics task
     if let Some(task) = metrics_task {
         task.abort();
     }
 
-    // Export final metrics if requested
     if let Some(metrics_path) = args.export_metrics {
         let metrics = MetricsCollector::global();
         match metrics.export_to_file(&metrics_path).await {

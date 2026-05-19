@@ -1,7 +1,18 @@
-use crate::config::DaChainConfig;
-use crate::task::t01_check_balance::DaChainCheckBalanceTask;
-use crate::task::t02_simple_native_transfer::SimpleNativeTransferTask;
-use crate::task::{DaChainTask, TaskContext};
+use crate::config::SepoliaConfig;
+use crate::task::t01_check_balance::SepoliaCheckBalanceTask;
+use crate::task::t02_mint_usdt_plus::MintUsdtPlusTask;
+use crate::task::t03_mint_usdc_plus::MintUsdcPlusTask;
+use crate::task::t04_redeem_usdt_plus::RedeemUsdtPlusTask;
+use crate::task::t05_redeem_usdc_plus::RedeemUsdcPlusTask;
+use crate::task::t06_stake_usdt_plus::StakeUsdtPlusTask;
+use crate::task::t07_stake_usdc_plus::StakeUsdcPlusTask;
+use crate::task::t08_unstake_tplus::UnstakeTplusTask;
+use crate::task::t09_unstake_cplus::UnstakeCplusTask;
+use crate::task::t10_aave_usdt_faucet::AaveUsdtFaucetTask;
+use crate::task::t11_aave_usdc_faucet::AaveUsdcFaucetTask;
+use crate::task::t12_bridge_tplus::BridgeTplusTask;
+use crate::task::t13_bridge_cplus::BridgeCplusTask;
+use crate::task::{SepoliaTask, TaskContext};
 use anyhow::Result;
 use async_trait::async_trait;
 use colored::Colorize;
@@ -9,10 +20,9 @@ use core_logic::config::SpamConfig;
 use core_logic::traits::Spammer;
 use core_logic::WalletManager;
 use ethers::prelude::*;
+use rand::distributions::{Distribution, WeightedIndex};
 use rand::rngs::OsRng;
 use rand::Rng;
-
-use rand::distributions::{Distribution, WeightedIndex};
 use reqwest::Client;
 use tokio::time::{sleep, Duration};
 use tracing::{info, warn, Instrument};
@@ -28,33 +38,32 @@ pub struct EvmSpammer {
     provider: Provider<Http>,
     wallet_manager: Arc<WalletManager>,
     wallet_password: Option<String>,
-    tasks: Vec<Box<dyn DaChainTask>>,
-    dachain_config: DaChainConfig,
+    tasks: Vec<Box<dyn SepoliaTask>>,
+    sepolia_config: SepoliaConfig,
     wallet_id: String,
-    /// Shared proxy pool for rotation
     proxy_pool: Arc<tokio::sync::RwLock<Vec<core_logic::config::ProxyConfig>>>,
-    /// Proxy health manager for tracking failures
     proxy_health: Arc<core_logic::ProxyHealthManager>,
-    /// Proxy rate limiter
     proxy_rate_limiter: Arc<core_logic::ProxyRateLimiter>,
     db: Option<Arc<DatabaseManager>>,
     gas_manager: Arc<crate::utils::gas::GasManager>,
     dist: WeightedIndex<u32>,
     total_wallets: usize,
-    /// Shared lock to prevent nonce conflicts between workers
     busy_wallets: Arc<Mutex<HashSet<usize>>>,
 }
 
 fn get_task_weight(name: &str) -> u32 {
-    // All tasks have equal weight initially
-    let _ = name;
+    // Faucet tasks get double weight (run twice as often)
+    if name == "10_aaveUsdtFaucet" || name == "11_aaveUsdcFaucet" {
+        return 5;
+    }
     1
 }
 
 impl EvmSpammer {
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_signer(
         spam_config: SpamConfig,
-        dachain_config: DaChainConfig,
+        sepolia_config: SepoliaConfig,
         _signer: LocalWallet,
         proxy_pool: Arc<tokio::sync::RwLock<Vec<core_logic::config::ProxyConfig>>>,
         proxy_health: Arc<core_logic::ProxyHealthManager>,
@@ -83,9 +92,20 @@ impl EvmSpammer {
             client,
         ));
 
-        let tasks: Vec<Box<dyn DaChainTask>> = vec![
-            Box::new(DaChainCheckBalanceTask),
-            Box::new(SimpleNativeTransferTask),
+        let tasks: Vec<Box<dyn SepoliaTask>> = vec![
+            Box::new(SepoliaCheckBalanceTask),
+            Box::new(MintUsdtPlusTask),
+            Box::new(MintUsdcPlusTask),
+            Box::new(RedeemUsdtPlusTask),
+            Box::new(RedeemUsdcPlusTask),
+            Box::new(StakeUsdtPlusTask),
+            Box::new(StakeUsdcPlusTask),
+            Box::new(UnstakeTplusTask),
+            Box::new(UnstakeCplusTask),
+            Box::new(AaveUsdtFaucetTask),
+            Box::new(AaveUsdcFaucetTask),
+            Box::new(BridgeTplusTask),
+            Box::new(BridgeCplusTask),
         ];
 
         let gas_manager = Arc::new(crate::utils::gas::GasManager::new(
@@ -95,7 +115,7 @@ impl EvmSpammer {
 
         let weights: Vec<u32> = tasks
             .iter()
-            .map(|t: &Box<dyn DaChainTask>| {
+            .map(|t: &Box<dyn SepoliaTask>| {
                 let w = get_task_weight(t.name());
                 info!("Task '{}': Weight {}", t.name(), w);
                 w
@@ -119,7 +139,7 @@ impl EvmSpammer {
             wallet_manager,
             wallet_password,
             tasks,
-            dachain_config,
+            sepolia_config,
             wallet_id,
             proxy_pool,
             proxy_health,
@@ -177,7 +197,7 @@ impl Spammer for EvmSpammer {
 
         async move {
             info!(
-                "DA-CHAIN Spammer started for chain {}",
+                "Sepolia Spammer started for chain {}",
                 self.config.chain_id
             );
             let mut stats = core_logic::traits::SpammerStats::default();
@@ -265,7 +285,7 @@ impl Spammer for EvmSpammer {
                     let ctx = TaskContext {
                         provider,
                         wallet,
-                        config: self.dachain_config.clone(),
+                        config: self.sepolia_config.clone(),
                         proxy: proxy_config.as_ref().map(|p| p.url.clone()),
                         db: self.db.clone(),
                         gas_manager: self.gas_manager.clone(),
@@ -293,7 +313,6 @@ impl Spammer for EvmSpammer {
                                 Err(_) => "???".to_string(),
                             };
 
-                            use colored::*;
                             let status_str = if res.success {
                                 "Success".green().bold()
                             } else {
@@ -364,8 +383,8 @@ impl Spammer for EvmSpammer {
                 }
 
                 let sleep_ms = if let (Some(min), Some(max)) = (
-                    self.dachain_config.min_delay_ms,
-                    self.dachain_config.max_delay_ms,
+                    self.sepolia_config.min_delay_ms,
+                    self.sepolia_config.max_delay_ms,
                 ) {
                     let mut rng = OsRng;
                     rng.gen_range(min..=max)
@@ -388,7 +407,7 @@ impl Spammer for EvmSpammer {
     }
 
     async fn stop(&self) -> Result<()> {
-        info!("DA-CHAIN Spammer stopping...");
+        info!("Sepolia Spammer stopping...");
         Ok(())
     }
 }

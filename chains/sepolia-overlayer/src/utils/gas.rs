@@ -11,17 +11,14 @@ pub struct GasManager {
 }
 
 impl GasManager {
-    pub const MAX_FEE_GWEI_DEFAULT: f64 = 20000.0;
-    pub const PRIORITY_FEE_GWEI_DEFAULT: f64 = 10.0;
+    pub const MAX_FEE_GWEI_DEFAULT: f64 = 1.0;
+    pub const PRIORITY_FEE_GWEI_DEFAULT: f64 = 0.001;
     pub const LIMIT_DEPLOY: U256 = U256([1_200_000, 0, 0, 0]);
     pub const LIMIT_TRANSFER: U256 = U256([21_000, 0, 0, 0]);
     pub const LIMIT_COUNTER_INTERACT: U256 = U256([50_000, 0, 0, 0]);
     pub const LIMIT_SEND_MEME: U256 = U256([100_000, 0, 0, 0]);
 
-    pub fn new(
-        provider: Arc<Provider<Http>>,
-        min_fee_gwei: f64,
-    ) -> Self {
+    pub fn new(provider: Arc<Provider<Http>>, min_fee_gwei: f64) -> Self {
         Self {
             config: GasConfig::new()
                 .with_max_fee(Self::MAX_FEE_GWEI_DEFAULT)
@@ -63,14 +60,9 @@ impl GasManager {
             return Ok((fee, prio));
         };
 
-        let base_fee_floor = base_fee.saturating_mul(U256::from(2u64)) + config_prio;
+        let base_fee_floor = base_fee.saturating_mul(U256::from(3u64)) + config_prio.saturating_mul(U256::from(3u64));
         let mut est_max = base_fee_floor.max(gas_price).max(min_fee_floor);
         let mut est_prio = config_prio;
-
-        if let Ok((oracle_max, oracle_prio)) = self.provider.estimate_eip1559_fees(None).await {
-            est_max = est_max.max(oracle_max);
-            est_prio = est_prio.max(oracle_prio);
-        }
 
         if est_max > config_max {
             est_max = config_max;
