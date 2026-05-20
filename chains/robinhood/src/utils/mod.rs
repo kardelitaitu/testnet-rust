@@ -79,3 +79,95 @@ pub fn load_proxies(path: &str) -> Result<Vec<ProxyConfig>> {
 
     Ok(proxies)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    struct TempProxy {
+        path: std::path::PathBuf,
+    }
+
+    impl TempProxy {
+        fn new(content: &str) -> Self {
+            let mut path = std::env::temp_dir();
+            path.push(format!("proxy_test_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().subsec_nanos()));
+            let mut f = std::fs::File::create(&path).unwrap();
+            write!(f, "{}", content).unwrap();
+            TempProxy { path }
+        }
+    }
+
+    impl Drop for TempProxy {
+        fn drop(&mut self) {
+            std::fs::remove_file(&self.path).ok();
+        }
+    }
+
+    #[test]
+    fn test_missing_file_returns_empty() {
+        let proxies = load_proxies("/nonexistent/proxies.txt").unwrap();
+        assert!(proxies.is_empty());
+    }
+
+    #[test]
+    fn test_empty_file_returns_empty() {
+        let tp = TempProxy::new("");
+        let proxies = load_proxies(tp.path.to_str().unwrap()).unwrap();
+        assert!(proxies.is_empty());
+    }
+
+    #[test]
+    fn test_single_ip_port() {
+        let tp = TempProxy::new("192.168.1.1:8080");
+        let proxies = load_proxies(tp.path.to_str().unwrap()).unwrap();
+        assert_eq!(proxies.len(), 1);
+        assert_eq!(proxies[0].url, "http://192.168.1.1:8080");
+        assert!(proxies[0].username.is_none());
+    }
+
+    #[test]
+    fn test_ip_port_user_pass() {
+        let tp = TempProxy::new("192.168.1.1:8080:user:pass");
+        let proxies = load_proxies(tp.path.to_str().unwrap()).unwrap();
+        assert_eq!(proxies.len(), 1);
+        assert_eq!(proxies[0].url, "http://192.168.1.1:8080");
+        assert_eq!(proxies[0].username.as_deref(), Some("user"));
+        assert_eq!(proxies[0].password.as_deref(), Some("pass"));
+    }
+
+    #[test]
+    fn test_ip_user_pass_three_parts() {
+        let tp = TempProxy::new("192.168.1.1:user:pass");
+        let proxies = load_proxies(tp.path.to_str().unwrap()).unwrap();
+        assert_eq!(proxies.len(), 1);
+        assert_eq!(proxies[0].url, "http://192.168.1.1");
+        assert_eq!(proxies[0].username.as_deref(), Some("user"));
+        assert_eq!(proxies[0].password.as_deref(), Some("pass"));
+    }
+
+    #[test]
+    fn test_full_url_with_auth() {
+        let tp = TempProxy::new("http://user:pass@proxy.com:3128");
+        let proxies = load_proxies(tp.path.to_str().unwrap()).unwrap();
+        assert_eq!(proxies.len(), 1);
+        assert_eq!(proxies[0].url, "http://proxy.com:3128");
+        assert_eq!(proxies[0].username.as_deref(), Some("user"));
+        assert_eq!(proxies[0].password.as_deref(), Some("pass"));
+    }
+
+    #[test]
+    fn test_multiple_proxies() {
+        let tp = TempProxy::new("10.0.0.1:3128\n10.0.0.2:3128:admin:secret\nhttp://proxy.com:8080");
+        let proxies = load_proxies(tp.path.to_str().unwrap()).unwrap();
+        assert_eq!(proxies.len(), 3);
+    }
+
+    #[test]
+    fn test_skips_empty_lines() {
+        let tp = TempProxy::new("10.0.0.1:3128\n\n\n10.0.0.2:3128");
+        let proxies = load_proxies(tp.path.to_str().unwrap()).unwrap();
+        assert_eq!(proxies.len(), 2);
+    }
+}

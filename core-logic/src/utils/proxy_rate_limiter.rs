@@ -103,3 +103,76 @@ impl Default for ProxyRateLimiter {
         Self::new(10) // Default 10 TPS per proxy
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_new_with_custom_tps() {
+        let limiter = ProxyRateLimiter::new(5);
+        assert_eq!(limiter.max_requests_per_second, 5);
+        assert_eq!(limiter.min_interval, Duration::from_millis(200));
+    }
+
+    #[tokio::test]
+    async fn test_default_tps() {
+        let limiter = ProxyRateLimiter::default();
+        assert_eq!(limiter.max_requests_per_second, 10);
+    }
+
+    #[tokio::test]
+    async fn test_acquire_first_request_succeeds() {
+        let limiter = ProxyRateLimiter::new(100);
+        assert!(limiter.acquire("http://proxy1:8080").await);
+    }
+
+    #[tokio::test]
+    async fn test_acquire_multiple_proxies_independent() {
+        let limiter = ProxyRateLimiter::new(100);
+        assert!(limiter.acquire("http://proxy-a:8080").await);
+        assert!(limiter.acquire("http://proxy-b:8080").await);
+        let stats_a = limiter.get_stats("http://proxy-a:8080").await;
+        let stats_b = limiter.get_stats("http://proxy-b:8080").await;
+        assert!(stats_a.is_some());
+        assert!(stats_b.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_get_stats_none_for_unseen_proxy() {
+        let limiter = ProxyRateLimiter::new(10);
+        let stats = limiter.get_stats("http://unknown:8080").await;
+        assert!(stats.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_stats_after_acquire() {
+        let limiter = ProxyRateLimiter::new(10);
+        assert!(limiter.acquire("http://proxy:8080").await);
+        let stats = limiter.get_stats("http://proxy:8080").await;
+        assert!(stats.is_some());
+        let s = stats.unwrap();
+        assert!(s.contains("/10 req/s"), "stats should show TPS: got '{}'", s);
+    }
+
+    #[tokio::test]
+    async fn test_reset_known_proxy() {
+        let limiter = ProxyRateLimiter::new(100);
+        assert!(limiter.acquire("http://proxy:8080").await);
+        let before = limiter.get_stats("http://proxy:8080").await;
+        assert!(before.unwrap().contains("/100 req/s"));
+        limiter.reset("http://proxy:8080").await;
+        // Reset doesn't change stats format
+        let after = limiter.get_stats("http://proxy:8080").await;
+        assert!(after.is_some(), "proxy should still be tracked after reset");
+    }
+
+    #[tokio::test]
+    async fn test_reset_unseen_proxy_no_panic() {
+        let limiter = ProxyRateLimiter::new(10);
+        limiter.reset("http://never-seen:8080").await;
+        // Should not panic — no-op for unseen proxies
+        let stats = limiter.get_stats("http://never-seen:8080").await;
+        assert!(stats.is_none());
+    }
+}

@@ -219,3 +219,31 @@ pub fn get_memory_report() -> String {
     let monitor = MEMORY_MONITOR.lock().unwrap();
     monitor.generate_report()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_config_default_values() {
+        let cfg = MemoryMonitorConfig::default();
+        assert_eq!(cfg.sampling_interval_ms, 5000);
+        assert_eq!(cfg.history_size, 100);
+        assert_eq!(cfg.memory_threshold_mb, 1024);
+        assert!((cfg.cpu_threshold_percent - 80.0f32).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_memory_stats_clone() {
+        let s = MemoryStats {
+            timestamp: Instant::now(),
+            resident_set_size: 1_000_000,
+            virtual_memory_size: 2_000_000,
+            process_id: 12345,
+            cpu_usage: 45.5,
+        };
+        let c = s.clone();
+        assert_eq!(c.resident_set_size, 1_000_000);
+        assert_eq!(c.process_id, 12345);
+    }
+}

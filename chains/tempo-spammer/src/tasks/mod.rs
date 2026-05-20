@@ -394,6 +394,197 @@ impl GasManager {
     }
 }
 
+#[cfg(test)]
+mod gas_manager_tests {
+    use super::*;
+
+    #[test]
+    fn test_bump_fees_zero_percent() {
+        let gm = GasManager;
+        assert_eq!(gm.bump_fees(U256::from(100), 0), U256::from(100));
+    }
+
+    #[test]
+    fn test_bump_fees_20_percent() {
+        let gm = GasManager;
+        assert_eq!(gm.bump_fees(U256::from(1000), 20), U256::from(1200));
+    }
+
+    #[test]
+    fn test_bump_fees_100_percent() {
+        let gm = GasManager;
+        assert_eq!(gm.bump_fees(U256::from(500), 100), U256::from(1000));
+    }
+
+    #[test]
+    fn test_bump_fees_large_values() {
+        let gm = GasManager;
+        let one_gwei = U256::from(1_000_000_000u64);
+        assert_eq!(gm.bump_fees(one_gwei, 50), U256::from(1_500_000_000u64));
+    }
+
+    #[test]
+    fn test_bump_fees_200_percent_triples() {
+        let gm = GasManager;
+        assert_eq!(gm.bump_fees(U256::from(100), 200), U256::from(300));
+    }
+
+    #[test]
+    fn test_bump_fees_1000_percent() {
+        let gm = GasManager;
+        assert_eq!(gm.bump_fees(U256::from(50), 1000), U256::from(550));
+    }
+
+    #[test]
+    fn test_bump_fees_zero_base() {
+        let gm = GasManager;
+        assert_eq!(gm.bump_fees(U256::from(0), 50), U256::from(0));
+        assert_eq!(gm.bump_fees(U256::from(0), 100), U256::from(0));
+    }
+
+    #[test]
+    fn test_bump_fees_max_u64() {
+        let gm = GasManager;
+        let max = U256::from(u64::MAX);
+        let bumped = gm.bump_fees(max, 10);
+        // 10% of u64::MAX should not overflow U256
+        assert!(bumped > max);
+        let expected = U256::from(u64::MAX) * U256::from(110) / U256::from(100);
+        assert_eq!(bumped, expected);
+    }
+
+    #[test]
+    fn test_bump_fees_1_percent() {
+        let gm = GasManager;
+        assert_eq!(gm.bump_fees(U256::from(1000), 1), U256::from(1010));
+    }
+
+    #[test]
+    fn test_bump_fees_rounding() {
+        let gm = GasManager;
+        // 333 * 110 / 100 = 366.3 → integer division truncates to 366
+        assert_eq!(gm.bump_fees(U256::from(333), 10), U256::from(366));
+    }
+
+    #[test]
+    fn test_bump_fees_1_wei_50_percent_truncated() {
+        let gm = GasManager;
+        // 1 wei * 150 / 100 = 1 (integer truncation)
+        assert_eq!(gm.bump_fees(U256::from(1), 50), U256::from(1));
+        // 1 wei * 100 / 100 = 1 (no change)
+        assert_eq!(gm.bump_fees(U256::from(1), 0), U256::from(1));
+    }
+
+    #[test]
+    fn test_bump_fees_very_large_percent() {
+        let gm = GasManager;
+        // 100 * (100 + u32::MAX) / 100
+        let percent = u32::MAX as u64;
+        let expected = U256::from(100) * U256::from(100 + percent) / U256::from(100);
+        assert_eq!(gm.bump_fees(U256::from(100), percent), expected);
+    }
+
+    #[test]
+    fn test_bump_fees_u256_max_small_percent() {
+        let gm = GasManager;
+        // U256::MAX * 101 / 100 — very large value with small bump
+        let result = gm.bump_fees(U256::MAX, 1);
+        assert_eq!(result, U256::MAX * U256::from(101) / U256::from(100));
+    }
+
+    #[test]
+    fn test_bump_fees_1_wei_1_percent_stays_1() {
+        let gm = GasManager;
+        // 1 * 101 / 100 = 1 (integer truncation, doesn't go below 1)
+        assert_eq!(gm.bump_fees(U256::from(1), 1), U256::from(1));
+    }
+
+    #[test]
+    fn test_bump_fees_10_wei_10_percent() {
+        let gm = GasManager;
+        // 10 * 110 / 100 = 11
+        assert_eq!(gm.bump_fees(U256::from(10), 10), U256::from(11));
+        // 9 * 110 / 100 = 9 (truncated down from 9.9)
+        assert_eq!(gm.bump_fees(U256::from(9), 10), U256::from(9));
+    }
+}
+
+#[cfg(test)]
+mod share_tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_random_shares_empty() {
+        let shares = generate_random_shares(0, 100);
+        assert!(shares.is_empty());
+    }
+
+    #[test]
+    fn test_generate_random_shares_single() {
+        let shares = generate_random_shares(1, 100);
+        assert_eq!(shares, vec![100]);
+    }
+
+    #[test]
+    fn test_generate_random_shares_sum_matches_total() {
+        let shares = generate_random_shares(5, 1000);
+        let sum: u64 = shares.iter().sum();
+        assert_eq!(sum, 1000, "shares should sum to total: {:?} sums to {}", shares, sum);
+    }
+
+    #[test]
+    fn test_generate_random_shares_count_matches() {
+        let shares = generate_random_shares(10, 5000);
+        assert_eq!(shares.len(), 10);
+    }
+
+    #[test]
+    fn test_generate_random_shares_all_positive() {
+        let shares = generate_random_shares(50, 10000);
+        for (i, &s) in shares.iter().enumerate() {
+            assert!(s > 0, "share[{}] should be positive, got {}", i, s);
+        }
+    }
+
+    #[test]
+    fn test_generate_random_shares_count_exceeds_total() {
+        // More buckets than total — each bucket should still be >= 1
+        let shares = generate_random_shares(10, 5);
+        assert_eq!(shares.len(), 10);
+        let sum: u64 = shares.iter().sum();
+        // Each bucket is at least 1, so sum >= count = 10. But total is 5.
+        // The function adds 1 to zero buckets, so sum should be >= 10.
+        assert!(sum >= 10, "with 10 buckets and total 5, sum should be >= 10, got {}", sum);
+        for (i, &s) in shares.iter().enumerate() {
+            assert!(s > 0, "share[{}] should be positive even when count > total, got {}", i, s);
+        }
+    }
+
+    #[test]
+    fn test_generate_random_shares_single_large_bucket() {
+        let shares = generate_random_shares(1, 1000000);
+        assert_eq!(shares, vec![1000000]);
+    }
+}
+
+#[cfg(test)]
+mod address_gen_tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_random_address_length() {
+        let addr = generate_random_address();
+        assert_eq!(addr.to_string().len(), 42); // 0x + 40 hex
+    }
+
+    #[test]
+    fn test_generate_random_address_unique() {
+        let a = generate_random_address();
+        let b = generate_random_address();
+        assert_ne!(a, b);
+    }
+}
+
 fn generate_random_address() -> Address {
     let mut rng = rand::rngs::OsRng;
     let bytes: [u8; 20] = rng.r#gen();

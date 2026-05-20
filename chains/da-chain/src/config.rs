@@ -111,6 +111,11 @@ tps = 5
             .add_source(config::File::from_str(r#"rpc_url = "x""#, config::FileFormat::Toml))
             .build().unwrap();
         let result: Result<DaChainConfig, _> = settings.try_deserialize();
-        assert!(result.is_err());
+        let err = result.as_ref().unwrap_err().to_string();
+        assert!(
+            err.contains("chain_id") || err.contains("symbol") || err.contains("explorer") || err.contains("tps"),
+            "error should mention missing field, got: {}",
+            err
+        );
     }
 }

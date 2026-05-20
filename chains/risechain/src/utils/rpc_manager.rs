@@ -199,3 +199,97 @@ impl RpcManager {
             .count()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_with_multiple_urls() {
+        let urls = vec!["http://rpc1.com".into(), "http://rpc2.com".into()];
+        let mgr = RpcManager::new(1, &urls).unwrap();
+        assert_eq!(mgr.chain_id(), 1);
+        assert_eq!(mgr.endpoints_count(), 2);
+    }
+
+    #[test]
+    fn test_new_empty_urls_fails() {
+        let result = RpcManager::new(1, &[]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_chain_id() {
+        let mgr = RpcManager::new(137, &["http://rpc.com".into()]).unwrap();
+        assert_eq!(mgr.chain_id(), 137);
+    }
+
+    #[test]
+    fn test_get_endpoint_round_robin() {
+        let urls = vec!["http://rpc1.com".into(), "http://rpc2.com".into()];
+        let mgr = RpcManager::new(1, &urls).unwrap();
+        assert_eq!(mgr.get_endpoint().url, "http://rpc1.com");
+        assert_eq!(mgr.get_endpoint().url, "http://rpc2.com");
+        assert_eq!(mgr.get_endpoint().url, "http://rpc1.com"); // wraps around
+    }
+
+    #[test]
+    fn test_record_failure_marks_unhealthy() {
+        let mgr = RpcManager::new(1, &["http://rpc.com".into()]).unwrap();
+        assert_eq!(mgr.healthy_count(), 1);
+        mgr.record_failure("http://rpc.com");
+        assert_eq!(mgr.healthy_count(), 1); // 1 failure, not enough
+        mgr.record_failure("http://rpc.com");
+        assert_eq!(mgr.healthy_count(), 1); // 2 failures, still not enough
+        mgr.record_failure("http://rpc.com");
+        assert_eq!(mgr.healthy_count(), 0); // 3rd failure → unhealthy
+    }
+
+    #[test]
+    fn test_record_success_resets_unhealthy() {
+        let mgr = RpcManager::new(1, &["http://rpc.com".into()]).unwrap();
+        mgr.record_failure("http://rpc.com");
+        mgr.record_failure("http://rpc.com");
+        mgr.record_failure("http://rpc.com"); // now unhealthy
+        assert_eq!(mgr.healthy_count(), 0);
+        mgr.record_success("http://rpc.com");
+        assert_eq!(mgr.healthy_count(), 1); // restored
+    }
+
+    #[test]
+    fn test_endpoints_count() {
+        let mgr = RpcManager::new(1, &["a.com".into(), "b.com".into(), "c.com".into()]).unwrap();
+        assert_eq!(mgr.endpoints_count(), 3);
+    }
+
+    #[test]
+    fn test_healthy_count_mixed() {
+        let urls = vec!["http://good.com".into(), "http://bad.com".into(), "http://ok.com".into()];
+        let mgr = RpcManager::new(1, &urls).unwrap();
+        mgr.record_failure("http://bad.com");
+        mgr.record_failure("http://bad.com");
+        mgr.record_failure("http://bad.com"); // unhealthy
+        assert_eq!(mgr.healthy_count(), 2);
+    }
+
+    #[test]
+    fn test_get_best_endpoint_no_healthy_errors() {
+        let mgr = RpcManager::new(1, &["http://dead.com".into()]).unwrap();
+        mgr.record_failure("http://dead.com");
+        mgr.record_failure("http://dead.com");
+        mgr.record_failure("http://dead.com");
+        let result = mgr.get_best_endpoint();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No healthy"));
+    }
+
+    #[test]
+    fn test_rpc_endpoint_new_defaults() {
+        let ep = RpcEndpoint::new("http://test:8545".into(), 137);
+        assert_eq!(ep.url, "http://test:8545");
+        assert_eq!(ep.chain_id, 137);
+        assert_eq!(ep.last_latency_ms.load(Ordering::SeqCst), 0);
+        assert_eq!(ep.failure_count.load(Ordering::SeqCst), 0);
+        assert!(ep.healthy.load(Ordering::SeqCst));
+    }
+}

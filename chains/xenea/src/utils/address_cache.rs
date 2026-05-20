@@ -21,7 +21,7 @@ pub struct AddressCache {
 
 impl AddressCache {
     pub fn init() -> Result<()> {
-        let paths = ["address.txt", "chains/risechain/address.txt"];
+        let paths = ["address.txt", "chains/xenea/address.txt"];
 
         for path in &paths {
             if Path::new(path).exists() {
@@ -131,5 +131,132 @@ impl AddressCache {
 
     pub fn is_empty_instance(&self) -> bool {
         self.addresses.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    struct TempEnv {
+        path: std::path::PathBuf,
+        _dir: std::path::PathBuf,
+    }
+
+    impl TempEnv {
+        fn new(lines: &[&str]) -> Self {
+            let mut path = std::env::temp_dir();
+            path.push(format!("addr_test_{}_{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().subsec_nanos()));
+            std::fs::create_dir_all(&path).ok();
+            let file_path = path.join("address.txt");
+            let mut f = std::fs::File::create(&file_path).unwrap();
+            for line in lines {
+                writeln!(f, "{}", line).unwrap();
+            }
+            TempEnv {
+                path: file_path,
+                _dir: path,
+            }
+        }
+    }
+
+    impl Drop for TempEnv {
+        fn drop(&mut self) {
+            std::fs::remove_file(&self.path).ok();
+            if let Some(parent) = self.path.parent() {
+                std::fs::remove_dir(parent).ok();
+            }
+        }
+    }
+
+    #[test]
+    fn test_load_from_file_valid() {
+        let env = TempEnv::new(&[
+            "0xd7d2e492e6dda0013e9062f00327a06fdb722488",
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ]);
+        let cache = AddressCache::load_from_file(env.path.to_str().unwrap()).unwrap();
+        assert_eq!(cache.len_instance(), 2);
+        assert_eq!(
+            cache.addresses()[0],
+            "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse::<Address>().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_load_from_file_skips_empty_lines() {
+        let env = TempEnv::new(&[
+            "0xd7d2e492e6dda0013e9062f00327a06fdb722488",
+            "",
+            "   ",
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ]);
+        let cache = AddressCache::load_from_file(env.path.to_str().unwrap()).unwrap();
+        assert_eq!(cache.len_instance(), 2);
+    }
+
+    #[test]
+    fn test_load_from_file_all_invalid_errors() {
+        let env = TempEnv::new(&["not_an_address", "invalid_hex"]);
+        let result = AddressCache::load_from_file(env.path.to_str().unwrap());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("No valid addresses"));
+    }
+
+    #[test]
+    fn test_load_from_file_empty_file_errors() {
+        let env = TempEnv::new(&[]);
+        let result = AddressCache::load_from_file(env.path.to_str().unwrap());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cache_instance_methods() {
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let cache = AddressCache {
+            addresses: vec![addr],
+        };
+        assert_eq!(cache.len_instance(), 1);
+        assert!(!cache.is_empty_instance());
+        assert_eq!(cache.addresses(), &[addr]);
+    }
+
+    #[test]
+    fn test_cache_empty_instance() {
+        let cache = AddressCache { addresses: vec![] };
+        assert_eq!(cache.len_instance(), 0);
+        assert!(cache.is_empty_instance());
+        assert!(cache.addresses().is_empty());
+    }
+
+    #[test]
+    fn test_init_from_path_and_static_methods() {
+        let env = TempEnv::new(&[
+            "0xd7d2e492e6dda0013e9062f00327a06fdb722488",
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ]);
+        let _ = AddressCache::init_from_path(env.path.to_str().unwrap());
+
+        let count = AddressCache::len();
+        let empty = AddressCache::is_empty();
+        if count > 0 {
+            assert!(!empty);
+            let all = AddressCache::all().unwrap();
+            assert_eq!(all.len(), count);
+            let r = AddressCache::get_random().unwrap();
+            assert!(!r.to_string().is_empty());
+
+            // get_random_many with various counts
+            assert_eq!(AddressCache::get_random_many(0).unwrap().len(), 0);
+            assert_eq!(AddressCache::get_random_many(5).unwrap().len(), 5);
+            // count larger than pool still works (may have duplicates)
+            let many = AddressCache::get_random_many(100).unwrap();
+            assert_eq!(many.len(), 100);
+            // all should be non-empty addresses
+            for addr in &many {
+                assert!(addr.to_string().starts_with("0x"), "address should start with 0x: {}", addr);
+            }
+        }
     }
 }

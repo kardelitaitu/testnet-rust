@@ -240,3 +240,141 @@ pub fn setup_memory_optimized_logger() -> Result<()> {
     
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn test_config_default_values() {
+        let config = MemoryOptimizedLoggerConfig::default();
+        assert_eq!(config.max_file_size, 10 * 1024 * 1024);
+        assert_eq!(config.max_files, 5);
+        assert_eq!(config.flush_interval_ms, 1000);
+        assert_eq!(config.buffer_size, 8 * 1024);
+    }
+
+    #[test]
+    fn test_config_custom_values() {
+        let config = MemoryOptimizedLoggerConfig {
+            max_file_size: 5_000_000,
+            max_files: 3,
+            flush_interval_ms: 500,
+            buffer_size: 16_384,
+        };
+        assert_eq!(config.max_file_size, 5_000_000);
+        assert_eq!(config.max_files, 3);
+        assert_eq!(config.flush_interval_ms, 500);
+        assert_eq!(config.buffer_size, 16_384);
+    }
+
+    #[test]
+    fn test_generate_file_path_format() {
+        let path = MemoryOptimizedFileAppender::generate_file_path("/tmp/test-logs");
+        assert!(path.starts_with("/tmp/test-logs/app_"));
+        assert!(path.ends_with(".log"));
+        // Extract the timestamp portion: app_YYYYMMDD_HHMMSS.log
+        let filename = Path::new(&path).file_name().unwrap().to_str().unwrap();
+        assert_eq!(&filename[..4], "app_");
+        assert_eq!(&filename[filename.len()-4..], ".log");
+        // Timestamp should be 15 chars: YYYYMMDD_HHMMSS
+        let ts = &filename[4..filename.len()-4];
+        assert_eq!(ts.len(), 15);
+        assert_eq!(&ts[8..9], "_");
+        // All other chars should be digits
+        for (i, c) in ts.char_indices() {
+            if i != 8 {
+                assert!(c.is_ascii_digit(), "expected digit at pos {} in '{}'", i, ts);
+            }
+        }
+    }
+
+    #[test]
+    fn test_appender_new_in_temp_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = MemoryOptimizedLoggerConfig::default();
+        let appender = MemoryOptimizedFileAppender::new(
+            dir.path().to_str().unwrap(),
+            config,
+        );
+        assert!(appender.is_ok());
+        let appender = appender.unwrap();
+        assert!(appender.current_file.contains(dir.path().to_str().unwrap()));
+        assert_eq!(appender.bytes_written, 0);
+    }
+
+    #[test]
+    fn test_appender_new_creates_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("deep/nested/logs");
+        let config = MemoryOptimizedLoggerConfig::default();
+        let appender = MemoryOptimizedFileAppender::new(
+            nested.to_str().unwrap(),
+            config,
+        );
+        assert!(appender.is_ok(), "should auto-create nested directories");
+        assert!(nested.exists(), "directory should exist");
+    }
+
+    #[test]
+    fn test_appender_write_and_verify_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = MemoryOptimizedLoggerConfig::default();
+        let mut appender = MemoryOptimizedFileAppender::new(
+            dir.path().to_str().unwrap(),
+            config.clone(),
+        ).unwrap();
+
+        // Write some content
+        let result = appender.write("test message");
+        assert!(result.is_ok());
+        assert!(appender.bytes_written > 0);
+
+        // Write more content
+        appender.write("second line").unwrap();
+        assert!(appender.bytes_written > b"test message".len() as u64);
+
+        // Flush and verify file exists
+        appender.flush().unwrap();
+        let file_path = &appender.current_file;
+        assert!(Path::new(file_path).exists(), "log file should exist");
+        let content = std::fs::read_to_string(file_path).unwrap();
+        assert!(content.contains("test message"), "file should contain written message");
+        assert!(content.contains("second line"), "file should contain second message");
+        // Each line should have timestamp prefix
+        for line in content.lines() {
+            assert!(line.len() > 20, "each line should have timestamp + message: '{}'", line);
+        }
+    }
+
+    #[test]
+    fn test_appender_rotate_triggers_cleanup() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = MemoryOptimizedLoggerConfig {
+            max_file_size: 100,
+            max_files: 2,
+            flush_interval_ms: 1,
+            buffer_size: 1024,
+        };
+        let mut appender =
+            MemoryOptimizedFileAppender::new(dir.path().to_str().unwrap(), config).unwrap();
+
+        for i in 0..10 {
+            appender
+                .write(&format!("line {} with some padding data here", i))
+                .unwrap();
+        }
+
+        appender.flush().unwrap();
+        assert!(Path::new(&appender.current_file).exists());
+
+        let log_files: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().map_or(false, |ext| ext == "log"))
+            .collect();
+
+        assert!(log_files.len() <= 2, "at most 2 log files, got {}", log_files.len());
+    }
+}

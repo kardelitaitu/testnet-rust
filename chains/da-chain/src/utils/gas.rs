@@ -159,4 +159,71 @@ mod tests {
         let result = parse_units(0.5, "gwei").unwrap();
         assert_eq!(result, U256::from(500_000_000u64));
     }
+
+    #[test]
+    fn test_get_max_fee_below_config_cap() {
+        // With dummy provider — get_max_fee is pure logic using config only
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider, 0.0);
+        // Default: max_gwei=20000, priority_gwei=10
+        // base_fee = 100 gwei → max_fee = 100 + 10 = 110 gwei → capped at 20000 → 110
+        let base_fee = U256::from(100_000_000_000u128); // 100 gwei
+        let result = mgr.get_max_fee(base_fee);
+        assert_eq!(result, U256::from(110_000_000_000u128), "100 gwei base + 10 gwei priority = 110 gwei");
+    }
+
+    #[test]
+    fn test_get_max_fee_above_config_cap() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider, 0.0);
+        // base_fee = 50000 gwei → max_fee = 50000 + 10 = 50010 → capped at 20000 → 20000
+        let base_fee = U256::from(50_000_000_000_000u128); // 50000 gwei
+        let result = mgr.get_max_fee(base_fee);
+        assert_eq!(result, U256::from(20_000_000_000_000u128), "Capped at 20000 gwei");
+    }
+
+    #[test]
+    fn test_get_max_fee_zero_base() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider, 0.0);
+        // base_fee = 0 → max_fee = 0 + 10 = 10 gwei → capped at 20000 → 10
+        let base_fee = U256::zero();
+        let result = mgr.get_max_fee(base_fee);
+        assert_eq!(result, U256::from(10_000_000_000u128), "0 base + 10 gwei priority = 10 gwei");
+    }
+
+    #[test]
+    fn test_get_max_fee_at_config_cap() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider, 0.0);
+        // base_fee = 19990 gwei → max_fee = 19990 + 10 = 20000 → exactly at cap
+        let base_fee = U256::from(19_990_000_000_000u128);
+        let result = mgr.get_max_fee(base_fee);
+        assert_eq!(result, U256::from(20_000_000_000_000u128), "Exactly at 20000 gwei cap");
+    }
+
+    #[test]
+    fn test_get_max_fee_with_custom_config() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mut mgr = GasManager::new(provider, 0.0);
+        // Override config: max=50 gwei, priority=2 gwei
+        let custom = GasConfig::new()
+            .with_max_fee(50.0)
+            .with_priority_fee(2.0);
+        mgr = mgr.with_config(custom);
+        // base_fee = 40 gwei → max_fee = 40 + 2 = 42 gwei → capped at 50 → 42
+        let base_fee = U256::from(40_000_000_000u128);
+        let result = mgr.get_max_fee(base_fee);
+        assert_eq!(result, U256::from(42_000_000_000u128), "40 base + 2 priority = 42 gwei");
+    }
+
+    #[test]
+    fn test_limit_deploy_returns_config_value() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider, 0.0);
+        assert_eq!(mgr.limit_deploy(), U256::from(1_200_000u64));
+        assert_eq!(mgr.limit_transfer(), U256::from(21_000u64));
+        assert_eq!(mgr.limit_counter_interact(), U256::from(50_000u64));
+        assert_eq!(mgr.limit_send_meme(), U256::from(100_000u64));
+    }
 }

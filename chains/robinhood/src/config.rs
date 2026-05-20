@@ -75,5 +75,22 @@ private_key_file = "wallet.json"
         assert_eq!(spam.chain_id, 42);
         assert_eq!(spam.target_tps, 10);
     }
+
+    #[test]
+    fn test_evm_config_missing_required() {
+        let settings = Config::builder()
+            .add_source(config::File::from_str(
+                r#"rpc_url = "x""#,
+                config::FileFormat::Toml,
+            ))
+            .build().unwrap();
+        let result: Result<EvmConfig, _> = settings.try_deserialize();
+        let err = result.as_ref().unwrap_err().to_string();
+        assert!(
+            err.contains("chain_id") || err.contains("private_key_file") || err.contains("tps"),
+            "error should mention missing field, got: {}",
+            err
+        );
+    }
 }
 

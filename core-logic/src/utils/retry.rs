@@ -323,3 +323,193 @@ pub fn is_transient_error(error: &anyhow::Error) -> bool {
         .iter()
         .any(|pattern| error_msg.contains(pattern))
 }
+
+#[cfg(test)]
+mod retry_config_tests {
+    use super::*;
+
+    #[test]
+    fn test_default_values() {
+        let cfg = RetryConfig::default();
+        assert_eq!(cfg.max_retries, 3);
+        assert_eq!(cfg.base_delay_ms, 1000);
+        assert_eq!(cfg.max_delay_ms, 30000);
+        assert_eq!(cfg.exponential_base, 2.0);
+        assert!(cfg.jitter);
+    }
+
+    #[test]
+    fn test_new_with_custom() {
+        let cfg = RetryConfig::new(5, 500);
+        assert_eq!(cfg.max_retries, 5);
+        assert_eq!(cfg.base_delay_ms, 500);
+        assert_eq!(cfg.max_delay_ms, 15000); // 500 * 30
+        assert!(cfg.jitter);
+    }
+
+    #[test]
+    fn test_with_max_delay_builder() {
+        let cfg = RetryConfig::new(3, 1000).with_max_delay(5000);
+        assert_eq!(cfg.max_delay_ms, 5000);
+    }
+
+    #[test]
+    fn test_without_jitter_builder() {
+        let cfg = RetryConfig::new(3, 1000).without_jitter();
+        assert!(!cfg.jitter);
+    }
+
+    #[test]
+    fn test_calculate_delay_without_jitter() {
+        let cfg = RetryConfig::new(3, 1000).without_jitter();
+        // attempt 0: 1000 * 2^0 = 1000ms
+        let d0 = cfg.calculate_delay(0);
+        assert_eq!(d0, Duration::from_millis(1000));
+        // attempt 1: 1000 * 2^1 = 2000ms
+        let d1 = cfg.calculate_delay(1);
+        assert_eq!(d1, Duration::from_millis(2000));
+        // attempt 2: 1000 * 2^2 = 4000ms
+        let d2 = cfg.calculate_delay(2);
+        assert_eq!(d2, Duration::from_millis(4000));
+    }
+
+    #[test]
+    fn test_calculate_delay_caps_at_max() {
+        let cfg = RetryConfig::new(3, 1000).with_max_delay(3000).without_jitter();
+        // attempt 2: 1000 * 2^2 = 4000, but capped at 3000
+        let d = cfg.calculate_delay(2);
+        assert_eq!(d, Duration::from_millis(3000));
+    }
+
+    #[test]
+    fn test_calculate_delay_with_jitter() {
+        let cfg = RetryConfig::new(3, 1000);
+        // With jitter, delay should be between 50% and 150% of base
+        let d = cfg.calculate_delay(0);
+        let ms = d.as_millis();
+        assert!(ms >= 500, "jitter should be at least 50%, got {}ms", ms);
+        assert!(ms <= 1500, "jitter should be at most 150%, got {}ms", ms);
+    }
+}
+
+#[cfg(test)]
+mod circuit_breaker_tests {
+    use super::*;
+
+    #[test]
+    fn test_new_is_closed() {
+        let cb = CircuitBreaker::new_with_defaults("test");
+        assert_eq!(cb.state(), "CLOSED");
+    }
+
+    #[test]
+    fn test_new_custom_config() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 3,
+            success_threshold: 2,
+            reset_timeout_ms: 30000,
+        };
+        let cb = CircuitBreaker::new("svc", config);
+        assert_eq!(cb.state(), "CLOSED");
+        assert_eq!(cb.config.failure_threshold, 3);
+    }
+
+    #[test]
+    fn test_default_config_values() {
+        let cfg = CircuitBreakerConfig::default();
+        assert_eq!(cfg.failure_threshold, 5);
+        assert_eq!(cfg.success_threshold, 3);
+        assert_eq!(cfg.reset_timeout_ms, 60000);
+    }
+
+    #[test]
+    fn test_on_failure_state_transition() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 3,
+            success_threshold: 1,
+            reset_timeout_ms: 60000,
+        };
+        let cb = CircuitBreaker::new("svc", config);
+
+        assert_eq!(cb.state(), "CLOSED");
+
+        // 2 failures still CLOSED
+        cb.on_failure();
+        cb.on_failure();
+        assert_eq!(cb.state(), "CLOSED");
+
+        // 3rd failure → OPEN
+        cb.on_failure();
+        assert_eq!(cb.state(), "OPEN");
+    }
+
+    #[test]
+    fn test_on_success_in_closed_resets_counter() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 3,
+            success_threshold: 1,
+            reset_timeout_ms: 60000,
+        };
+        let cb = CircuitBreaker::new("svc", config);
+
+        cb.on_failure(); // 1 failure
+        assert_eq!(cb.state(), "CLOSED");
+        cb.on_success(); // should reset counter to 0
+        // 3 more failures → should still open
+        cb.on_failure();
+        cb.on_failure();
+        cb.on_failure();
+        assert_eq!(cb.state(), "OPEN");
+    }
+
+    #[test]
+    fn test_clone_preserves_state() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 2,
+            success_threshold: 1,
+            reset_timeout_ms: 60000,
+        };
+        let cb = CircuitBreaker::new("svc", config);
+        cb.on_failure();
+        cb.on_failure();
+        assert_eq!(cb.state(), "OPEN");
+
+        let cloned = cb.clone();
+        assert_eq!(cloned.state(), "OPEN");
+    }
+}
+
+#[cfg(test)]
+mod transient_error_tests {
+    use super::*;
+
+    #[test]
+    fn test_timeout_is_transient() {
+        let err = anyhow::anyhow!("connection timeout");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_rate_limited_is_transient() {
+        let err = anyhow::anyhow!("rate limited: too many requests");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_nonce_too_low_is_transient() {
+        let err = anyhow::anyhow!("nonce too low");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_generic_error_not_transient() {
+        let err = anyhow::anyhow!("invalid input format");
+        assert!(!is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_empty_error_not_transient() {
+        let err = anyhow::anyhow!("");
+        assert!(!is_transient_error(&err));
+    }
+}

@@ -141,3 +141,56 @@ impl ClientPool {
         self.wallet_manager.count()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_config() -> EvmConfig {
+        EvmConfig {
+            rpc_url: "http://localhost:8545".to_string(),
+            chain_id: 1,
+            private_key_file: "/tmp/test_wallet.json".to_string(),
+            tps: 10,
+            proxies: None,
+        }
+    }
+
+    #[test]
+    fn test_new_defaults() {
+        let cfg = make_config();
+        let manager = Arc::new(core_logic::WalletManager::new().unwrap());
+        let pool = ClientPool::new(cfg, manager, None).unwrap();
+        // Count depends on wallet files on disk — just verify it doesn't panic
+        let _ = pool.count();
+    }
+
+    #[test]
+    fn test_release_wallet_no_panic() {
+        let cfg = make_config();
+        let manager = Arc::new(core_logic::WalletManager::new().unwrap());
+        let pool = ClientPool::new(cfg, manager, None).unwrap();
+        // Release non-existent wallet - should not panic
+        pool.release_wallet(0);
+        pool.release_wallet(999);
+    }
+
+    #[test]
+    fn test_release_wallet_clears_lock() {
+        let cfg = make_config();
+        let manager = Arc::new(core_logic::WalletManager::new().unwrap());
+        let pool = ClientPool::new(cfg, manager, None).unwrap();
+        // Manually lock a wallet
+        pool.locked_wallets.lock().insert(5);
+        assert!(pool.locked_wallets.lock().contains(&5));
+        pool.release_wallet(5);
+        assert!(!pool.locked_wallets.lock().contains(&5));
+    }
+
+    #[test]
+    fn test_with_proxies_default() {
+        let cfg = make_config();
+        let manager = Arc::new(core_logic::WalletManager::new().unwrap());
+        let _pool = ClientPool::new(cfg, manager, None).unwrap();
+    }
+}

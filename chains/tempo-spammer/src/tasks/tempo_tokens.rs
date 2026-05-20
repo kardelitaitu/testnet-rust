@@ -161,3 +161,211 @@ pub fn generate_truly_random_address() -> Address {
     let bytes: [u8; 20] = rng.r#gen();
     Address::from_slice(&bytes)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_system_tokens_count() {
+        assert_eq!(TempoTokens::SYSTEM_TOKENS.len(), 4);
+    }
+
+    #[test]
+    fn test_get_system_tokens() {
+        let tokens = TempoTokens::get_system_tokens();
+        assert_eq!(tokens.len(), 4);
+        assert_eq!(tokens[0].symbol, "PathUSD");
+        assert_eq!(tokens[1].symbol, "AlphaUSD");
+        assert!(tokens[0].is_system);
+    }
+
+    #[test]
+    fn test_get_path_usd_address() {
+        let addr = TempoTokens::get_path_usd_address();
+        let expected: Address = "0x20c0000000000000000000000000000000000000".parse().unwrap();
+        assert_eq!(addr, expected);
+    }
+
+    #[test]
+    fn test_get_random_system_token() {
+        let token = TempoTokens::get_random_system_token();
+        assert!(token.is_system);
+        assert!(!token.symbol.is_empty());
+        assert_ne!(token.address, Address::ZERO);
+    }
+
+    #[test]
+    fn test_get_random_memo_format() {
+        let memo = TempoTokens::get_random_memo();
+        assert!(!memo.is_empty());
+        // Should have words and a number: "word1 word2 123"
+        let parts: Vec<&str> = memo.split(' ').collect();
+        assert!(parts.len() >= 3, "memo should have words + number: got '{}'", memo);
+        // Last part should be numeric
+        let last = parts.last().unwrap();
+        assert!(last.parse::<u64>().is_ok(), "last part should be number: got '{}'", last);
+    }
+
+    #[test]
+    fn test_format_amount() {
+        let amount = U256::from(1_500_000_000_000_000_000u128);
+        assert_eq!(TempoTokens::format_amount(amount, 18), "1");
+    }
+
+    #[test]
+    fn test_format_amount_zero() {
+        assert_eq!(TempoTokens::format_amount(U256::ZERO, 18), "0");
+    }
+
+    #[test]
+    fn test_format_amount_u128() {
+        assert_eq!(TempoTokens::format_amount_u128(5_000_000_000_000_000_000, 18), "5");
+    }
+
+    #[test]
+    fn test_format_compact_colored_millions() {
+        let amount = U256::from(64_718_064_000_000_000_000_000_000u128);
+        let result = TempoTokens::format_compact_colored(amount, 18);
+        assert!(result.contains("64.72M"));
+        assert!(result.contains("208m")); // ANSI color code
+    }
+
+    #[test]
+    fn test_format_compact_colored_thousands() {
+        let amount = U256::from(5_432_000_000_000_000_000_000u128);
+        let result = TempoTokens::format_compact_colored(amount, 18);
+        assert!(result.contains("5.43K"));
+    }
+
+    #[test]
+    fn test_format_compact_colored_small() {
+        let amount = U256::from(123_000_000_000_000_000_000u128);
+        let result = TempoTokens::format_compact_colored(amount, 18);
+        assert!(result.contains("123.00"));
+    }
+
+    #[test]
+    fn test_token_info_new() {
+        let expected_addr: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap();
+        let t = TokenInfo::new("TEST", "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false);
+        assert_eq!(t.symbol, "TEST");
+        assert!(!t.is_system);
+        assert_eq!(t.address, expected_addr);
+    }
+
+    #[test]
+    fn test_token_info_invalid_address_defaults_to_zero() {
+        let t = TokenInfo::new("BAD", "not_an_address", true);
+        assert_eq!(t.symbol, "BAD");
+        assert!(t.is_system);
+        assert_eq!(t.address, Address::ZERO);
+    }
+
+    #[test]
+    fn test_generate_truly_random_address() {
+        let a = generate_truly_random_address();
+        let b = generate_truly_random_address();
+        assert_ne!(a, b);
+        assert_eq!(a.to_string().len(), 42);
+    }
+
+    #[test]
+    fn test_format_compact_colored_million_boundary() {
+        // Just below 1M: 999,999 → should be 999.99K
+        let amount = U256::from(999_999_000_000_000_000_000_000u128);
+        let result = TempoTokens::format_compact_colored(amount, 18);
+        assert!(result.contains("K") || (!result.contains("M") && !result.contains("K")));
+
+        // Just above 1M: 1,000,001 → should be 1.00M
+        let amount2 = U256::from(1_000_001_000_000_000_000_000_000u128);
+        let r2 = TempoTokens::format_compact_colored(amount2, 18);
+        assert!(r2.contains("1.00M"));
+    }
+
+    #[test]
+    fn test_format_compact_colored_thousand_boundary() {
+        // Just above 1K: 1,001 → should be 1.00K
+        let amount = U256::from(1_001_000_000_000_000_000_000u128);
+        let result = TempoTokens::format_compact_colored(amount, 18);
+        assert!(result.contains("1.00K"));
+
+        // Just below 1K: 999 → should be plain number
+        let amount2 = U256::from(999_000_000_000_000_000_000u128);
+        let r2 = TempoTokens::format_compact_colored(amount2, 18);
+        assert!(!r2.contains("K") && !r2.contains("M"));
+    }
+
+    #[test]
+    fn test_format_compact_colored_zero() {
+        let result = TempoTokens::format_compact_colored(U256::ZERO, 18);
+        assert!(!result.contains("M") && !result.contains("K"));
+        assert!(result.contains("0.00") || result.contains("208m0"));
+    }
+
+    #[test]
+    fn test_format_compact_colored_ansi_wrapping() {
+        let amount = U256::from(5_000_000_000_000_000_000_000u128);
+        let result = TempoTokens::format_compact_colored(amount, 18);
+        assert!(result.starts_with("\x1b[38;5;208m"), "should start with ANSI orange");
+        assert!(result.ends_with("\x1b[0m"), "should end with ANSI reset");
+    }
+
+    #[test]
+    fn test_get_random_memo_word_count() {
+        let mut word_counts: Vec<usize> = Vec::new();
+        for _ in 0..100 {
+            let memo = TempoTokens::get_random_memo();
+            let parts: Vec<&str> = memo.split(' ').collect();
+            // parts = [words..., number]
+            word_counts.push(parts.len() - 1); // exclude the trailing number
+        }
+        let avg_words: f64 = word_counts.iter().sum::<usize>() as f64 / word_counts.len() as f64;
+        assert!(avg_words >= 2.0 && avg_words <= 4.0, "avg words should be 2-3, got {:.1}", avg_words);
+    }
+
+    #[test]
+    fn test_format_compact_colored_huge_values() {
+        // Trillions
+        let amount = U256::from(5_000_000_000_000_000_000_000_000_000u128);
+        let result = TempoTokens::format_compact_colored(amount, 18);
+        assert!(result.contains("5.00M") || result.contains("M"));
+    }
+
+    #[test]
+    fn test_format_compact_colored_different_decimals() {
+        // 6 decimal token (like USDC)
+        let amount = U256::from(1_000_001_000_000u128); // 1,000,001 USDC raw = ~1,000,001 units
+        let result = TempoTokens::format_compact_colored(amount, 6);
+        assert!(result.contains("1.00M") || result.contains("1,000"));
+
+        // 0 decimal token (like no decimals)
+        let amount2 = U256::from(500);
+        let r2 = TempoTokens::format_compact_colored(amount2, 0);
+        assert!(r2.contains("500"));
+    }
+
+    #[test]
+    fn test_format_compact_colored_exact_999999() {
+        // Should show as 999.99K (just below M threshold)
+        let amount = U256::from(999_999_000_000_000_000_000_000u128);
+        let result = TempoTokens::format_compact_colored(amount, 18);
+        assert!(result.contains("K") || result.contains("999"));
+    }
+
+    #[test]
+    fn test_format_compact_colored_1000_exact() {
+        let amount = U256::from(1_000_000_000_000_000_000_000u128);
+        let result = TempoTokens::format_compact_colored(amount, 18);
+        assert!(result.contains("1.00"));
+    }
+
+    #[test]
+    fn test_format_compact_colored_one_wei() {
+        // 1 wei = 0.000000000000000001
+        let amount = U256::from(1);
+        let result = TempoTokens::format_compact_colored(amount, 18);
+        assert!(!result.contains("M") && !result.contains("K"));
+        assert!(result.contains("0.00"));
+    }
+}

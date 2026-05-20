@@ -61,6 +61,26 @@ mod tests {
         assert_eq!(get_task_weight(""), 1);
         assert_eq!(get_task_weight("anything"), 1);
     }
+
+    #[test]
+    fn test_get_task_weight_extreme_names() {
+        // Very long name
+        let long = "a".repeat(10_000);
+        assert_eq!(get_task_weight(&long), 1);
+        // Unicode / special chars
+        assert_eq!(get_task_weight("🔥🔥🔥"), 1);
+        assert_eq!(get_task_weight("ñøñçé_ßüşîñéšš"), 1);
+        assert_eq!(get_task_weight("task_01_with_numbers_123"), 1);
+        assert_eq!(get_task_weight("  spaced  "), 1);
+        assert_eq!(get_task_weight("symbols_!@#$%^&*()"), 1);
+        // Null-like / control chars
+        assert_eq!(get_task_weight("\0"), 1);
+        assert_eq!(get_task_weight("\n\t\r"), 1);
+        assert_eq!(get_task_weight("a"), 1);
+        assert_eq!(get_task_weight("1"), 1);
+        // All numeric
+        assert_eq!(get_task_weight("1234567890"), 1);
+    }
 }
 
 impl EvmSpammer {

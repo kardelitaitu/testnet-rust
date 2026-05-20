@@ -258,3 +258,199 @@ impl NonceManager {
         tracing::debug!("Cleared NonceManager cache ({} addresses)", count);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::address;
+
+    fn addr1() -> Address {
+        address!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    }
+
+    fn addr2() -> Address {
+        address!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+    }
+
+    #[tokio::test]
+    async fn test_new_empty() {
+        let mgr = NonceManager::new();
+        assert_eq!(mgr.get_and_increment(addr1()).await, None);
+        assert_eq!(mgr.peek(addr1()).await, None);
+    }
+
+    #[tokio::test]
+    async fn test_set_and_get() {
+        let mgr = NonceManager::new();
+        mgr.set(addr1(), 42).await;
+        assert_eq!(mgr.get_and_increment(addr1()).await, Some(42));
+    }
+
+    #[tokio::test]
+    async fn test_get_and_increment_increases() {
+        let mgr = NonceManager::new();
+        mgr.set(addr1(), 5).await;
+        assert_eq!(mgr.get_and_increment(addr1()).await, Some(5));
+        assert_eq!(mgr.get_and_increment(addr1()).await, Some(6));
+        assert_eq!(mgr.get_and_increment(addr1()).await, Some(7));
+    }
+
+    #[tokio::test]
+    async fn test_multiple_addresses_independent() {
+        let mgr = NonceManager::new();
+        mgr.set(addr1(), 100).await;
+        mgr.set(addr2(), 200).await;
+        assert_eq!(mgr.get_and_increment(addr1()).await, Some(100));
+        assert_eq!(mgr.get_and_increment(addr2()).await, Some(200));
+        assert_eq!(mgr.get_and_increment(addr1()).await, Some(101));
+        assert_eq!(mgr.get_and_increment(addr2()).await, Some(201));
+    }
+
+    #[tokio::test]
+    async fn test_peek_does_not_increment() {
+        let mgr = NonceManager::new();
+        mgr.set(addr1(), 10).await;
+        assert_eq!(mgr.peek(addr1()).await, Some(10));
+        assert_eq!(mgr.peek(addr1()).await, Some(10)); // Still 10
+        assert_eq!(mgr.get_and_increment(addr1()).await, Some(10)); // Now 10 consumed
+        assert_eq!(mgr.peek(addr1()).await, Some(11)); // Now 11
+    }
+
+    #[tokio::test]
+    async fn test_reset_removes_address() {
+        let mgr = NonceManager::new();
+        mgr.set(addr1(), 5).await;
+        assert_eq!(mgr.get_and_increment(addr1()).await, Some(5));
+        mgr.reset(addr1()).await;
+        assert_eq!(mgr.get_and_increment(addr1()).await, None);
+    }
+
+    #[tokio::test]
+    async fn test_clear_removes_all() {
+        let mgr = NonceManager::new();
+        mgr.set(addr1(), 1).await;
+        mgr.set(addr2(), 2).await;
+        mgr.clear().await;
+        assert_eq!(mgr.get_and_increment(addr1()).await, None);
+        assert_eq!(mgr.get_and_increment(addr2()).await, None);
+    }
+
+    #[tokio::test]
+    async fn test_default_is_empty() {
+        let mgr: NonceManager = Default::default();
+        assert_eq!(mgr.get_and_increment(addr1()).await, None);
+    }
+
+    #[tokio::test]
+    async fn test_set_overwrites_existing() {
+        let mgr = NonceManager::new();
+        mgr.set(addr1(), 10).await;
+        assert_eq!(mgr.get_and_increment(addr1()).await, Some(10));
+        mgr.set(addr1(), 50).await; // Overwrite
+        assert_eq!(mgr.get_and_increment(addr1()).await, Some(50));
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_get_and_increment_unique_sequential() {
+        let mgr = std::sync::Arc::new(NonceManager::new());
+        let start = 100u64;
+        mgr.set(addr1(), start).await;
+
+        let num_tasks = 20;
+        let mut handles = Vec::with_capacity(num_tasks);
+
+        for _ in 0..num_tasks {
+            let mgr = mgr.clone();
+            let addr = addr1();
+            handles.push(tokio::spawn(async move {
+                mgr.get_and_increment(addr).await
+            }));
+        }
+
+        let mut results: Vec<u64> = Vec::with_capacity(num_tasks);
+        for h in handles {
+            let r = h.await.unwrap();
+            assert!(r.is_some(), "All concurrent calls should return Some");
+            results.push(r.unwrap());
+        }
+
+        // All nonces should be unique
+        let mut sorted = results.clone();
+        sorted.sort();
+        let expected: Vec<u64> = (start..start + num_tasks as u64).collect();
+        assert_eq!(sorted, expected, "Nonces should be sequential from {} to {}", start, start + num_tasks as u64 - 1);
+        assert_eq!(mgr.peek(addr1()).await, Some(start + num_tasks as u64),
+            "Final cached value should reflect all consumed nonces");
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_many_tasks_same_address() {
+        let mgr = std::sync::Arc::new(NonceManager::new());
+        mgr.set(addr1(), 0).await;
+
+        let num_tasks = 50;
+        let mut handles = Vec::with_capacity(num_tasks);
+
+        for _ in 0..num_tasks {
+            let mgr = mgr.clone();
+            let addr = addr1();
+            handles.push(tokio::spawn(async move {
+                mgr.get_and_increment(addr).await
+            }));
+        }
+
+        let mut results: Vec<u64> = Vec::with_capacity(num_tasks);
+        for h in handles {
+            if let Some(n) = h.await.unwrap() {
+                results.push(n);
+            }
+        }
+
+        assert_eq!(results.len(), 50, "All 50 tasks should get a nonce");
+        results.sort();
+        let expected: Vec<u64> = (0..50).collect();
+        assert_eq!(results, expected, "50 tasks should get nonces 0..49");
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_different_addresses_independent() {
+        let mgr = std::sync::Arc::new(NonceManager::new());
+        mgr.set(addr1(), 0).await;
+        mgr.set(addr2(), 0).await;
+
+        let mut handles = Vec::new();
+
+        // Spawn 10 tasks for addr1 and 10 for addr2 interleaved
+        for _ in 0..10 {
+            let mgr_a = mgr.clone();
+            let a1 = addr1();
+            handles.push(tokio::spawn(async move {
+                (a1, mgr_a.get_and_increment(a1).await)
+            }));
+            let mgr_b = mgr.clone();
+            let a2 = addr2();
+            handles.push(tokio::spawn(async move {
+                (a2, mgr_b.get_and_increment(a2).await)
+            }));
+        }
+
+        let mut addr1_nonces = Vec::new();
+        let mut addr2_nonces = Vec::new();
+        for h in handles {
+            let (addr, nonce) = h.await.unwrap();
+            assert!(nonce.is_some());
+            if addr == addr1() {
+                addr1_nonces.push(nonce.unwrap());
+            } else {
+                addr2_nonces.push(nonce.unwrap());
+            }
+        }
+
+        addr1_nonces.sort();
+        addr2_nonces.sort();
+        assert_eq!(addr1_nonces, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            "addr1 should get 0..9 independently");
+        assert_eq!(addr2_nonces, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            "addr2 should get 0..9 independently");
+    }
+}
