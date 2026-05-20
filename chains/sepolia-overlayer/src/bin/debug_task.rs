@@ -36,6 +36,9 @@ struct Args {
     #[arg(short, long, default_value = "chains/sepolia-overlayer/config.toml")]
     config: String,
 
+    #[arg(long)]
+    base_config: Option<String>,
+
     #[arg(short, long)]
     task: Option<usize>,
 
@@ -77,6 +80,28 @@ async fn main() -> Result<()> {
         }
     };
     info!("Loaded config for chain ID: {}", cfg.chain_id);
+
+    // Load base Sepolia config if --base-config is provided
+    let (base_cfg, base_env_loaded) = if let Some(ref base_path) = args.base_config {
+        if let Some(parent) = Path::new(base_path).parent() {
+            let env_path = parent.join(".env");
+            if env_path.exists() {
+                let _ = dotenv::from_path(&env_path);
+            }
+        }
+        match SepoliaConfig::load(base_path) {
+            Ok(c) => {
+                info!("Loaded base config for chain ID: {}", c.chain_id);
+                (Some(c), true)
+            }
+            Err(e) => {
+                error!("Failed to load base config: {}", e);
+                return Ok(());
+            }
+        }
+    } else {
+        (None, false)
+    };
 
     // 2. Load Wallets
     let password = env::var("WALLET_PASSWORD").ok();

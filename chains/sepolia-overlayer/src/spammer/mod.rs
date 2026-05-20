@@ -53,6 +53,12 @@ pub struct EvmSpammer {
     dist: WeightedIndex<u32>,
     total_wallets: usize,
     busy_wallets: Arc<Mutex<HashSet<usize>>>,
+    /// Base Sepolia RPC URL for bridge-back tasks (t16, t17)
+    base_rpc_url: Option<String>,
+    /// Base Sepolia gas manager
+    base_gas_manager: Option<Arc<crate::utils::gas::GasManager>>,
+    /// Base Sepolia config
+    base_config: Option<SepoliaConfig>,
 }
 
 fn get_task_weight(name: &str) -> u32 {
@@ -104,7 +110,8 @@ impl EvmSpammer {
         total_wallets: usize,
         busy_wallets: Arc<Mutex<HashSet<usize>>>,
         min_gwei: f64,
-        base_mode: bool,
+        base_rpc_url: Option<String>,
+        base_config: Option<SepoliaConfig>,
     ) -> Result<Self> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
@@ -122,30 +129,25 @@ impl EvmSpammer {
             client,
         ));
 
-        let tasks: Vec<Box<dyn SepoliaTask>> = if base_mode {
-            vec![
-                Box::new(BridgeBackTplusTask),
-                Box::new(BridgeBackCplusTask),
-            ]
-        } else {
-            vec![
-                Box::new(SepoliaCheckBalanceTask),
-                Box::new(MintUsdtPlusTask),
-                Box::new(MintUsdcPlusTask),
-                Box::new(RedeemUsdtPlusTask),
-                Box::new(RedeemUsdcPlusTask),
-                Box::new(StakeUsdtPlusTask),
-                Box::new(StakeUsdcPlusTask),
-                Box::new(UnstakeTplusTask),
-                Box::new(UnstakeCplusTask),
-                Box::new(AaveUsdtFaucetTask),
-                Box::new(AaveUsdcFaucetTask),
-                Box::new(BridgeTplusTask),
-                Box::new(BridgeCplusTask),
-                Box::new(SendRandomUsdtPlusTask),
-                Box::new(SendRandomUsdcPlusTask),
-            ]
-        };
+        let tasks: Vec<Box<dyn SepoliaTask>> = vec![
+            Box::new(SepoliaCheckBalanceTask),
+            Box::new(MintUsdtPlusTask),
+            Box::new(MintUsdcPlusTask),
+            Box::new(RedeemUsdtPlusTask),
+            Box::new(RedeemUsdcPlusTask),
+            Box::new(StakeUsdtPlusTask),
+            Box::new(StakeUsdcPlusTask),
+            Box::new(UnstakeTplusTask),
+            Box::new(UnstakeCplusTask),
+            Box::new(AaveUsdtFaucetTask),
+            Box::new(AaveUsdcFaucetTask),
+            Box::new(BridgeTplusTask),
+            Box::new(BridgeCplusTask),
+            Box::new(SendRandomUsdtPlusTask),
+            Box::new(SendRandomUsdcPlusTask),
+            Box::new(BridgeBackTplusTask),
+            Box::new(BridgeBackCplusTask),
+        ];
 
         let gas_manager = Arc::new(crate::utils::gas::GasManager::new(
             Arc::new(provider.clone()),
@@ -172,6 +174,18 @@ impl EvmSpammer {
             }
         };
 
+        // Create base Sepolia gas manager if base config is provided
+        let base_gas_manager = base_config.as_ref().map(|_| {
+            let base_provider = Provider::new(Http::new_with_client(
+                reqwest::Url::parse(base_rpc_url.as_deref().unwrap()).expect("Invalid base RPC URL"),
+                reqwest::Client::new(),
+            ));
+            Arc::new(crate::utils::gas::GasManager::new(
+                Arc::new(base_provider),
+                min_gwei,
+            ))
+        });
+
         Ok(Self {
             config: spam_config,
             provider,
@@ -188,12 +202,16 @@ impl EvmSpammer {
             dist,
             total_wallets,
             busy_wallets,
+            base_rpc_url,
+            base_gas_manager,
+            base_config,
         })
     }
 
     async fn create_provider_with_proxy(
         &self,
         proxy_config: &Option<core_logic::config::ProxyConfig>,
+        rpc_url: &str,
     ) -> Provider<Http> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
@@ -216,7 +234,7 @@ impl EvmSpammer {
         let client = client_builder.build().expect("Failed to build HTTP client");
 
         Provider::new(Http::new_with_client(
-            reqwest::Url::parse(&self.config.rpc_url).expect("Invalid RPC URL"),
+            reqwest::Url::parse(rpc_url).expect("Invalid RPC URL"),
             client,
         ))
     }
@@ -236,8 +254,9 @@ impl Spammer for EvmSpammer {
 
         async move {
             info!(
-                "Sepolia Spammer started for chain {}",
-                self.config.chain_id
+                "Sepolia Spammer started for chain {} (base: {})",
+                self.config.chain_id,
+                self.base_config.as_ref().map(|c| c.chain_id.to_string()).unwrap_or_else(|| "none".into())
             );
             let mut stats = core_logic::traits::SpammerStats::default();
 
@@ -284,7 +303,16 @@ impl Spammer for EvmSpammer {
                             .await;
                     }
 
-                    let provider = self.create_provider_with_proxy(&proxy_config).await;
+                    let is_base_task = task.name() == "16_bridgeBackTplus"
+                        || task.name() == "17_bridgeBackCplus";
+
+                    let rpc_url = if is_base_task {
+                        self.base_rpc_url.as_deref().unwrap_or(&self.config.rpc_url)
+                    } else {
+                        &self.config.rpc_url
+                    };
+
+                    let provider = self.create_provider_with_proxy(&proxy_config, rpc_url).await;
 
                     let mut rng = OsRng;
                     let wallet_idx = loop {
@@ -303,8 +331,13 @@ impl Spammer for EvmSpammer {
                     {
                         Ok(decrypted) => {
                             let key = decrypted.evm_private_key.clone();
+                            let chain_id = if is_base_task {
+                                self.base_config.as_ref().map(|c| c.chain_id).unwrap_or(self.config.chain_id)
+                            } else {
+                                self.config.chain_id
+                            };
                             match key.parse::<LocalWallet>() {
-                                Ok(w) => w.with_chain_id(self.config.chain_id),
+                                Ok(w) => w.with_chain_id(chain_id),
                                 Err(e) => {
                                     self.busy_wallets.lock().await.remove(&wallet_idx);
                                     warn!("Failed to parse wallet {}: {}", wallet_idx, e);
@@ -321,13 +354,25 @@ impl Spammer for EvmSpammer {
 
                     let wallet_address = wallet.address();
 
+                    let ctx_gas_manager = if is_base_task {
+                        self.base_gas_manager.as_ref().unwrap_or(&self.gas_manager).clone()
+                    } else {
+                        self.gas_manager.clone()
+                    };
+
+                    let ctx_config = if is_base_task {
+                        self.base_config.as_ref().unwrap_or(&self.sepolia_config).clone()
+                    } else {
+                        self.sepolia_config.clone()
+                    };
+
                     let ctx = TaskContext {
                         provider,
                         wallet,
-                        config: self.sepolia_config.clone(),
+                        config: ctx_config,
                         proxy: proxy_config.as_ref().map(|p| p.url.clone()),
                         db: self.db.clone(),
-                        gas_manager: self.gas_manager.clone(),
+                        gas_manager: ctx_gas_manager,
                     };
 
                     let start_time = std::time::Instant::now();

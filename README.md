@@ -186,3 +186,22 @@ $env:WALLET_PASSWORD="different-password"; ./target/release/tempo-spammer.exe --
 1. Runtime environment variables (highest priority)
 2. Compile-time values (baked into binary)
 3. Interactive prompts (fallback)
+```
+
+## 🧪 Sepolia Overlayer
+
+### Run Spammer (all 17 tasks, dual-chain)
+```powershell
+cd C:\My Script\testnet-framework
+$env:WALLET_PASSWORD="your_password"
+cargo run --release -p sepolia-overlayer -- --config chains/sepolia-overlayer/config.toml --base-config chains/sepolia-overlayer/config-base.toml
+```
+
+### Debug Individual Tasks
+```powershell
+# Eth Sepolia tasks (t01-t15)
+cargo run -p sepolia-overlayer --bin sepolia-debug_task -- --config chains/sepolia-overlayer/config.toml --task 2 --wallet 0
+
+# Base Sepolia bridge-back tasks (t16-t17)
+cargo run -p sepolia-overlayer --bin sepolia-debug_task -- --config chains/sepolia-overlayer/config.toml --base-config chains/sepolia-overlayer/config-base.toml --task 16 --wallet 0
+```

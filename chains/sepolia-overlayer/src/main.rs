@@ -177,14 +177,7 @@ async fn main() -> Result<()> {
         Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new()));
 
     let mut spammers = Vec::new();
-
-    // --- Eth Sepolia workers (tasks t01-t15) ---
-    let eth_workers = if args.base_config.is_some() {
-        max_workers / 2
-    } else {
-        max_workers
-    };
-    for i in 0..eth_workers {
+    for i in 0..max_workers {
         let wallet_idx = wallet_indices[i];
         let decrypted = match manager
             .as_ref()
@@ -203,6 +196,26 @@ async fn main() -> Result<()> {
 
         let wallet_id_str = format!("{:03}", wallet_idx + 1);
 
+        // Load base config for dual-chain support
+        let (base_rpc_url, base_config) = if let Some(ref base_config_path) = args.base_config {
+            // Load .env from base config directory
+            if let Some(parent) = Path::new(base_config_path).parent() {
+                let env_path = parent.join(".env");
+                if env_path.exists() {
+                    let _ = dotenv::from_path(&env_path);
+                }
+            }
+            match SepoliaConfig::load(base_config_path) {
+                Ok(cfg) => (Some(cfg.rpc_url.clone()), Some(cfg)),
+                Err(e) => {
+                    error!("Failed to load base config: {}", e);
+                    return Ok(());
+                }
+            }
+        } else {
+            (None, None)
+        };
+
         let spammer = EvmSpammer::new_with_signer(
             config.to_spam_config(),
             config.clone(),
@@ -217,74 +230,10 @@ async fn main() -> Result<()> {
             total_wallets,
             busy_wallets.clone(),
             args.min_gwei,
-            false, // base_mode = false → Eth Sepolia tasks
+            base_rpc_url,
+            base_config,
         )?;
         spammers.push(Box::new(spammer) as Box<dyn core_logic::traits::Spammer>);
-    }
-
-    // --- Base Sepolia workers (tasks t16-t17) ---
-    if let Some(ref base_config_path) = args.base_config {
-        info!("Loading base config from: {}", base_config_path);
-
-        // Load .env from base config directory
-        if let Some(parent) = Path::new(base_config_path).parent() {
-            let env_path = parent.join(".env");
-            if env_path.exists() {
-                let _ = dotenv::from_path(&env_path);
-            }
-        }
-
-        let base_config = match SepoliaConfig::load(base_config_path) {
-            Ok(c) => c,
-            Err(e) => {
-                error!("Failed to load base config: {}", e);
-                return Ok(());
-            }
-        };
-
-        info!(
-            "Base config loaded for chain ID: {}, symbol: {}",
-            base_config.chain_id, base_config.symbol
-        );
-
-        let base_workers = max_workers - eth_workers;
-        for i in 0..base_workers {
-            let wallet_idx = wallet_indices[eth_workers + i];
-            let decrypted = match manager
-                .as_ref()
-                .get_wallet(wallet_idx, wallet_password.as_deref())
-                .await
-            {
-                Ok(w) => w,
-                Err(e) => {
-                    error!("Failed to decrypt wallet {}: {}", wallet_idx, e);
-                    continue;
-                }
-            };
-
-            let key = decrypted.evm_private_key.clone();
-            let wallet = key.parse::<ethers::signers::LocalWallet>()?;
-
-            let wallet_id_str = format!("{:03}", wallet_idx + 1);
-
-            let spammer = EvmSpammer::new_with_signer(
-                base_config.to_spam_config(),
-                base_config.clone(),
-                wallet,
-                proxy_pool.clone(),
-                proxy_health.clone(),
-                proxy_rate_limiter.clone(),
-                wallet_id_str,
-                Some(db_arc.clone()),
-                manager.clone(),
-                wallet_password.clone(),
-                total_wallets,
-                busy_wallets.clone(),
-                args.min_gwei,
-                true, // base_mode = true → bridge-back tasks only
-            )?;
-            spammers.push(Box::new(spammer) as Box<dyn core_logic::traits::Spammer>);
-        }
     }
 
     // Run
