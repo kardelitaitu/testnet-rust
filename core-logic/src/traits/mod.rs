@@ -2,7 +2,7 @@ use crate::config::SpamConfig;
 use anyhow::Result;
 use async_trait::async_trait;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct SpammerStats {
     pub success: u64,
     pub failed: u64,
@@ -25,7 +25,7 @@ pub trait Spammer: Send + Sync {
     async fn stop(&self) -> Result<()>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TaskResult {
     pub success: bool,
     pub message: String,
@@ -47,4 +47,64 @@ pub trait WalletLoader: Send + Sync {
 
     /// Load wallets from a source (encrypted file, etc.)
     async fn load_wallets(&self) -> Result<Vec<Self::Wallet>>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_spammer_stats_default() {
+        let stats = SpammerStats::default();
+        assert_eq!(stats.success, 0);
+        assert_eq!(stats.failed, 0);
+    }
+
+    #[test]
+    fn test_spammer_stats_with_values() {
+        let stats = SpammerStats { success: 42, failed: 7 };
+        assert_eq!(stats.success, 42);
+        assert_eq!(stats.failed, 7);
+    }
+
+    #[test]
+    fn test_spammer_stats_clone() {
+        let a = SpammerStats { success: 5, failed: 3 };
+        let b = a.clone();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_task_result_success() {
+        let r = TaskResult {
+            success: true,
+            message: "done".into(),
+            tx_hash: Some("0xabc".into()),
+        };
+        assert!(r.success);
+        assert_eq!(r.message, "done");
+        assert_eq!(r.tx_hash, Some("0xabc".into()));
+    }
+
+    #[test]
+    fn test_task_result_failure_no_tx() {
+        let r = TaskResult {
+            success: false,
+            message: "error".into(),
+            tx_hash: None,
+        };
+        assert!(!r.success);
+        assert!(r.tx_hash.is_none());
+    }
+
+    #[test]
+    fn test_task_result_clone() {
+        let a = TaskResult {
+            success: true,
+            message: "ok".into(),
+            tx_hash: None,
+        };
+        let b = a.clone();
+        assert_eq!(a, b);
+    }
 }

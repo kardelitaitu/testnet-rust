@@ -113,4 +113,56 @@ mod tests {
         assert_eq!(adapter.config.chain_id, 1);
         assert_eq!(adapter.config.target_tps, 10);
     }
+
+    #[test]
+    fn test_evm_adapter_with_gas_config() {
+        let adapter = EvmChainAdapter::new(
+            SpammerConfig {
+                rpc_url: "https://rpc.test.com".into(),
+                chain_id: 137,
+                target_tps: 25,
+            },
+            vec!["https://rpc.test.com".into()],
+        );
+        let gas = GasConfig::new().with_max_fee(50.0);
+        let adapter = adapter.with_gas_config(gas);
+        assert_eq!(adapter.gas_config().max_gwei(), 50.0);
+    }
+
+    #[test]
+    fn test_evm_adapter_name() {
+        let adapter = create_evm_adapter("https://rpc.example.com", 1, 10);
+        assert_eq!(adapter.name(), "EvmChainAdapter");
+    }
+
+    #[test]
+    fn test_evm_adapter_config_access() {
+        let adapter = create_evm_adapter("https://rpc.example.com", 1, 10);
+        let cfg = adapter.config();
+        assert_eq!(cfg.chain_id, 1);
+        assert_eq!(cfg.rpc_url, "https://rpc.example.com");
+    }
+
+    #[test]
+    fn test_evm_adapter_rpc_manager() {
+        let adapter = EvmChainAdapter::new(
+            SpammerConfig {
+                rpc_url: "https://rpc.test.com".into(),
+                chain_id: 137,
+                target_tps: 25,
+            },
+            vec!["https://rpc1.com".into(), "https://rpc2.com".into()],
+        );
+        let mgr = adapter.rpc_manager();
+        // RpcManager should have endpoints from the URLs we passed
+        assert!(mgr.endpoints_count() > 0);
+    }
+
+    #[test]
+    fn test_create_evm_adapter_function() {
+        let adapter = create_evm_adapter("https://rpc.xyz.com", 999, 100);
+        assert_eq!(adapter.config.chain_id, 999);
+        assert_eq!(adapter.config.target_tps, 100);
+        assert_eq!(adapter.config.rpc_url, "https://rpc.xyz.com");
+    }
 }

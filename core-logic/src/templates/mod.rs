@@ -107,7 +107,7 @@ impl ChainBuilder {
             config.target_tps = tps;
         } else {
             self.spammer_config = Some(SpammerConfig {
-                rpc_url: String::new(),
+                rpc_url: self.rpc_urls.first().cloned().unwrap_or_default(),
                 chain_id: self.chain_id.unwrap_or(1),
                 target_tps: tps,
             });
@@ -141,5 +141,77 @@ mod tests {
     fn test_chain_builder_with_chain_id() {
         let builder = ChainBuilder::new().with_chain_id(137);
         assert_eq!(builder.chain_id, Some(137));
+    }
+
+    #[test]
+    fn test_chain_builder_with_rpc_urls() {
+        let urls = vec!["https://rpc1.com".into(), "https://rpc2.com".into()];
+        let builder = ChainBuilder::new().with_rpc_urls(urls.clone());
+        assert_eq!(builder.rpc_urls, urls);
+    }
+
+    #[test]
+    fn test_chain_builder_with_tps_before_config() {
+        // with_tps creates a SpammerConfig if none exists
+        let builder = ChainBuilder::new().with_chain_id(1).with_tps(50);
+        assert!(builder.spammer_config.is_some());
+        assert_eq!(builder.spammer_config.as_ref().unwrap().target_tps, 50);
+    }
+
+    #[test]
+    fn test_chain_builder_build_evm_basic() {
+        let adapter = ChainBuilder::new()
+            .with_rpc_urls(vec!["https://rpc.example.com".into()])
+            .with_chain_id(1)
+            .with_tps(10)
+            .build_evm()
+            .unwrap();
+        assert_eq!(adapter.config().chain_id, 1);
+        assert_eq!(adapter.config().target_tps, 10);
+        assert_eq!(adapter.config().rpc_url, "https://rpc.example.com");
+    }
+
+    #[test]
+    fn test_chain_builder_build_evm_minimal() {
+        // No rpc_urls, no chain_id, no tps — should use defaults
+        let adapter = ChainBuilder::new().build_evm().unwrap();
+        assert_eq!(adapter.config().chain_id, 1);
+        assert_eq!(adapter.config().target_tps, 10);
+        assert!(adapter.config().rpc_url.is_empty());
+    }
+
+    #[test]
+    fn test_spammer_config_creation() {
+        let config = SpammerConfig {
+            rpc_url: "https://rpc.test.com".into(),
+            chain_id: 42,
+            target_tps: 25,
+        };
+        assert_eq!(config.rpc_url, "https://rpc.test.com");
+        assert_eq!(config.chain_id, 42);
+        assert_eq!(config.target_tps, 25);
+    }
+
+    #[test]
+    fn test_spammer_result_fields() {
+        let r = SpammerResult {
+            success: true,
+            message: "done".into(),
+            tx_hash: Some("0xabc".into()),
+        };
+        assert!(r.success);
+        assert_eq!(r.message, "done");
+        assert_eq!(r.tx_hash, Some("0xabc".into()));
+    }
+
+    #[test]
+    fn test_spammer_result_no_tx_hash() {
+        let r = SpammerResult {
+            success: false,
+            message: "failed".into(),
+            tx_hash: None,
+        };
+        assert!(!r.success);
+        assert!(r.tx_hash.is_none());
     }
 }

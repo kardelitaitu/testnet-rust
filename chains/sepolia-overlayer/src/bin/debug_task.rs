@@ -18,6 +18,10 @@ use sepolia_overlayer::task::{
     t11_aave_usdc_faucet::AaveUsdcFaucetTask,
     t12_bridge_tplus::BridgeTplusTask,
     t13_bridge_cplus::BridgeCplusTask,
+    t14_send_random_usdt_plus::SendRandomUsdtPlusTask,
+    t15_send_random_usdc_plus::SendRandomUsdcPlusTask,
+    t16_bridge_back_tplus::BridgeBackTplusTask,
+    t17_bridge_back_cplus::BridgeBackCplusTask,
     SepoliaTask, TaskContext,
 };
 use std::env;
@@ -182,6 +186,10 @@ async fn main() -> Result<()> {
         Box::new(AaveUsdcFaucetTask),
         Box::new(BridgeTplusTask),
         Box::new(BridgeCplusTask),
+        Box::new(SendRandomUsdtPlusTask),
+        Box::new(SendRandomUsdcPlusTask),
+        Box::new(BridgeBackTplusTask),
+        Box::new(BridgeBackCplusTask),
     ];
     let items: Vec<&str> = tasks.iter().map(|t| t.name()).collect();
 

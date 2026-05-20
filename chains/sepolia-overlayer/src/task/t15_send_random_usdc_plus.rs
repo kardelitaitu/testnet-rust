@@ -1,0 +1,153 @@
+use super::{SepoliaTask, TaskContext, TaskResult};
+use anyhow::{Context, Result};
+use async_trait::async_trait;
+use ethers::middleware::SignerMiddleware;
+use ethers::prelude::*;
+use std::sync::Arc;
+use std::time::Duration;
+
+/// USDC+ (C+) on Sepolia
+const USDC_PLUS: &str = "0xe815718d44694ec4637cb775c468d87f6e15b538";
+
+/// Minimal ERC-20 ABI: balanceOf + transfer
+const CPLUS_ABI: &str = r#"[
+    {"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"},
+    {"constant":false,"inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"name":"transfer","outputs":[{"name":"","type":"bool"}],"type":"function"}
+]"#;
+
+pub struct SendRandomUsdcPlusTask;
+
+#[async_trait]
+impl SepoliaTask for SendRandomUsdcPlusTask {
+    fn name(&self) -> &str {
+        "15_sendRandomUsdcPlus"
+    }
+
+    async fn run(&self, ctx: TaskContext) -> Result<TaskResult> {
+        let wallet = ctx.wallet;
+        let address = wallet.address();
+        let provider = &ctx.provider;
+
+        let cplus_addr: Address = USDC_PLUS.parse()?;
+
+        // --- 1. Get USDC+ balance ---
+        let contract = Contract::new(
+            cplus_addr,
+            serde_json::from_str::<ethers::abi::Abi>(CPLUS_ABI)?,
+            Arc::new(provider.clone()),
+        );
+
+        let balance: U256 = contract
+            .method::<_, U256>("balanceOf", address)?
+            .call()
+            .await
+            .context("Failed to query USDC+ balance")?;
+
+        // --- 2. Calculate 0.5% = balance * 5 / 1000 ---
+        let amount = balance * U256::from(5) / U256::from(1000);
+
+        if amount.is_zero() {
+            return Ok(TaskResult {
+                success: false,
+                message: format!(
+                    "USDC+ balance is zero or 0.5% rounds to 0 (balance: {})",
+                    balance
+                ),
+            });
+        }
+
+        // --- 3. Generate random recipient address ---
+        let random_addr_hex = core_logic::generate_random_address();
+        let random_addr: Address = random_addr_hex
+            .parse()
+            .context("Failed to parse generated random address")?;
+
+        // --- 4. Send transfer ---
+        let (max_fee, _priority_fee) = ctx.gas_manager.get_fees().await?;
+
+        let middleware = SignerMiddleware::new(provider.clone(), wallet.clone());
+
+        let cplus_contract = Contract::new(
+            cplus_addr,
+            serde_json::from_str::<ethers::abi::Abi>(CPLUS_ABI)?,
+            Arc::new(middleware),
+        );
+
+        let transfer_call = cplus_contract
+            .method::<_, H256>("transfer", (random_addr, amount))?
+            .gas(100_000)
+            .gas_price(max_fee);
+
+        let tx = transfer_call
+            .send()
+            .await
+            .context("Failed to send USDC+ transfer")?;
+
+        let tx_hash = tx.tx_hash();
+
+        let receipt = tx
+            .confirmations(1)
+            .interval(Duration::from_millis(500))
+            .await?;
+
+        let success = receipt.is_some_and(|r| r.status == Some(1.into()));
+
+        let readable_amount = format_amount(amount);
+
+        Ok(TaskResult {
+            success,
+            message: format!(
+                "Sent {} USDC+ to {} (tx: {:?})",
+                readable_amount, random_addr_hex, tx_hash
+            ),
+        })
+    }
+}
+
+/// Format a U256 amount (18 decimals) to a human-readable string
+fn format_amount(amount: U256) -> String {
+    let divisor = U256::from(10u128.pow(18));
+    let whole = amount / divisor;
+    let fraction = amount % divisor;
+    if fraction.is_zero() {
+        format!("{}", whole)
+    } else {
+        let frac_str = format!("{:018}", fraction);
+        let trimmed = frac_str.trim_end_matches('0');
+        format!("{}.{}", whole, trimmed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_amount_whole() {
+        let amount = U256::from(5u128) * U256::from(10u128.pow(18));
+        assert_eq!(format_amount(amount), "5");
+    }
+
+    #[test]
+    fn test_format_amount_fractional() {
+        let amount = U256::from(5_500_000_000_000_000_000u128); // 5.5 C+
+        assert_eq!(format_amount(amount), "5.5");
+    }
+
+    #[test]
+    fn test_format_amount_small() {
+        let amount = U256::from(1_000_000_000_000_000_000u128); // 1.0 C+
+        assert_eq!(format_amount(amount), "1");
+    }
+
+    #[test]
+    fn test_format_amount_zero() {
+        assert_eq!(format_amount(U256::zero()), "0");
+    }
+
+    #[test]
+    fn test_format_amount_tiny() {
+        let amount = U256::from(1u128);
+        assert_eq!(format_amount(amount), "0.000000000000000001");
+    }
+}

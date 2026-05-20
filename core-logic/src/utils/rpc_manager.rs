@@ -217,3 +217,55 @@ impl Default for RpcHealthChecker {
         Self::new(30000) // 30 seconds default timeout
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rpc_endpoint_new() {
+        let ep = RpcEndpoint::new("https://eth.rpc".into(), 1);
+        assert_eq!(ep.url, "https://eth.rpc");
+        assert_eq!(ep.chain_id, 1);
+        assert!(ep.is_healthy());
+        assert_eq!(ep.latency_ms(), 0);
+        assert_eq!(ep.failures(), 0);
+    }
+
+    #[test]
+    fn test_rpc_endpoint_debug() {
+        let ep = RpcEndpoint::new("https://test.rpc".into(), 5);
+        let debug = format!("{:?}", ep);
+        assert!(debug.contains("test.rpc"));
+        assert!(debug.contains("5"));
+    }
+
+    #[test]
+    fn test_rpc_health_checker_new() {
+        let checker = RpcHealthChecker::new(5000);
+        assert_eq!(checker.timeout().as_millis(), 5000);
+    }
+
+    #[test]
+    fn test_rpc_health_checker_default() {
+        let checker = RpcHealthChecker::default();
+        assert_eq!(checker.timeout().as_millis(), 30000);
+    }
+
+    #[test]
+    fn test_rpc_endpoint_latency_tracking() {
+        let ep = RpcEndpoint::new("https://eth.rpc".into(), 1);
+        // Initially 0
+        assert_eq!(ep.latency_ms(), 0);
+        // Latency is set via RpcManager methods, not directly on endpoint
+        // Just verify the accessor works
+    }
+
+    #[test]
+    fn test_rpc_endpoint_health_tracking() {
+        let ep = RpcEndpoint::new("https://eth.rpc".into(), 1);
+        assert!(ep.is_healthy());
+        // Health is managed externally via RpcManager
+        // Verify the default state
+    }
+}

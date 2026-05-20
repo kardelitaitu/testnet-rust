@@ -64,6 +64,54 @@ fn format_eth_5dec(raw: U256) -> String {
 
 pub struct SepoliaCheckBalanceTask;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_eth_5dec_exact_eth() {
+        // 1.0 ETH
+        let result = format_eth_5dec(U256::from(10u128.pow(18)));
+        assert_eq!(result, "1");
+    }
+
+    #[test]
+    fn test_format_eth_5dec_with_decimals() {
+        // 0.046847631228226791 ETH -> truncated to 5dp = 0.04684
+        let raw = U256::from(46847631228226791u128);
+        let result = format_eth_5dec(raw);
+        assert_eq!(result, "0.04684");
+    }
+
+    #[test]
+    fn test_format_eth_5dec_small_value() {
+        // 0.0000012345 ETH -> truncates to 0 (below 0.00001 ETH resolution with 5dp)
+        let raw = U256::from(1234500000000u128);
+        let result = format_eth_5dec(raw);
+        assert_eq!(result, "0");
+    }
+
+    #[test]
+    fn test_format_eth_5dec_zero() {
+        let result = format_eth_5dec(U256::zero());
+        assert_eq!(result, "0");
+    }
+
+    #[test]
+    fn test_format_eth_5dec_ten_eth() {
+        let result = format_eth_5dec(U256::from(10u128.pow(19)));
+        assert_eq!(result, "10");
+    }
+
+    #[test]
+    fn test_format_eth_5dec_strips_trailing_zeros() {
+        // 0.000100000 ETH -> 0.0001
+        let raw = U256::from(100000000000000u128);
+        let result = format_eth_5dec(raw);
+        assert_eq!(result, "0.0001");
+    }
+}
+
 #[async_trait]
 impl SepoliaTask for SepoliaCheckBalanceTask {
     fn name(&self) -> &str {

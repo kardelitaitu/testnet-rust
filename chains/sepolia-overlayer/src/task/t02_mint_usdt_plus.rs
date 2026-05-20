@@ -47,11 +47,11 @@ impl SepoliaTask for MintUsdtPlusTask {
 
         let usdt_addr: Address = USDT.parse()?;
         let usdt_plus_addr: Address = USDT_PLUS.parse()?;
-        // Check USDT balance - we need at least 5 USDT to mint 5 T+
+        // Check USDT balance - we need at least some USDT to mint T+
         let usdt_balance = get_usdt_balance(provider, address).await?;
 
-        // Calculate 5% of USDT balance, rounded to nearest whole USDT
-        let pct_raw = usdt_balance.as_u128() * 5 / 100;                 // 1% in USDT raw (6 decimals)
+        // Calculate 80% of USDT balance, rounded to nearest whole USDT
+        let pct_raw = usdt_balance.as_u128() * 80 / 100;                 // 80% in USDT raw (6 decimals)
         let rounding = 500_000u128;                                      // half of 10^6 for rounding
         let whole_usdt = (pct_raw + rounding) / 1_000_000u128;       // round to integer USDT
         let mint_amount = whole_usdt * 1_000_000u128;                    // back to raw (6 decimals) for USDT

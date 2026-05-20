@@ -12,6 +12,10 @@ use crate::task::t10_aave_usdt_faucet::AaveUsdtFaucetTask;
 use crate::task::t11_aave_usdc_faucet::AaveUsdcFaucetTask;
 use crate::task::t12_bridge_tplus::BridgeTplusTask;
 use crate::task::t13_bridge_cplus::BridgeCplusTask;
+use crate::task::t14_send_random_usdt_plus::SendRandomUsdtPlusTask;
+use crate::task::t15_send_random_usdc_plus::SendRandomUsdcPlusTask;
+use crate::task::t16_bridge_back_tplus::BridgeBackTplusTask;
+use crate::task::t17_bridge_back_cplus::BridgeBackCplusTask;
 use crate::task::{SepoliaTask, TaskContext};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -59,6 +63,31 @@ fn get_task_weight(name: &str) -> u32 {
     1
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_task_weight_normal() {
+        assert_eq!(get_task_weight("01_checkBalance"), 1);
+        assert_eq!(get_task_weight("02_mintUsdtPlus"), 1);
+        assert_eq!(get_task_weight("08_unstakeTplus"), 1);
+    }
+
+    #[test]
+    fn test_get_task_weight_faucet() {
+        assert_eq!(get_task_weight("10_aaveUsdtFaucet"), 5);
+        assert_eq!(get_task_weight("11_aaveUsdcFaucet"), 5);
+    }
+
+    #[test]
+    fn test_get_task_weight_unknown() {
+        // Unknown task names get default weight of 1
+        assert_eq!(get_task_weight("99_unknown"), 1);
+        assert_eq!(get_task_weight(""), 1);
+    }
+}
+
 impl EvmSpammer {
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_signer(
@@ -75,6 +104,7 @@ impl EvmSpammer {
         total_wallets: usize,
         busy_wallets: Arc<Mutex<HashSet<usize>>>,
         min_gwei: f64,
+        base_mode: bool,
     ) -> Result<Self> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
@@ -92,21 +122,30 @@ impl EvmSpammer {
             client,
         ));
 
-        let tasks: Vec<Box<dyn SepoliaTask>> = vec![
-            Box::new(SepoliaCheckBalanceTask),
-            Box::new(MintUsdtPlusTask),
-            Box::new(MintUsdcPlusTask),
-            Box::new(RedeemUsdtPlusTask),
-            Box::new(RedeemUsdcPlusTask),
-            Box::new(StakeUsdtPlusTask),
-            Box::new(StakeUsdcPlusTask),
-            Box::new(UnstakeTplusTask),
-            Box::new(UnstakeCplusTask),
-            Box::new(AaveUsdtFaucetTask),
-            Box::new(AaveUsdcFaucetTask),
-            Box::new(BridgeTplusTask),
-            Box::new(BridgeCplusTask),
-        ];
+        let tasks: Vec<Box<dyn SepoliaTask>> = if base_mode {
+            vec![
+                Box::new(BridgeBackTplusTask),
+                Box::new(BridgeBackCplusTask),
+            ]
+        } else {
+            vec![
+                Box::new(SepoliaCheckBalanceTask),
+                Box::new(MintUsdtPlusTask),
+                Box::new(MintUsdcPlusTask),
+                Box::new(RedeemUsdtPlusTask),
+                Box::new(RedeemUsdcPlusTask),
+                Box::new(StakeUsdtPlusTask),
+                Box::new(StakeUsdcPlusTask),
+                Box::new(UnstakeTplusTask),
+                Box::new(UnstakeCplusTask),
+                Box::new(AaveUsdtFaucetTask),
+                Box::new(AaveUsdcFaucetTask),
+                Box::new(BridgeTplusTask),
+                Box::new(BridgeCplusTask),
+                Box::new(SendRandomUsdtPlusTask),
+                Box::new(SendRandomUsdcPlusTask),
+            ]
+        };
 
         let gas_manager = Arc::new(crate::utils::gas::GasManager::new(
             Arc::new(provider.clone()),

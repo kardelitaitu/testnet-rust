@@ -41,4 +41,46 @@ impl XeneaConfig {
             },
         }
     }
+
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use config::Config;
+
+    #[test]
+    fn test_xenea_config_deserialize() {
+        let toml = r#"
+rpc_url = "https://rpc.xenea.com"
+chain_id = 777
+explorer = "https://exp.xenea.com"
+symbol = "XEN"
+tps = 10
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build().unwrap();
+        let cfg: XeneaConfig = settings.try_deserialize().unwrap();
+        assert_eq!(cfg.rpc_url, "https://rpc.xenea.com");
+        assert_eq!(cfg.chain_id, 777);
+    }
+
+    #[test]
+    fn test_xenea_config_to_spam() {
+        let toml = r#"
+rpc_url = "https://rpc.xenea.com"
+chain_id = 777
+explorer = "https://exp.xenea.com"
+symbol = "XEN"
+tps = 10
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build().unwrap();
+        let cfg: XeneaConfig = settings.try_deserialize().unwrap();
+        let spam = cfg.to_spam_config();
+        assert_eq!(spam.chain_id, 777);
+    }
+}
+

@@ -59,6 +59,49 @@ fn encode_send(send_param: &Token, fee: &Token, refund: Address) -> Bytes {
     Bytes::from(data)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_send_param_creates_7_element_tuple() {
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let param = build_send_param(40245, addr, U256::from(100), vec![0x00, 0x03]);
+        match param {
+            Token::Tuple(items) => {
+                assert_eq!(items.len(), 7);
+                assert_eq!(items[0], Token::Uint(U256::from(40245)));
+                assert_eq!(items[2], Token::Uint(U256::from(100)));
+            }
+            _ => panic!("SendParam must be a Tuple"),
+        }
+    }
+
+    #[test]
+    fn test_build_fee_creates_2_element_tuple() {
+        let fee = build_fee(U256::from(500), U256::from(1));
+        match fee {
+            Token::Tuple(items) => {
+                assert_eq!(items.len(), 2);
+                assert_eq!(items[0], Token::Uint(U256::from(500)));
+            }
+            _ => panic!("Fee must be a Tuple"),
+        }
+    }
+
+    #[test]
+    fn test_encode_send_starts_with_correct_selector() {
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let param = build_send_param(1, addr, U256::zero(), vec![]);
+        let fee = build_fee(U256::zero(), U256::zero());
+        let encoded = encode_send(&param, &fee, addr);
+        assert_eq!(encoded[0], 0xc7);
+        assert_eq!(encoded[1], 0xc7);
+        assert_eq!(encoded[2], 0xf5);
+        assert_eq!(encoded[3], 0xb3);
+    }
+}
+
 async fn get_cplus_balance(provider: &Provider<Http>, wallet: Address) -> Result<U256> {
     let addr: Address = USDC_PLUS.parse()?;
     let contract = Contract::new(
@@ -82,14 +125,10 @@ impl SepoliaTask for BridgeCplusTask {
         let address = wallet.address();
         let provider = &ctx.provider;
 
-        println!("[DEBUG] Starting task 13_bridgeCplus");
-        println!("[DEBUG] Wallet: {:?}", address);
-
         let cplus_addr: Address = USDC_PLUS.parse()?;
 
         // --- 1. Check C+ balance ---
         let cplus_balance = get_cplus_balance(provider, address).await?;
-        println!("[DEBUG] C+ balance: {} ({:.2} C+)", cplus_balance, cplus_balance.as_u128() as f64 / 1e18);
 
         // --- 2. Calculate 5% of C+, round to nearest whole C+ ---
         let pct_raw = cplus_balance.as_u128() * 5 / 100;
@@ -103,8 +142,6 @@ impl SepoliaTask for BridgeCplusTask {
                 message: "5% of C+ balance rounds to 0, nothing to bridge".to_string(),
             });
         }
-
-        println!("[DEBUG] Bridging {} C+ to Base Sepolia", whole_cplus);
 
         // --- 3. Build SendParam ---
         let extra_options = hex::decode("0003").unwrap();
@@ -127,23 +164,13 @@ impl SepoliaTask for BridgeCplusTask {
             .gas_price(max_fee)
             .value(native_fee);
 
-        println!("[INFO] Sending {} C+ to Base Sepolia...", whole_cplus);
         let pending_tx = middleware.send_transaction(tx, None).await.context("Failed to send bridge tx")?;
         let tx_hash = pending_tx.tx_hash();
-        println!("[DEBUG] Bridge tx sent: {:?}", tx_hash);
 
         let receipt = pending_tx
             .confirmations(1)
             .interval(Duration::from_millis(500))
             .await?;
-
-        match &receipt {
-            Some(r) => {
-                println!("[DEBUG] Bridge receipt status: {:?}", r.status);
-                println!("[DEBUG] Bridge receipt block: {:?}", r.block_number);
-            }
-            None => println!("[WARNING] No receipt returned after waiting"),
-        }
 
         let success = receipt.is_some_and(|r| r.status == Some(1.into()));
         Ok(TaskResult {

@@ -131,9 +131,42 @@ mod tests {
     #[test]
     fn test_gas_config_defaults() {
         let config = GasConfig::default();
+        assert_eq!(config.max_gwei, 2.5);
+        assert_eq!(config.priority_gwei, 1.5);
+        assert_eq!(config.limit_transfer(), 21_000);
+    }
+
+    #[test]
+    fn test_gas_config_from_toml_defaults() {
+        // When no fields are set, GasConfigToml uses its own defaults
+        let toml = GasConfigToml {
+            max_gwei: None,
+            priority_gwei: None,
+            limit_deploy: None,
+            limit_transfer: None,
+            limit_counter_interact: None,
+            limit_send_meme: None,
+        };
+        let config: GasConfig = toml.into();
         assert_eq!(config.max_gwei, 0.000000009);
         assert_eq!(config.priority_gwei, 0.000000001);
-        assert_eq!(config.limit_transfer(), 21_000);
+    }
+
+    #[test]
+    fn test_gas_config_from_toml_overrides() {
+        let toml = GasConfigToml {
+            max_gwei: Some(100.0),
+            priority_gwei: Some(2.0),
+            limit_deploy: Some(500_000),
+            limit_transfer: None,
+            limit_counter_interact: None,
+            limit_send_meme: None,
+        };
+        let config: GasConfig = toml.into();
+        assert_eq!(config.max_gwei, 100.0);
+        assert_eq!(config.priority_gwei, 2.0);
+        assert_eq!(config.limit_deploy(), 500_000);
+        assert_eq!(config.limit_transfer(), 21_000); // default
     }
 
     #[test]

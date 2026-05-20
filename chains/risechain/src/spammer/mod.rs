@@ -94,6 +94,25 @@ fn get_task_weight(name: &str) -> u32 {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_task_weight_default() {
+        assert_eq!(get_task_weight("01_checkBalance"), 1);
+        assert_eq!(get_task_weight("03_mintToken"), 1);
+        assert_eq!(get_task_weight("unknown_task"), 1);
+        assert_eq!(get_task_weight(""), 1);
+    }
+
+    #[test]
+    fn test_get_task_weight_high_priority() {
+        assert_eq!(get_task_weight("11_batchTransfer"), 50);
+        assert_eq!(get_task_weight("02_simpleEthTransfer"), 50);
+    }
+}
+
 impl EvmSpammer {
     // Modified constructor to accept IDs
     pub fn new_with_signer(

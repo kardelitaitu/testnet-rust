@@ -4,6 +4,7 @@
 //! These modules are marked as `pub(crate)` to enforce API boundaries.
 
 // Internal modules - not part of public API
+pub(crate) mod address_gen;
 pub(crate) mod gas;
 pub(crate) mod explorer_gas_tracker;
 pub(crate) mod logger;
@@ -20,6 +21,7 @@ pub(crate) mod runner;
 pub(crate) mod wallet_manager;
 
 // Selective exports - only public utilities
+pub use address_gen::generate_random_address;
 pub use gas::GasConfig;
 pub use explorer_gas_tracker::{ExplorerGasSnapshot, ExplorerGasTracker, ExplorerGasTrackerPayload};
 pub use logger::setup_logger;

@@ -44,3 +44,73 @@ impl DaChainConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use config::Config;
+
+    fn test_config_toml() -> &'static str {
+        r#"
+rpc_url = "https://rpctest.dachain.tech"
+chain_id = 21894
+explorer = "https://dachain.tech"
+symbol = "DACC"
+tps = 10
+worker_amount = 5
+wallet_dir = "chains/da-chain/wallets-json-da-chain"
+min_delay_ms = 60000
+max_delay_ms = 120000
+"#
+    }
+
+    #[test]
+    fn test_dachain_config_deserialize() {
+        let settings = Config::builder()
+            .add_source(config::File::from_str(test_config_toml(), config::FileFormat::Toml))
+            .build().unwrap();
+        let cfg: DaChainConfig = settings.try_deserialize().unwrap();
+        assert_eq!(cfg.rpc_url, "https://rpctest.dachain.tech");
+        assert_eq!(cfg.chain_id, 21894);
+        assert_eq!(cfg.symbol, "DACC");
+        assert_eq!(cfg.tps, 10);
+        assert_eq!(cfg.worker_amount, Some(5));
+    }
+
+    #[test]
+    fn test_dachain_config_to_spam_config() {
+        let settings = Config::builder()
+            .add_source(config::File::from_str(test_config_toml(), config::FileFormat::Toml))
+            .build().unwrap();
+        let cfg: DaChainConfig = settings.try_deserialize().unwrap();
+        let spam = cfg.to_spam_config();
+        assert_eq!(spam.rpc_url, cfg.rpc_url);
+        assert_eq!(spam.chain_id, cfg.chain_id);
+    }
+
+    #[test]
+    fn test_dachain_config_minimal() {
+        let toml = r#"
+rpc_url = "https://rpc.com"
+chain_id = 1
+explorer = "https://exp.com"
+symbol = "TKN"
+tps = 5
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build().unwrap();
+        let cfg: DaChainConfig = settings.try_deserialize().unwrap();
+        assert_eq!(cfg.tps, 5);
+        assert!(cfg.wallet_dir.is_none());
+    }
+
+    #[test]
+    fn test_dachain_config_missing_required() {
+        let settings = Config::builder()
+            .add_source(config::File::from_str(r#"rpc_url = "x""#, config::FileFormat::Toml))
+            .build().unwrap();
+        let result: Result<DaChainConfig, _> = settings.try_deserialize();
+        assert!(result.is_err());
+    }
+}

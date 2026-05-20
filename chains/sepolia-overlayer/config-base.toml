@@ -1,0 +1,19 @@
+rpc_url = "https://base-sepolia-rpc.publicnode.com"
+chain_id = 84532
+explorer = "https://base-sepolia.blockscout.com"
+symbol = "ETH"
+tps = 10
+worker_amount = 5
+
+# Custom wallet directory — same wallets, need Base Sepolia ETH for gas
+wallet_dir = "chains/sepolia-overlayer/wallets-json-sepolia-overlayer"
+
+# Optional: min and max delay between transactions (in milliseconds)
+min_delay_ms = 5000
+max_delay_ms = 15000
+
+# Optional: Proxies (or use proxies.txt in root)
+# [[proxies]]
+# url = "http://proxy1:port"
+# username = "user"
+# password = "pass"

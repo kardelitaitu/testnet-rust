@@ -6,8 +6,8 @@ use ethers::prelude::*;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Staking contract on Sepolia — also acts as the sOverl... token (ERC-4626 vault)
-const STAKING_CONTRACT: &str = "0x079a4Bf1Cbd0E4ce15391340cB46efA6396aBc82";
+/// C+ Staking vault on Sepolia — also acts as the sOverl... token (ERC-4626 vault)
+const STAKING_VAULT: &str = "0x753937137Eb92871A6F3517514d4f1Ee860e3FDF";
 
 /// ABI: balanceOf (sOverl... shares) + redeem(uint256,address,address)
 const REDEEM_ABI: &str = r#"[
@@ -16,7 +16,7 @@ const REDEEM_ABI: &str = r#"[
 ]"#;
 
 async fn get_sovl_balance(provider: &Provider<Http>, wallet: Address) -> Result<U256> {
-    let addr: Address = STAKING_CONTRACT.parse()?;
+    let addr: Address = STAKING_VAULT.parse()?;
     let contract = Contract::new(
         addr,
         serde_json::from_str::<ethers::abi::Abi>(REDEEM_ABI)?,
@@ -38,7 +38,7 @@ impl SepoliaTask for UnstakeCplusTask {
         let address = wallet.address();
         let provider = &ctx.provider;
 
-        let staking_addr: Address = STAKING_CONTRACT.parse()?;
+        let staking_addr: Address = STAKING_VAULT.parse()?;
 
         // --- 1. Check sOverl... (staked share) balance ---
         let sovl_balance = get_sovl_balance(provider, address).await?;
@@ -59,17 +59,17 @@ impl SepoliaTask for UnstakeCplusTask {
         // --- 4. Get gas fees ---
         let (max_fee, _priority_fee) = ctx.gas_manager.get_fees().await?;
 
-        // --- 5. Execute redeem on staking contract ---
+        // --- 5. Execute redeem on C+ staking vault ---
         let middleware = SignerMiddleware::new(provider.clone(), wallet.clone());
 
-        let staking_contract = Contract::new(
+        let vault_contract = Contract::new(
             staking_addr,
             serde_json::from_str::<ethers::abi::Abi>(REDEEM_ABI)?,
             Arc::new(middleware.clone()),
         );
 
         // redeem(uint256 shares_, address receiver_, address owner_)
-        let redeem_call = staking_contract
+        let redeem_call = vault_contract
             .method::<(U256, Address, Address), H256>(
                 "redeem",
                 (U256::from(shares_amount), address, address),

@@ -8,8 +8,8 @@ use std::time::Duration;
 
 /// USDC+ (C+) on Sepolia — the token we stake
 const USDC_PLUS: &str = "0xe815718d44694ec4637cb775c468d87f6e15b538";
-/// Staking contract on Sepolia
-const STAKING_CONTRACT: &str = "0x079a4Bf1Cbd0E4ce15391340cB46efA6396aBc82";
+/// C+ Staking vault on Sepolia (ERC-4626)
+const STAKING_VAULT: &str = "0x753937137Eb92871A6F3517514d4f1Ee860e3FDF";
 
 /// Combined ABI: ERC-20 (balanceOf, allowance, approve) + staking (deposit)
 const STAKE_ABI: &str = r#"[
@@ -56,7 +56,7 @@ impl SepoliaTask for StakeUsdcPlusTask {
         let provider = &ctx.provider;
 
         let cplus_addr: Address = USDC_PLUS.parse()?;
-        let staking_addr: Address = STAKING_CONTRACT.parse()?;
+        let vault_addr: Address = STAKING_VAULT.parse()?;
 
         // --- 1. Check C+ balance ---
         let cplus_balance = get_cplus_balance(provider, address).await?;
@@ -70,12 +70,12 @@ impl SepoliaTask for StakeUsdcPlusTask {
         if whole_cplus == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "2% of C+ balance rounds to 0, nothing to stake".to_string(),
+                message: "5% of C+ balance rounds to 0, nothing to stake".to_string(),
             });
         }
 
         // --- 3. Check allowance, approve if needed ---
-        let allowance = get_cplus_allowance(provider, address, staking_addr).await?;
+        let allowance = get_cplus_allowance(provider, address, vault_addr).await?;
 
         let middleware = SignerMiddleware::new(provider.clone(), wallet.clone());
 
@@ -90,7 +90,7 @@ impl SepoliaTask for StakeUsdcPlusTask {
             let approve_call = cplus_contract
                 .method::<_, H256>(
                     "approve",
-                    (staking_addr, U256::MAX),
+                    (vault_addr, U256::MAX),
                 )?
                 .gas(50_000);
             let approve_tx = approve_call.send().await?;
@@ -104,14 +104,14 @@ impl SepoliaTask for StakeUsdcPlusTask {
         // --- 4. Get gas fees ---
         let (max_fee, _priority_fee) = ctx.gas_manager.get_fees().await?;
 
-        // --- 5. Execute deposit on staking contract ---
-        let staking_contract = Contract::new(
-            staking_addr,
+        // --- 5. Execute deposit on C+ staking vault ---
+        let vault_contract = Contract::new(
+            vault_addr,
             serde_json::from_str::<ethers::abi::Abi>(STAKE_ABI)?,
             Arc::new(middleware.clone()),
         );
 
-        let deposit_call = staking_contract
+        let deposit_call = vault_contract
             .method::<(U256, Address), H256>(
                 "deposit",
                 (U256::from(stake_amount), address),
@@ -131,7 +131,7 @@ impl SepoliaTask for StakeUsdcPlusTask {
         Ok(TaskResult {
             success,
             message: format!(
-                "Staked {} C+ in staking contract (tx: {:?})",
+                "Staked {} C+ in staking vault (tx: {:?})",
                 whole_cplus, tx_hash
             ),
         })

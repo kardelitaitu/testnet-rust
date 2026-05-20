@@ -41,8 +41,9 @@ pub use traits::{Spammer as SpammerTrait, SpammerStats, Task, TaskResult, Wallet
 
 // Utils are pub(crate) - only export specific public utilities
 pub use utils::{
-    setup_logger, ExplorerGasSnapshot, ExplorerGasTracker, ExplorerGasTrackerPayload, GasConfig,
-    ProxyHealthManager, ProxyManager, ProxyRateLimiter, WalletManager, WorkerRunner,
+    generate_random_address, setup_logger, ExplorerGasSnapshot, ExplorerGasTracker,
+    ExplorerGasTrackerPayload, GasConfig, ProxyHealthManager, ProxyManager, ProxyRateLimiter,
+    RpcManager, WalletManager, WorkerRunner,
 };
 
 // Export memory optimization utilities

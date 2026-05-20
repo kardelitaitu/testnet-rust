@@ -39,4 +39,46 @@ impl RiseConfig {
             },
         }
     }
+
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use config::Config;
+
+    #[test]
+    fn test_rise_config_deserialize() {
+        let toml = r#"
+rpc_url = "https://rpc.rise.com"
+chain_id = 123
+explorer = "https://exp.rise.com"
+symbol = "RISE"
+tps = 10
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build().unwrap();
+        let cfg: RiseConfig = settings.try_deserialize().unwrap();
+        assert_eq!(cfg.rpc_url, "https://rpc.rise.com");
+        assert_eq!(cfg.chain_id, 123);
+    }
+
+    #[test]
+    fn test_rise_config_to_spam_config() {
+        let toml = r#"
+rpc_url = "https://rpc.rise.com"
+chain_id = 123
+explorer = "https://exp.rise.com"
+symbol = "RISE"
+tps = 10
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build().unwrap();
+        let cfg: RiseConfig = settings.try_deserialize().unwrap();
+        let spam = cfg.to_spam_config();
+        assert_eq!(spam.chain_id, 123);
+    }
+}
+

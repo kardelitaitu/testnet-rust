@@ -142,3 +142,26 @@ where
     let amount_str = format!("{}", amount);
     Ok(ethers::utils::parse_units(amount_str, unit)?.into())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_gas_limit_constants() {
+        assert_eq!(GasManager::LIMIT_DEPLOY, U256([1_200_000, 0, 0, 0]));
+        assert_eq!(GasManager::LIMIT_TRANSFER, U256([21_000, 0, 0, 0]));
+        assert_eq!(GasManager::LIMIT_COUNTER_INTERACT, U256([50_000, 0, 0, 0]));
+        assert_eq!(GasManager::LIMIT_SEND_MEME, U256([100_000, 0, 0, 0]));
+    }
+
+    #[test]
+    fn test_parse_units_gwei() {
+        assert_eq!(parse_units(1.0, "gwei").unwrap(), U256::from(1_000_000_000u64));
+    }
+
+    #[test]
+    fn test_parse_units_ether() {
+        assert_eq!(parse_units(1.0, "ether").unwrap(), U256::from(10u128.pow(18)));
+    }
+}

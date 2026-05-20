@@ -77,10 +77,22 @@ pub struct EvmSpammer {
     busy_wallets: Arc<Mutex<HashSet<usize>>>,
 }
 
-fn get_task_weight(name: &str) -> u32 {
+fn get_task_weight(_name: &str) -> u32 {
     // All tasks have equal weight - native token already distributed evenly
-    let _ = name; // Suppress unused variable warning
     1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_task_weight_always_one() {
+        assert_eq!(get_task_weight("check_balance"), 1);
+        assert_eq!(get_task_weight("transfer"), 1);
+        assert_eq!(get_task_weight(""), 1);
+        assert_eq!(get_task_weight("anything"), 1);
+    }
 }
 
 impl EvmSpammer {

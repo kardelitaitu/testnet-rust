@@ -35,6 +35,10 @@ pub mod t10_aave_usdt_faucet;
 pub mod t11_aave_usdc_faucet;
 pub mod t12_bridge_tplus;
 pub mod t13_bridge_cplus;
+pub mod t14_send_random_usdt_plus;
+pub mod t15_send_random_usdc_plus;
+pub mod t16_bridge_back_tplus;
+pub mod t17_bridge_back_cplus;
 
 pub use t01_check_balance::SepoliaCheckBalanceTask;
 pub use t02_mint_usdt_plus::MintUsdtPlusTask;
@@ -49,3 +53,64 @@ pub use t10_aave_usdt_faucet::AaveUsdtFaucetTask;
 pub use t11_aave_usdc_faucet::AaveUsdcFaucetTask;
 pub use t12_bridge_tplus::BridgeTplusTask;
 pub use t13_bridge_cplus::BridgeCplusTask;
+pub use t14_send_random_usdt_plus::SendRandomUsdtPlusTask;
+pub use t15_send_random_usdc_plus::SendRandomUsdcPlusTask;
+pub use t16_bridge_back_tplus::BridgeBackTplusTask;
+pub use t17_bridge_back_cplus::BridgeBackCplusTask;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_task_names_are_correct_and_unique() {
+        let tasks: Vec<Box<dyn SepoliaTask>> = vec![
+            Box::new(SepoliaCheckBalanceTask),
+            Box::new(MintUsdtPlusTask),
+            Box::new(MintUsdcPlusTask),
+            Box::new(RedeemUsdtPlusTask),
+            Box::new(RedeemUsdcPlusTask),
+            Box::new(StakeUsdtPlusTask),
+            Box::new(StakeUsdcPlusTask),
+            Box::new(UnstakeTplusTask),
+            Box::new(UnstakeCplusTask),
+            Box::new(AaveUsdtFaucetTask),
+            Box::new(AaveUsdcFaucetTask),
+            Box::new(BridgeTplusTask),
+            Box::new(BridgeCplusTask),
+            Box::new(SendRandomUsdtPlusTask),
+            Box::new(SendRandomUsdcPlusTask),
+            Box::new(BridgeBackTplusTask),
+            Box::new(BridgeBackCplusTask),
+        ];
+
+        let expected = [
+            "01_checkBalance",
+            "02_mintUsdtPlus",
+            "03_mintUsdcPlus",
+            "04_redeemUsdtPlus",
+            "05_redeemUsdcPlus",
+            "06_stakeUsdtPlus",
+            "07_stakeUsdcPlus",
+            "08_unstakeTplus",
+            "09_unstakeCplus",
+            "10_aaveUsdtFaucet",
+            "11_aaveUsdcFaucet",
+            "12_bridgeTplus",
+            "13_bridgeCplus",
+            "14_sendRandomUsdtPlus",
+            "15_sendRandomUsdcPlus",
+            "16_bridgeBackTplus",
+            "17_bridgeBackCplus",
+        ];
+
+        assert_eq!(tasks.len(), expected.len(), "Task count mismatch");
+
+        let mut seen = std::collections::HashSet::new();
+        for (i, task) in tasks.iter().enumerate() {
+            let name = task.name();
+            assert_eq!(name, expected[i], "Task {} name mismatch", i);
+            assert!(seen.insert(name), "Duplicate task name: {}", name);
+        }
+    }
+}
