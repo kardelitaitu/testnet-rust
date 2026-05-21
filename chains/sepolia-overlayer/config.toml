@@ -31,20 +31,20 @@ task_timeout_secs = 120
 #
 [task_limits]
 01_checkbalance = 20
-02_mintusdtplus = 10
-03_mintusdcplus = 10
-04_redeemusdtplus = 5
-05_redeemusdcplus = 5
-06_stakeusdtplus = 5
-07_stakeusdcplus = 5
-08_unstaketplus = 3
-09_unstakecplus = 3
+02_mintusdtplus = 15
+03_mintusdcplus = 15
+04_redeemusdtplus = 2
+05_redeemusdcplus = 2
+06_stakeusdtplus = 10
+07_stakeusdcplus = 10
+08_unstaketplus = 2
+09_unstakecplus = 2
 10_aaveusdtfaucet = 5
 11_aaveusdcfaucet = 5
 12_bridgetplus = 1
 13_bridgecplus = 1
-14_sendrandomusdtplus = 1
-15_sendrandomusdcplus = 1
+14_sendrandomusdtplus = 3
+15_sendrandomusdcplus = 3
 16_bridgebacktplus = 1
 17_bridgebackcplus = 1
 

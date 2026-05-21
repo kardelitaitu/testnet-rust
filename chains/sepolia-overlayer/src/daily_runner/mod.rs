@@ -37,12 +37,12 @@ use chrono::{Local, Timelike};
 use database::DailyDb;
 use ethers::signers::Signer;
 use rand::Rng;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use core_logic::config::ProxyConfig;
 use core_logic::{ProxyHealthManager, ProxyRateLimiter, WalletManager};
@@ -1724,6 +1724,146 @@ mod tests {
 
         let result = runner.run(cancel).await;
         assert!(result.is_ok(), "Runner should handle contention cleanly");
+    }
+
+    // ------------------------------------------------------------------
+    // Concurrent stress test: 3 workers, 5 wallets, asymmetric limits
+    // ------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_concurrent_workers_never_exceed_limits() {
+        // Spawn 3 concurrent workers processing 5 wallets with asymmetric limits.
+        // Each worker simulates the runner's flow: pick wallet -> lock -> check
+        // remaining -> record completion -> unlock. Verifies NO task ever
+        // exceeds its configured limit under concurrent access.
+        let db = Arc::new(setup_test_db().await);
+        let date = today_utc();
+
+        let wallet_addresses: Vec<&str> = vec!["0xalice", "0xbob", "0xcharlie", "0xdave", "0xeve"];
+
+        // Asymmetric limits: two tasks with high limits, rest default=1
+        let mut limits = HashMap::new();
+        limits.insert("01_checkBalance".into(), 5u32);
+        limits.insert("02_mintUsdtPlus".into(), 3u32);
+        // 03..17 get default limit = 1
+
+        let busy_wallets: Arc<Mutex<HashSet<usize>>> = Arc::new(Mutex::new(HashSet::new()));
+        let cancel = CancellationToken::new();
+
+        let worker_count = 3;
+        let mut handles = vec![];
+
+        for _worker_id in 0..worker_count {
+            let db = db.clone();
+            let wallets = wallet_addresses.clone();
+            let limits = limits.clone();
+            let busy = busy_wallets.clone();
+            let cancel = cancel.clone();
+            let date = date.clone();
+
+            handles.push(tokio::spawn(async move {
+                loop {
+                    if cancel.is_cancelled() {
+                        break;
+                    }
+
+                    // 1. Pick random non-busy wallet
+                    let wallet_idx = {
+                        let mut busy_set = busy.lock().await;
+                        let available: Vec<usize> = (0..wallets.len())
+                            .filter(|w| !busy_set.contains(w))
+                            .collect();
+                        if available.is_empty() {
+                            drop(busy_set);
+                            sleep(Duration::from_millis(5)).await;
+                            continue;
+                        }
+                        let idx = available[rand::thread_rng().gen_range(0..available.len())];
+                        busy_set.insert(idx);
+                        idx
+                    };
+
+                    let wallet = wallets[wallet_idx];
+
+                    // 2. Get counts and check remaining (double-check)
+                    let counts = db
+                        .get_completed_counts(wallet, &date)
+                        .await
+                        .unwrap();
+                    let remaining = get_remaining_tasks(&counts, &limits);
+
+                    if remaining.is_empty() {
+                        busy.lock().await.remove(&wallet_idx);
+                        continue;
+                    }
+
+                    // 3. Pick random pending task and record completion
+                    let task = remaining[rand::thread_rng().gen_range(0..remaining.len())];
+                    db.record_task_completion(wallet, task, &date, true, "stress")
+                        .await
+                        .unwrap();
+
+                    // 4. Release wallet
+                    busy.lock().await.remove(&wallet_idx);
+                }
+            }));
+        }
+
+        // Let workers run for 1 second, then cancel
+        sleep(Duration::from_secs(1)).await;
+        cancel.cancel();
+
+        for handle in handles {
+            handle.await.unwrap();
+        }
+
+        // ---- VERIFY INVARIANT: no task count exceeds its limit ----
+        let all_counts = db.get_all_completed_counts(&date).await.unwrap();
+
+        for wallet in &wallet_addresses {
+            let counts = all_counts.get(*wallet).cloned().unwrap_or_default();
+
+            for task in ALL_TASK_NAMES {
+                let count = counts.get(*task).copied().unwrap_or(0);
+                let limit = get_task_limit(&limits, task) as usize;
+
+                assert!(
+                    count <= limit,
+                    "INVARIANT VIOLATION: wallet={} task={} count={} limit={}",
+                    wallet, task, count, limit
+                );
+            }
+
+            // Verify total across all tasks
+            let total: usize = ALL_TASK_NAMES
+                .iter()
+                .map(|t| counts.get(*t).copied().unwrap_or(0))
+                .sum();
+
+            let expected_max: usize = ALL_TASK_NAMES
+                .iter()
+                .map(|t| get_task_limit(&limits, t) as usize)
+                .sum();
+
+            assert!(
+                total <= expected_max,
+                "Total INVARIANT VIOLATION: wallet={} total={} expected_max={}",
+                wallet,
+                total,
+                expected_max
+            );
+
+            // Log how many completions each wallet got (informational)
+            let pct = if expected_max > 0 {
+                (total as f64 / expected_max as f64) * 100.0
+            } else {
+                0.0
+            };
+            debug!(
+                "Worker stress test: wallet={} completed={}/{}({:.0}%)",
+                wallet, total, expected_max, pct
+            );
+        }
     }
 
     #[tokio::test]
