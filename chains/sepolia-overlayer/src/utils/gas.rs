@@ -214,6 +214,16 @@ mod tests {
     }
 
     #[test]
+    fn test_get_max_fee_at_config_cap() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider, 0.0);
+        // base_fee=1.1999 gwei → max=1.1999+0.0001=1.2 → exactly at cap
+        let base_fee = U256::from(1_199_900_000u128);
+        let result = mgr.get_max_fee(base_fee);
+        assert_eq!(result, U256::from(1_200_000_000u128), "Exactly at cap");
+    }
+
+    #[test]
     fn test_limit_deploy_returns_config() {
         let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
         let mgr = GasManager::new(provider, 0.0);
