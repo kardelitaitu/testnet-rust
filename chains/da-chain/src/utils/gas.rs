@@ -161,6 +161,47 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_units_invalid_unit_errors() {
+        let result = parse_units(1.0, "invalid_unit");
+        assert!(result.is_err(), "Invalid unit string should return error");
+    }
+
+    #[test]
+    fn test_parse_units_empty_unit_errors() {
+        let result = parse_units(1.0, "");
+        assert!(result.is_err(), "Empty unit string should return error");
+    }
+
+    #[test]
+    fn test_parse_units_gwei_unit_variants() {
+        assert!(parse_units(1.0, "wei").is_ok());
+        assert!(parse_units(1.0, "kwei").is_ok());
+        assert!(parse_units(1.0, "mwei").is_ok());
+        assert!(parse_units(1.0, "gwei").is_ok());
+        assert!(parse_units(1.0, "szabo").is_ok());
+        assert!(parse_units(1.0, "finney").is_ok());
+        assert!(parse_units(1.0, "ether").is_ok());
+    }
+
+    #[test]
+    fn test_parse_units_wei_unit() {
+        let result = parse_units(1.0, "wei").unwrap();
+        assert_eq!(result, U256::from(1));
+    }
+
+    #[test]
+    fn test_parse_units_kwei() {
+        let result = parse_units(1.0, "kwei").unwrap();
+        assert_eq!(result, U256::from(1_000u64));
+    }
+
+    #[test]
+    fn test_parse_units_mwei() {
+        let result = parse_units(1.0, "mwei").unwrap();
+        assert_eq!(result, U256::from(1_000_000u64));
+    }
+
+    #[test]
     fn test_get_max_fee_below_config_cap() {
         // With dummy provider — get_max_fee is pure logic using config only
         let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());

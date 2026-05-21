@@ -260,4 +260,40 @@ mod tests {
         assert!(status.contains("1 success"), "status: {}", status);
         assert!(status.contains("active"), "should show active: {}", status);
     }
+
+    #[tokio::test]
+    async fn test_healthy_count_empty_list() {
+        let mgr = ProxyHealthManager::default();
+        assert_eq!(mgr.get_healthy_count(&[]).await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_record_failure_zero_threshold_pauses() {
+        let mgr = ProxyHealthManager::new(0, 10);
+        mgr.record_failure("http://proxy:8080").await;
+        // With threshold=0, even a single failure should pause
+        assert!(!mgr.is_available("http://proxy:8080").await);
+    }
+
+    #[tokio::test]
+    async fn test_get_status_paused_format() {
+        let mgr = ProxyHealthManager::new(1, 10);
+        mgr.record_failure("http://proxy:8080").await;
+        let status = mgr.get_status("http://proxy:8080").await;
+        assert!(status.is_some());
+        let s = status.unwrap();
+        assert!(s.contains("PAUSED"), "paused proxy should show PAUSED: {}", s);
+        assert!(s.contains("remaining"), "should show time remaining: {}", s);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_proxies_independent() {
+        let mgr = ProxyHealthManager::new(2, 10);
+        mgr.record_failure("http://proxy-a:8080").await;
+        mgr.record_failure("http://proxy-a:8080").await;
+        // proxy-a should be paused
+        assert!(!mgr.is_available("http://proxy-a:8080").await);
+        // proxy-b should still be available
+        assert!(mgr.is_available("http://proxy-b:8080").await);
+    }
 }

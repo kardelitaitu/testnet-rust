@@ -128,4 +128,84 @@ chain_id = 1
         let result: Result<SepoliaConfig, _> = settings.try_deserialize();
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_sepolia_config_with_proxies() {
+        let toml = r#"
+rpc_url = "https://rpc.com"
+chain_id = 1
+explorer = "https://explorer.com"
+symbol = "ETH"
+tps = 10
+[[proxies]]
+url = "http://10.0.0.1:3128"
+username = "user1"
+password = "pass1"
+[[proxies]]
+url = "http://10.0.0.2:8080"
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        assert!(cfg.proxies.is_some());
+        let proxies = cfg.proxies.unwrap();
+        assert_eq!(proxies.len(), 2);
+        assert_eq!(proxies[0].url, "http://10.0.0.1:3128");
+        assert_eq!(proxies[0].username.as_deref(), Some("user1"));
+        assert_eq!(proxies[1].url, "http://10.0.0.2:8080");
+        assert!(proxies[1].username.is_none());
+    }
+
+    #[test]
+    fn test_sepolia_config_with_private_key_file() {
+        let toml = r#"
+rpc_url = "https://rpc.com"
+chain_id = 1
+explorer = "https://explorer.com"
+symbol = "ETH"
+tps = 10
+private_key_file = "my_keys.json"
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        assert_eq!(cfg.private_key_file.as_deref(), Some("my_keys.json"));
+        let spam = cfg.to_spam_config();
+        // to_spam_config uses private_key_file for wallet_source path
+        match spam.wallet_source {
+            core_logic::config::WalletSource::File { path, .. } => {
+                assert_eq!(path, "my_keys.json");
+            }
+            _ => panic!("Expected File wallet source"),
+        }
+    }
+
+    #[test]
+    fn test_sepolia_config_no_private_key_fallback() {
+        // When private_key_file is None, to_spam_config uses empty string
+        let toml = r#"
+rpc_url = "https://rpc.com"
+chain_id = 1
+explorer = "https://explorer.com"
+symbol = "ETH"
+tps = 10
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        assert!(cfg.private_key_file.is_none());
+        let spam = cfg.to_spam_config();
+        match spam.wallet_source {
+            core_logic::config::WalletSource::File { path, .. } => {
+                assert_eq!(path, "", "Empty path fallback when no private_key_file");
+            }
+            _ => panic!("Expected File wallet source"),
+        }
+    }
 }

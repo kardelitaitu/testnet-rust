@@ -30,6 +30,98 @@ impl Default for AsyncDbConfig {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_async_db_config_defaults() {
+        let cfg = AsyncDbConfig::default();
+        assert_eq!(cfg.channel_capacity, 1000);
+        assert_eq!(cfg.batch_size, 200);
+        assert_eq!(cfg.flush_interval_ms, 200);
+    }
+
+    #[test]
+    fn test_async_db_config_custom() {
+        let cfg = AsyncDbConfig {
+            channel_capacity: 5000,
+            batch_size: 500,
+            flush_interval_ms: 1000,
+        };
+        assert_eq!(cfg.channel_capacity, 5000);
+        assert_eq!(cfg.batch_size, 500);
+        assert_eq!(cfg.flush_interval_ms, 1000);
+    }
+
+    #[test]
+    fn test_async_db_config_clone_copy() {
+        let a = AsyncDbConfig { channel_capacity: 100, batch_size: 50, flush_interval_ms: 500 };
+        let b = a; // Copy
+        assert_eq!(a.channel_capacity, b.channel_capacity);
+        assert_eq!(a.batch_size, b.batch_size);
+    }
+
+    #[test]
+    fn test_fallback_strategy_drop() {
+        let s = FallbackStrategy::Drop;
+        assert!(matches!(s, FallbackStrategy::Drop));
+    }
+
+    #[test]
+    fn test_fallback_strategy_sync() {
+        let s = FallbackStrategy::Sync;
+        assert!(matches!(s, FallbackStrategy::Sync));
+    }
+
+    #[test]
+    fn test_fallback_strategy_hybrid() {
+        let s = FallbackStrategy::Hybrid;
+        assert!(matches!(s, FallbackStrategy::Hybrid));
+    }
+
+    #[test]
+    fn test_fallback_strategy_clone_copy() {
+        let a = FallbackStrategy::Drop;
+        let b = a;
+        assert!(matches!(b, FallbackStrategy::Drop));
+    }
+
+    #[test]
+    fn test_db_metrics_default() {
+        let m = DbMetrics::default();
+        assert_eq!(m.total_queries.load(Ordering::SeqCst), 0);
+        assert_eq!(m.total_errors.load(Ordering::SeqCst), 0);
+        assert_eq!(m.total_inserts.load(Ordering::SeqCst), 0);
+        assert_eq!(m.total_selects.load(Ordering::SeqCst), 0);
+        assert_eq!(m.queued_entries.load(Ordering::SeqCst), 0);
+        assert_eq!(m.dropped_entries.load(Ordering::SeqCst), 0);
+        assert_eq!(m.batch_flush_count.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn test_queued_task_result_construction() {
+        let r = QueuedTaskResult {
+            worker_id: "WK001".into(),
+            wallet_address: "0xabc".into(),
+            task_name: "check_balance".into(),
+            success: true,
+            message: "ok".into(),
+            duration_ms: 150,
+            timestamp: 1234567890,
+        };
+        assert_eq!(r.worker_id, "WK001");
+        assert!(r.success);
+        assert_eq!(r.duration_ms, 150);
+    }
+
+    #[test]
+    fn test_database_constants() {
+        assert_eq!(DatabaseManager::DEFAULT_MAX_CONNECTIONS, 20);
+        assert_eq!(DatabaseManager::DEFAULT_TIMEOUT_MS, 30000);
+    }
+}
+
 /// Queued task result for async logging
 #[derive(Debug, Clone)]
 pub struct QueuedTaskResult {

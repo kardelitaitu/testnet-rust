@@ -477,6 +477,89 @@ mod circuit_breaker_tests {
         let cloned = cb.clone();
         assert_eq!(cloned.state(), "OPEN");
     }
+
+    #[tokio::test]
+    async fn test_execute_transitions_to_half_open_after_timeout() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 1,
+            success_threshold: 1,
+            reset_timeout_ms: 1, // 1ms timeout for quick test
+        };
+        let cb = CircuitBreaker::new("svc", config);
+        cb.on_failure();
+        assert_eq!(cb.state(), "OPEN");
+
+        // Set last_failure far in the past so should_attempt_reset returns true
+        cb.last_failure.store(0, std::sync::atomic::Ordering::SeqCst);
+
+        let result = cb.execute(|| async { Ok::<_, anyhow::Error>(42) }).await;
+        assert!(result.is_ok());
+        assert_eq!(*result.as_ref().unwrap(), 42);
+        // After success in HALF_OPEN with threshold=1, should go to CLOSED
+        assert_eq!(cb.state(), "CLOSED");
+    }
+
+    #[tokio::test]
+    async fn test_execute_rejects_when_open_no_timeout() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 1,
+            success_threshold: 1,
+            reset_timeout_ms: 60000, // Long timeout — won't attempt reset
+        };
+        let cb = CircuitBreaker::new("svc", config);
+        cb.on_failure();
+        assert_eq!(cb.state(), "OPEN");
+
+        let result = cb.execute(|| async { Ok::<_, anyhow::Error>(42) }).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("OPEN"));
+    }
+
+    #[tokio::test]
+    async fn test_execute_half_open_failure_reopens() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 1,
+            success_threshold: 1,
+            reset_timeout_ms: 1,
+        };
+        let cb = CircuitBreaker::new("svc", config);
+        cb.on_failure();
+        assert_eq!(cb.state(), "OPEN");
+        cb.last_failure.store(0, std::sync::atomic::Ordering::SeqCst);
+
+        // Execute a failing operation in HALF_OPEN → should go back to OPEN
+        let result = cb.execute(|| async { Err::<i32, _>(anyhow::anyhow!("fail")) }).await;
+        assert!(result.is_err());
+        assert_eq!(cb.state(), "OPEN", "Failure in HALF_OPEN should reopen");
+    }
+
+    #[test]
+    fn test_half_open_to_closed_via_on_success() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 1,
+            success_threshold: 2,
+            reset_timeout_ms: 60000,
+        };
+        let cb = CircuitBreaker::new("svc", config);
+        // Manually set to HALF_OPEN
+        cb.state.store(STATE_HALF_OPEN, std::sync::atomic::Ordering::SeqCst);
+        // on_success reads failure_count then increments (threshold N needs N+1)
+        cb.on_success();
+        assert_eq!(cb.state(), "HALF_OPEN"); // loaded 0 < 2
+        cb.on_success();
+        assert_eq!(cb.state(), "HALF_OPEN"); // loaded 1 < 2
+        cb.on_success();
+        assert_eq!(cb.state(), "CLOSED"); // loaded 2 >= 2 → closed
+    }
+
+    #[test]
+    fn test_new_with_defaults() {
+        let cb = CircuitBreaker::new_with_defaults("test");
+        assert_eq!(cb.state(), "CLOSED");
+        assert_eq!(cb.config.failure_threshold, 5);
+        assert_eq!(cb.config.success_threshold, 3);
+        assert_eq!(cb.config.reset_timeout_ms, 60000);
+    }
 }
 
 #[cfg(test)]
@@ -511,5 +594,65 @@ mod transient_error_tests {
     fn test_empty_error_not_transient() {
         let err = anyhow::anyhow!("");
         assert!(!is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_connection_refused_is_transient() {
+        let err = anyhow::anyhow!("connection refused: port 8545");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_connection_reset_is_transient() {
+        let err = anyhow::anyhow!("connection reset by peer");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_too_many_requests_is_transient() {
+        let err = anyhow::anyhow!("too many requests: retry later");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_database_locked_is_transient() {
+        let err = anyhow::anyhow!("database is locked");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_already_known_is_transient() {
+        let err = anyhow::anyhow!("already known: tx 0xabc");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_network_error_is_transient() {
+        let err = anyhow::anyhow!("network error: DNS resolution failed");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_service_unavailable_is_transient() {
+        let err = anyhow::anyhow!("service unavailable");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_temporary_failure_is_transient() {
+        let err = anyhow::anyhow!("temporary failure in name resolution");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_replacement_underpriced_is_transient() {
+        let err = anyhow::anyhow!("replacement transaction underpriced");
+        assert!(is_transient_error(&err));
+    }
+
+    #[test]
+    fn test_busy_is_transient() {
+        let err = anyhow::anyhow!("database busy: retry");
+        assert!(is_transient_error(&err));
     }
 }

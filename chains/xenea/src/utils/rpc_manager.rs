@@ -292,4 +292,63 @@ mod tests {
         assert_eq!(ep.failure_count.load(Ordering::SeqCst), 0);
         assert!(ep.healthy.load(Ordering::SeqCst));
     }
+
+    #[test]
+    fn test_get_best_endpoint_picks_lowest_latency_healthy() {
+        let urls = vec!["http://slow.com".into(), "http://fast.com".into(), "http://medium.com".into()];
+        let mgr = RpcManager::new(1, &urls).unwrap();
+        mgr.endpoints[0].last_latency_ms.store(500, Ordering::SeqCst);
+        mgr.endpoints[1].last_latency_ms.store(50, Ordering::SeqCst);
+        mgr.endpoints[2].last_latency_ms.store(200, Ordering::SeqCst);
+        let best = mgr.get_best_endpoint().unwrap();
+        assert_eq!(best.url, "http://fast.com");
+    }
+
+    #[test]
+    fn test_get_best_endpoint_skips_unhealthy_even_if_low_latency() {
+        let urls = vec!["http://fast-but-dead.com".into(), "http://slow.com".into()];
+        let mgr = RpcManager::new(1, &urls).unwrap();
+        mgr.endpoints[0].last_latency_ms.store(10, Ordering::SeqCst);
+        mgr.endpoints[0].healthy.store(false, Ordering::SeqCst);
+        mgr.endpoints[1].last_latency_ms.store(300, Ordering::SeqCst);
+        let best = mgr.get_best_endpoint().unwrap();
+        assert_eq!(best.url, "http://slow.com");
+    }
+
+    #[test]
+    fn test_get_best_endpoint_with_single_healthy() {
+        let mgr = RpcManager::new(1, &["http://only.com".into()]).unwrap();
+        mgr.endpoints[0].last_latency_ms.store(100, Ordering::SeqCst);
+        let best = mgr.get_best_endpoint().unwrap();
+        assert_eq!(best.url, "http://only.com");
+    }
+
+    #[test]
+    fn test_record_failure_unknown_url_no_panic() {
+        let mgr = RpcManager::new(1, &["http://rpc.com".into()]).unwrap();
+        mgr.record_failure("http://unknown.com");
+        assert_eq!(mgr.healthy_count(), 1);
+    }
+
+    #[test]
+    fn test_record_success_unknown_url_no_panic() {
+        let mgr = RpcManager::new(1, &["http://rpc.com".into()]).unwrap();
+        mgr.record_success("http://unknown.com");
+        assert_eq!(mgr.healthy_count(), 1);
+    }
+
+    #[test]
+    fn test_healthy_count_all_healthy_returns_count() {
+        let urls = vec!["http://a.com".into(), "http://b.com".into(), "http://c.com".into()];
+        let mgr = RpcManager::new(1, &urls).unwrap();
+        assert_eq!(mgr.healthy_count(), 3);
+    }
+
+    #[test]
+    fn test_get_best_endpoint_all_healthy_zero_latency() {
+        let urls = vec!["http://a.com".into(), "http://b.com".into()];
+        let mgr = RpcManager::new(1, &urls).unwrap();
+        let best = mgr.get_best_endpoint().unwrap();
+        assert_eq!(best.url, "http://a.com");
+    }
 }

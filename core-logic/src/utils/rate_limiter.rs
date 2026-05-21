@@ -247,6 +247,121 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_token_bucket_acquire_exact_capacity() {
+        let bucket = TokenBucket::new(10, 10);
+        assert!(bucket.try_acquire(10));
+        assert_eq!(bucket.available(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_token_bucket_acquire_more_than_capacity() {
+        let bucket = TokenBucket::new(10, 10);
+        assert!(!bucket.try_acquire(11));
+        assert_eq!(bucket.available(), 10);
+    }
+
+    #[tokio::test]
+    async fn test_token_bucket_acquire_exhausted() {
+        let bucket = TokenBucket::new(5, 10);
+        assert!(bucket.try_acquire(5));
+        assert_eq!(bucket.available(), 0);
+        assert!(!bucket.try_acquire(1));
+    }
+
+    #[tokio::test]
+    async fn test_token_bucket_multiple_acquires() {
+        let bucket = TokenBucket::new(20, 10);
+        assert!(bucket.try_acquire(3));
+        assert!(bucket.try_acquire(7));
+        assert!(bucket.try_acquire(5));
+        assert_eq!(bucket.available(), 5);
+        assert!(bucket.try_acquire(5));
+        assert_eq!(bucket.available(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_token_bucket_zero_capacity() {
+        let bucket = TokenBucket::new(0, 10);
+        assert!(!bucket.try_acquire(1));
+        assert_eq!(bucket.available(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_token_bucket_acquire_zero_cost() {
+        let bucket = TokenBucket::new(10, 10);
+        assert!(bucket.try_acquire(0));
+        assert_eq!(bucket.available(), 10);
+    }
+
+    #[test]
+    fn test_rate_limiter_config_defaults() {
+        let config = RateLimiterConfig::default();
+        assert_eq!(config.tps, 10);
+        assert_eq!(config.burst_multiplier, 2);
+        assert_eq!(config.backoff_factor, 2);
+        assert_eq!(config.max_backoff_ms, 30000);
+    }
+
+    #[test]
+    fn test_rate_limiter_config_custom() {
+        let config = RateLimiterConfig {
+            tps: 50,
+            burst_multiplier: 3,
+            backoff_factor: 4,
+            max_backoff_ms: 60000,
+        };
+        assert_eq!(config.tps, 50);
+        assert_eq!(config.burst_multiplier, 3);
+        assert_eq!(config.backoff_factor, 4);
+        assert_eq!(config.max_backoff_ms, 60000);
+    }
+
+    #[test]
+    fn test_per_wallet_limiter_new_defaults() {
+        let limiter = PerWalletRateLimiter::new(10);
+        assert_eq!(limiter.current_tps(), 10);
+        assert_eq!(limiter.wallet_count(), 0);
+    }
+
+    #[test]
+    fn test_per_wallet_limiter_with_config() {
+        let config = RateLimiterConfig {
+            tps: 25,
+            burst_multiplier: 5,
+            backoff_factor: 3,
+            max_backoff_ms: 10000,
+        };
+        let limiter = PerWalletRateLimiter::with_config(config);
+        assert_eq!(limiter.current_tps(), 25);
+    }
+
+    #[test]
+    fn test_per_wallet_limiter_set_tps_updates() {
+        let limiter = PerWalletRateLimiter::new(10);
+        assert_eq!(limiter.current_tps(), 10);
+        limiter.set_tps(50);
+        assert_eq!(limiter.current_tps(), 50);
+    }
+
+    #[test]
+    fn test_on_429_and_on_success() {
+        let limiter = PerWalletRateLimiter::new(10);
+        // Initial backoff should be 100 (default)
+        limiter.on_429("wallet1");
+        // First 429: backoff = min(100 * 2, 30000) = 200
+        limiter.on_429("wallet1");
+        // Second 429: backoff = min(200 * 2, 30000) = 400
+        // Check back off state is tracked
+        let backoffs = limiter.backoff_ms.lock().unwrap();
+        assert!(backoffs.contains_key("wallet1"));
+        drop(backoffs);
+
+        limiter.on_success("wallet1");
+        let backoffs = limiter.backoff_ms.lock().unwrap();
+        assert!(!backoffs.contains_key("wallet1"));
+    }
+
+    #[tokio::test]
     async fn test_rate_limiter_per_wallet() {
         let limiter = PerWalletRateLimiter::new(10);
         assert!(limiter.acquire("wallet1").await);

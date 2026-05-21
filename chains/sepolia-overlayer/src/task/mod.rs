@@ -113,4 +113,69 @@ mod tests {
             assert!(seen.insert(name), "Duplicate task name: {}", name);
         }
     }
+
+    #[test]
+    fn test_task_name_prefix_format() {
+        let tasks: Vec<Box<dyn SepoliaTask>> = vec![
+            Box::new(SepoliaCheckBalanceTask),
+            Box::new(MintUsdtPlusTask),
+            Box::new(MintUsdcPlusTask),
+            Box::new(RedeemUsdtPlusTask),
+            Box::new(RedeemUsdcPlusTask),
+            Box::new(StakeUsdtPlusTask),
+            Box::new(StakeUsdcPlusTask),
+            Box::new(UnstakeTplusTask),
+            Box::new(UnstakeCplusTask),
+            Box::new(AaveUsdtFaucetTask),
+            Box::new(AaveUsdcFaucetTask),
+            Box::new(BridgeTplusTask),
+            Box::new(BridgeCplusTask),
+            Box::new(SendRandomUsdtPlusTask),
+            Box::new(SendRandomUsdcPlusTask),
+            Box::new(BridgeBackTplusTask),
+            Box::new(BridgeBackCplusTask),
+        ];
+
+        for task in &tasks {
+            let name = task.name();
+            // Names should start with a 2-digit number followed by underscore
+            assert!(name.len() >= 3, "Task name '{}' too short", name);
+            let prefix = &name[..2];
+            let num: u32 = prefix.parse().unwrap_or_else(|_| panic!("Task '{}' doesn't start with 2-digit number", name));
+            assert!(num >= 1 && num <= 99, "Task '{}' prefix {} out of range", name, num);
+            // Third char should be underscore
+            assert_eq!(name.as_bytes()[2], b'_', "Task '{}' missing underscore separator", name);
+        }
+    }
+
+    #[test]
+    fn test_task_name_camel_case_after_prefix() {
+        let tasks: Vec<Box<dyn SepoliaTask>> = vec![
+            Box::new(SepoliaCheckBalanceTask),
+            Box::new(MintUsdtPlusTask),
+            Box::new(MintUsdcPlusTask),
+            Box::new(RedeemUsdtPlusTask),
+            Box::new(RedeemUsdcPlusTask),
+            Box::new(StakeUsdtPlusTask),
+            Box::new(StakeUsdcPlusTask),
+            Box::new(UnstakeTplusTask),
+            Box::new(UnstakeCplusTask),
+            Box::new(AaveUsdtFaucetTask),
+            Box::new(AaveUsdcFaucetTask),
+            Box::new(BridgeTplusTask),
+            Box::new(BridgeCplusTask),
+            Box::new(SendRandomUsdtPlusTask),
+            Box::new(SendRandomUsdcPlusTask),
+            Box::new(BridgeBackTplusTask),
+            Box::new(BridgeBackCplusTask),
+        ];
+
+        for task in &tasks {
+            let name = task.name();
+            // After "XX_" prefix, the name should start with a lowercase letter (camelCase)
+            let body = &name[3..];
+            let first_body = body.chars().next().unwrap();
+            assert!(first_body.is_ascii_lowercase(), "Task '{}' body '{}' should start with lowercase (camelCase)", name, body);
+        }
+    }
 }

@@ -155,3 +155,197 @@ pub enum SecurityError {
     #[error("Invalid nonce state: {state}")]
     InvalidNonceState { state: String },
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_config_error_invalid_rpc_url() {
+        let err = ConfigError::InvalidRpcUrl { url: "not-a-url".into() };
+        let msg = err.to_string();
+        assert!(msg.contains("Invalid RPC URL format"));
+        assert!(msg.contains("not-a-url"));
+    }
+
+    #[test]
+    fn test_config_error_missing_field() {
+        let err = ConfigError::MissingField { field: "rpc_url".into() };
+        assert_eq!(err.to_string(), "Missing required configuration field: 'rpc_url'");
+    }
+
+    #[test]
+    fn test_config_error_invalid_value() {
+        let err = ConfigError::InvalidValue { field: "tps".into(), reason: "must be positive".into() };
+        assert!(err.to_string().contains("tps"));
+        assert!(err.to_string().contains("must be positive"));
+    }
+
+    #[test]
+    fn test_config_error_file_not_found() {
+        let err = ConfigError::FileNotFound { path: "/tmp/config.toml".into() };
+        assert!(err.to_string().contains("/tmp/config.toml"));
+    }
+
+    #[test]
+    fn test_wallet_error_decryption_failed() {
+        let err = WalletError::DecryptionFailed { path: "wallet.json".into(), reason: "bad password".into() };
+        let msg = err.to_string();
+        assert!(msg.contains("wallet.json"));
+        assert!(msg.contains("bad password"));
+    }
+
+    #[test]
+    fn test_wallet_error_not_found() {
+        let err = WalletError::NotFound { index: 5, total: 3 };
+        assert_eq!(err.to_string(), "Wallet not found at index 5 (total wallets: 3)");
+    }
+
+    #[test]
+    fn test_wallet_error_invalid_key_format() {
+        let err = WalletError::InvalidKeyFormat;
+        assert_eq!(err.to_string(), "Invalid private key format: expected hex string");
+    }
+
+    #[test]
+    fn test_wallet_error_invalid_key_length() {
+        let err = WalletError::InvalidKeyLength { length: 10 };
+        assert!(err.to_string().contains("10"));
+    }
+
+    #[test]
+    fn test_database_error_pool_exhausted() {
+        let err = DatabaseError::PoolExhausted { max_size: 20 };
+        assert!(err.to_string().contains("20"));
+    }
+
+    #[test]
+    fn test_database_error_lock_timeout() {
+        let err = DatabaseError::LockTimeout;
+        assert_eq!(err.to_string(), "Database lock timeout");
+    }
+
+    #[test]
+    fn test_database_error_transaction_failed() {
+        let err = DatabaseError::TransactionFailed { msg: "disk full".into() };
+        assert!(err.to_string().contains("disk full"));
+    }
+
+    #[test]
+    fn test_database_error_not_found() {
+        let err = DatabaseError::NotFound { key: "wallet_5".into() };
+        assert!(err.to_string().contains("wallet_5"));
+    }
+
+    #[test]
+    fn test_network_error_timeout() {
+        let err = NetworkError::Timeout { timeout_ms: 5000, endpoint: "http://rpc.com".into() };
+        let msg = err.to_string();
+        assert!(msg.contains("5000"));
+        assert!(msg.contains("rpc.com"));
+    }
+
+    #[test]
+    fn test_network_error_rate_limited() {
+        let err = NetworkError::RateLimited { endpoint: "http://api.com".into(), retry_after: 30 };
+        assert!(err.to_string().contains("30"));
+    }
+
+    #[test]
+    fn test_network_error_http_error() {
+        let err = NetworkError::HttpError { status_code: 429, endpoint: "http://rpc.com".into() };
+        assert!(err.to_string().contains("429"));
+    }
+
+    #[test]
+    fn test_security_error_password_required() {
+        let err = SecurityError::PasswordRequired;
+        assert_eq!(err.to_string(), "Password required but not provided");
+    }
+
+    #[test]
+    fn test_security_error_cryptography_failed() {
+        let err = SecurityError::CryptographyFailed { reason: "invalid key".into() };
+        assert!(err.to_string().contains("invalid key"));
+    }
+
+    #[test]
+    fn test_security_error_signature_verification() {
+        let err = SecurityError::SignatureVerificationFailed;
+        assert_eq!(err.to_string(), "Signature verification failed");
+    }
+
+    #[test]
+    fn test_security_error_invalid_nonce_state() {
+        let err = SecurityError::InvalidNonceState { state: "too low".into() };
+        assert!(err.to_string().contains("too low"));
+    }
+
+    #[test]
+    fn test_core_error_from_config() {
+        let config_err = ConfigError::FileNotFound { path: "cfg.toml".into() };
+        let core: CoreError = config_err.into();
+        match core {
+            CoreError::Config(_) => {}
+            _ => panic!("Expected CoreError::Config variant"),
+        }
+        assert!(core.to_string().contains("cfg.toml"));
+    }
+
+    #[test]
+    fn test_core_error_from_wallet() {
+        let wallet_err = WalletError::InvalidKeyFormat;
+        let core: CoreError = wallet_err.into();
+        match core {
+            CoreError::Wallet(_) => {}
+            _ => panic!("Expected CoreError::Wallet variant"),
+        }
+    }
+
+    #[test]
+    fn test_core_error_from_network() {
+        let net_err = NetworkError::Timeout { timeout_ms: 1000, endpoint: "x".into() };
+        let core: CoreError = net_err.into();
+        match core {
+            CoreError::Network(_) => {}
+            _ => panic!("Expected CoreError::Network variant"),
+        }
+    }
+
+    #[test]
+    fn test_core_error_from_security() {
+        let sec_err = SecurityError::PasswordRequired;
+        let core: CoreError = sec_err.into();
+        match core {
+            CoreError::Security(_) => {}
+            _ => panic!("Expected CoreError::Security variant"),
+        }
+    }
+
+    #[test]
+    fn test_core_error_unknown_variant() {
+        let err = CoreError::Unknown { message: "something broke".into() };
+        assert_eq!(err.to_string(), "Unknown error: something broke");
+    }
+
+    #[test]
+    fn test_config_error_clone() {
+        let err = ConfigError::IoError { path: "file.txt".into(), msg: "permission denied".into() };
+        let cloned = err.clone();
+        assert_eq!(err.to_string(), cloned.to_string());
+    }
+
+    #[test]
+    fn test_wallet_error_clone() {
+        let err = WalletError::AddressMismatch { expected: "0xabc".into(), actual: "0xdef".into() };
+        let cloned = err.clone();
+        assert_eq!(err.to_string(), cloned.to_string());
+    }
+
+    #[test]
+    fn test_network_error_clone() {
+        let err = NetworkError::ConnectionRefused { endpoint: "x".into(), reason: "timeout".into() };
+        let cloned = err.clone();
+        assert_eq!(err.to_string(), cloned.to_string());
+    }
+}

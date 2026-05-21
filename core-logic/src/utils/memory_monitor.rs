@@ -246,4 +246,52 @@ mod tests {
         assert_eq!(c.resident_set_size, 1_000_000);
         assert_eq!(c.process_id, 12345);
     }
+
+    #[test]
+    fn test_memory_monitor_config_custom() {
+        let cfg = MemoryMonitorConfig {
+            sampling_interval_ms: 10000,
+            history_size: 200,
+            memory_threshold_mb: 2048,
+            cpu_threshold_percent: 90.0,
+        };
+        assert_eq!(cfg.sampling_interval_ms, 10000);
+        assert_eq!(cfg.history_size, 200);
+        assert_eq!(cfg.memory_threshold_mb, 2048);
+        assert!((cfg.cpu_threshold_percent - 90.0f32).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_memory_trend_variants() {
+        assert_eq!(MemoryTrend::RapidGrowth as u8, 0);
+        assert_eq!(MemoryTrend::SlowGrowth as u8, 1);
+        assert_eq!(MemoryTrend::Stable as u8, 2);
+        assert_eq!(MemoryTrend::Decreasing as u8, 3);
+    }
+
+    #[test]
+    fn test_memory_trend_partial_eq() {
+        assert_eq!(MemoryTrend::Stable, MemoryTrend::Stable);
+        assert_ne!(MemoryTrend::RapidGrowth, MemoryTrend::Decreasing);
+    }
+
+    #[test]
+    fn test_memory_trend_clone() {
+        let a = MemoryTrend::RapidGrowth;
+        let b = a;
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_memory_stats_default_values() {
+        let stats = MemoryStats {
+            timestamp: Instant::now(),
+            resident_set_size: 0,
+            virtual_memory_size: 0,
+            process_id: 0,
+            cpu_usage: 0.0,
+        };
+        assert_eq!(stats.resident_set_size, 0);
+        assert_eq!(stats.cpu_usage, 0.0);
+    }
 }

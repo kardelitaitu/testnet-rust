@@ -92,5 +92,53 @@ private_key_file = "wallet.json"
             err
         );
     }
+
+    #[test]
+    fn test_evm_config_with_proxies() {
+        let toml = r#"
+rpc_url = "https://rpc.evm.com"
+chain_id = 1
+tps = 5
+private_key_file = "wallets.json"
+[[proxies]]
+url = "http://10.0.0.1:3128"
+username = "user1"
+password = "pass1"
+[[proxies]]
+url = "http://10.0.0.2:8080"
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build().unwrap();
+        let cfg: EvmConfig = settings.try_deserialize().unwrap();
+        assert_eq!(cfg.rpc_url, "https://rpc.evm.com");
+        assert_eq!(cfg.chain_id, 1);
+        assert!(cfg.proxies.is_some());
+        let proxies = cfg.proxies.unwrap();
+        assert_eq!(proxies.len(), 2);
+        assert_eq!(proxies[0].url, "http://10.0.0.1:3128");
+        assert_eq!(proxies[0].username.as_deref(), Some("user1"));
+        assert_eq!(proxies[1].url, "http://10.0.0.2:8080");
+        assert!(proxies[1].username.is_none());
+    }
+
+    #[test]
+    fn test_evm_config_edge_cases() {
+        // Zero chain_id, empty rpc_url
+        let toml = r#"
+rpc_url = ""
+chain_id = 0
+tps = 0
+private_key_file = ""
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build().unwrap();
+        let cfg: EvmConfig = settings.try_deserialize().unwrap();
+        assert_eq!(cfg.rpc_url, "");
+        assert_eq!(cfg.chain_id, 0);
+        assert_eq!(cfg.tps, 0);
+        assert_eq!(cfg.private_key_file, "");
+    }
 }
 

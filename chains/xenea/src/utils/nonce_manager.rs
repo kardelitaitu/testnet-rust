@@ -104,4 +104,110 @@ mod tests {
         let nonce3 = mgr.next().await.unwrap();
         assert_eq!(nonce3, U256::from(44));
     }
+
+    #[tokio::test]
+    async fn test_next_from_zero_uses_cache() {
+        let provider = dummy_provider();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let mgr = SimpleNonceManager::new(provider, addr);
+        {
+            let mut guard = mgr.current_nonce.lock().await;
+            *guard = Some(U256::from(0));
+        }
+        assert_eq!(mgr.next().await.unwrap(), U256::from(0));
+        assert_eq!(mgr.next().await.unwrap(), U256::from(1));
+        assert_eq!(mgr.next().await.unwrap(), U256::from(2));
+    }
+
+    #[tokio::test]
+    async fn test_next_after_reset_to_lower_value() {
+        let provider = dummy_provider();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let mgr = SimpleNonceManager::new(provider, addr);
+        {
+            let mut guard = mgr.current_nonce.lock().await;
+            *guard = Some(U256::from(100));
+        }
+        assert_eq!(mgr.next().await.unwrap(), U256::from(100));
+        assert_eq!(mgr.next().await.unwrap(), U256::from(101));
+        // Simulate resync to lower value
+        {
+            let mut guard = mgr.current_nonce.lock().await;
+            *guard = Some(U256::from(100));
+        }
+        assert_eq!(mgr.next().await.unwrap(), U256::from(100));
+        assert_eq!(mgr.next().await.unwrap(), U256::from(101));
+    }
+
+    #[tokio::test]
+    async fn test_cache_set_to_none_fetches_from_rpc() {
+        let provider = dummy_provider();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let mgr = SimpleNonceManager::new(provider, addr);
+        {
+            let mut guard = mgr.current_nonce.lock().await;
+            *guard = Some(U256::from(10));
+        }
+        assert_eq!(mgr.next().await.unwrap(), U256::from(10));
+        // Reset cache to None — next() will try dummy RPC and fail
+        {
+            let mut guard = mgr.current_nonce.lock().await;
+            *guard = None;
+        }
+        let result = mgr.next().await;
+        assert!(result.is_err(), "Should fail because dummy RPC can't be reached");
+    }
+
+    #[tokio::test]
+    async fn test_clone_inherits_cache_value() {
+        let provider = dummy_provider();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let mgr = SimpleNonceManager::new(provider, addr);
+        {
+            let mut guard = mgr.current_nonce.lock().await;
+            *guard = Some(U256::from(77));
+        }
+        let cloned = mgr.clone();
+        {
+            let guard = cloned.current_nonce.lock().await;
+            assert_eq!(*guard, Some(U256::from(77)));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_clone_increments_independently() {
+        let provider = dummy_provider();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let mgr = SimpleNonceManager::new(provider, addr);
+        {
+            let mut guard = mgr.current_nonce.lock().await;
+            *guard = Some(U256::from(50));
+        }
+        let cloned = mgr.clone();
+        assert_eq!(mgr.next().await.unwrap(), U256::from(50));
+        assert_eq!(cloned.next().await.unwrap(), U256::from(51));
+    }
+
+    #[tokio::test]
+    async fn test_next_handles_u256_max() {
+        let provider = dummy_provider();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let mgr = SimpleNonceManager::new(provider, addr);
+        {
+            let mut guard = mgr.current_nonce.lock().await;
+            *guard = Some(U256::MAX - 1);
+        }
+        assert_eq!(mgr.next().await.unwrap(), U256::MAX - 1);
+        // Reset cache before next() tries MAX + 1 (would overflow)
+        {
+            let mut guard = mgr.current_nonce.lock().await;
+            *guard = Some(U256::zero());
+        }
+        assert_eq!(mgr.next().await.unwrap(), U256::zero());
+        assert_eq!(mgr.next().await.unwrap(), U256::from(1));
+        {
+            let guard = mgr.current_nonce.lock().await;
+            assert_eq!(*guard, Some(U256::from(2)));
+        }
+    }
 }

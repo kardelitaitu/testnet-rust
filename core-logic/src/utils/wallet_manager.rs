@@ -426,3 +426,99 @@ impl Default for DecryptedWallet {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_chain_type_default_is_evm() {
+        assert_eq!(ChainType::default(), ChainType::Evm);
+    }
+
+    #[test]
+    fn test_chain_type_display() {
+        assert_eq!(ChainType::Evm.to_string(), "EVM");
+        assert_eq!(ChainType::Solana.to_string(), "Solana");
+        assert_eq!(ChainType::Sui.to_string(), "SUI");
+        assert_eq!(ChainType::Aptos.to_string(), "Aptos");
+        assert_eq!(ChainType::Tron.to_string(), "Tron");
+        assert_eq!(ChainType::Ton.to_string(), "TON");
+    }
+
+    #[test]
+    fn test_decrypted_wallet_default_empty() {
+        let w = DecryptedWallet::default();
+        assert_eq!(w.mnemonic, "");
+        assert_eq!(w.evm_private_key, "");
+        assert_eq!(w.evm_address, "");
+        assert_eq!(w.active_chain, ChainType::Evm);
+        assert!(w.private_key().is_empty());
+        assert!(w.address().is_empty());
+    }
+
+    #[test]
+    fn test_decrypted_wallet_private_key_evm() {
+        let mut w = DecryptedWallet::default();
+        w.evm_private_key = "0xabc123".into();
+        w.sol_private_key = "sol_key".into();
+        w.active_chain = ChainType::Evm;
+        assert_eq!(w.private_key(), "0xabc123");
+    }
+
+    #[test]
+    fn test_decrypted_wallet_private_key_solana() {
+        let mut w = DecryptedWallet::default();
+        w.evm_private_key = "0xabc123".into();
+        w.sol_private_key = "sol_key".into();
+        w.active_chain = ChainType::Solana;
+        assert_eq!(w.private_key(), "sol_key");
+    }
+
+    #[test]
+    fn test_decrypted_wallet_address_by_chain() {
+        let mut w = DecryptedWallet::default();
+        w.evm_address = "0xevm".into();
+        w.sol_address = "sol_addr".into();
+        w.sui_address = "sui_addr".into();
+        w.aptos_address = "aptos_addr".into();
+        w.tron_address = "tron_addr".into();
+        w.ton_address = "ton_addr".into();
+        w.active_chain = ChainType::Aptos;
+        assert_eq!(w.address(), "aptos_addr");
+    }
+
+    #[test]
+    fn test_decrypted_wallet_debug_redacts_secrets() {
+        let mut w = DecryptedWallet::default();
+        w.evm_private_key = "super_secret_key".into();
+        w.mnemonic = "my_mnemonic_phrase".into();
+        w.evm_address = "0xuser".into();
+        w.active_chain = ChainType::Evm;
+        let debug_str = format!("{:?}", w);
+        assert!(debug_str.contains("***REDACTED***"), "Debug should redact secrets");
+        assert!(!debug_str.contains("super_secret_key"), "Debug should not contain private key");
+        assert!(!debug_str.contains("my_mnemonic_phrase"), "Debug should not contain mnemonic");
+        assert!(debug_str.contains("0xuser"), "Debug should contain address");
+        assert!(debug_str.contains("Evm"), "Debug should contain chain type");
+    }
+
+    #[test]
+    fn test_chain_type_clone_and_eq() {
+        let a = ChainType::Evm;
+        let b = a;
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_chain_type_all_variants() {
+        use ChainType::*;
+        let all = vec![Evm, Solana, Sui, Aptos, Tron, Ton];
+        assert_eq!(all.len(), 6);
+        // All should be unique
+        let mut set = std::collections::HashSet::new();
+        for c in &all {
+            assert!(set.insert(c), "Duplicate ChainType variant: {:?}", c);
+        }
+    }
+}

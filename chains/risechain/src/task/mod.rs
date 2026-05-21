@@ -116,3 +116,83 @@ pub struct TaskContext {
 
 // Trait alias
 pub type RiseTask = dyn Task<TaskContext> + Send + Sync;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_exported_task_names_are_correct() {
+        let tasks: Vec<Box<RiseTask>> = vec![
+            Box::new(t18_contract_call_raw::ContractCallRawTask),
+            Box::new(t19_high_gas_limit::HighGasLimitTask),
+            Box::new(t20_gas_price_test::GasPriceTestTask),
+            Box::new(t21_erc1155_mint::Erc1155MintTask),
+            Box::new(t22_erc1155_transfer::Erc1155TransferTask),
+            Box::new(t23_timed_interaction::TimedInteractionTask),
+            Box::new(t24_create2_deploy::Create2DeployTask),
+            Box::new(t25_message_sign::MessageSignTask),
+            Box::new(t26_verify_signature::VerifySignatureTask),
+            Box::new(t27_permit_token::PermitTokenTask),
+            Box::new(t28_delegatecall::DelegatecallTask),
+            Box::new(t29_cross_contract_call::CrossContractCallTask),
+            Box::new(t30_revert_test::RevertTestTask),
+            Box::new(t31_event_emission::EventEmissionTask),
+            Box::new(t32_eth_with_data::EthWithDataTask),
+            Box::new(t33_batch_approve::BatchApproveTask),
+            Box::new(t34_role_based_access::RoleBasedAccessTask),
+            Box::new(t35_pausable_contract::PausableContractTask),
+            Box::new(t36_create2_factory::Create2FactoryTask),
+            Box::new(t37_uups_proxy::UUPSProxyTask),
+            Box::new(t38_transparent_proxy::TransparentProxyTask),
+            Box::new(t39_uniswap_v2_swap::UniswapV2SwapTask),
+            Box::new(t40_erc4626_vault::ERC4626VaultTask),
+            Box::new(t41_flash_loan::FlashLoanTestTask),
+            Box::new(t42_erc721_mint::ERC721MintTask),
+            Box::new(t43_erc1155_batch::ERC1155BatchTask),
+            Box::new(t44_storage_pattern::StoragePatternTask),
+            Box::new(t45_custom_error::CustomErrorTestTask),
+            Box::new(t46_revert_reason::RevertWithReasonTask),
+            Box::new(t47_assert_fail::AssertFailTask),
+            Box::new(t48_anonymous_event::AnonymousEventTask),
+            Box::new(t49_indexed_topics::IndexedTopicsTask),
+            Box::new(t50_large_event::LargeEventDataTask),
+            Box::new(t51_memory_expansion::MemoryExpansionTask),
+            Box::new(t52_calldata_size::CalldataSizeTask),
+            Box::new(t53_gas_stipend::GasStipendTask),
+            Box::new(t54_gas_price_zero::GasPriceZeroTask),
+            Box::new(t55_block_hash::BlockHashUsageTask),
+            Box::new(t57_eip7702_explore::Eip7702ExploreTask),
+            Box::new(t58_verify_create2::VerifyCreate2Task),
+            Box::new(t59_deploy_factory::DeployFactoryTask),
+            Box::new(t60_rise_to_weth::RiseToWethTask),
+        ];
+        let mut seen = std::collections::HashSet::new();
+        for task in &tasks {
+            let name = task.name();
+            assert!(name.len() >= 3, "Task '{}' too short", name);
+            let _: u32 = name[..2].parse().expect("Task should start with 2-digit number");
+            assert!(seen.insert(name), "Duplicate task name: {}", name);
+        }
+    }
+
+    #[test]
+    fn test_first_task_names_format() {
+        let tasks: Vec<Box<RiseTask>> = vec![
+            Box::new(t01_check_balance::CheckBalanceTask),
+            Box::new(t02_simple_eth_transfer::SimpleEthTransferTask),
+            Box::new(t03_deploy_contract::DeployContractTask),
+            Box::new(t04_interact_contract::InteractContractTask),
+            Box::new(t05_self_transfer::SelfTransferTask),
+            Box::new(t06_send_meme::SendMemeTokenTask),
+            Box::new(t07_create_meme::CreateMemeTask),
+            Box::new(t09_weth_wrap::WethWrapTask),
+            Box::new(t10_weth_unwrap::WethUnwrapTask),
+        ];
+        for task in &tasks {
+            let name = task.name();
+            let _: u32 = name[..2].parse().expect("Task should start with 2-digit number");
+            assert_eq!(name.as_bytes()[2], b'_', "Task '{}' missing separator", name);
+        }
+    }
+}

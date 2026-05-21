@@ -191,4 +191,56 @@ mod tests {
         assert_eq!(result[51], 0x00);
         assert_eq!(result[52], 0x00); // The next STOP
     }
+
+    #[test]
+    fn test_randomized_bytecode_invariant() {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..100 {
+            let len: usize = rng.gen_range(0..200);
+            let mut input = Vec::with_capacity(len);
+            for _ in 0..len {
+                input.push(rng.gen());
+            }
+            let result = strip_push0(&input);
+
+            // Invariant 1: output length >= input length (PUSH0 → PUSH1 0x00 adds 1 byte)
+            assert!(result.len() >= input.len(),
+                "Output shorter than input: {} < {}", result.len(), input.len());
+
+            // Invariant 2: output should never be empty if input is non-empty
+            if !input.is_empty() {
+                assert!(!result.is_empty());
+            }
+
+            // Invariant 3: Input that doesn't contain 0x5f is unchanged
+            if !input.contains(&0x5f) {
+                assert_eq!(result, input, "Input without 0x5f should pass through unchanged");
+            }
+        }
+    }
+
+    #[test]
+    fn test_randomized_no_push0_passthrough() {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..50 {
+            let len: usize = rng.gen_range(1..100);
+            let mut input = Vec::with_capacity(len);
+            for _ in 0..len {
+                // Generate bytes in range 0x00-0x5e and 0x80-0xff (no PUSH0)
+                let byte: u8 = loop {
+                    let b = rng.gen();
+                    if b != 0x5f {
+                        break b;
+                    }
+                };
+                input.push(byte);
+            }
+            let result = strip_push0(&input);
+            assert_eq!(result, input, "Input without 0x5f should be unchanged");
+        }
+    }
 }

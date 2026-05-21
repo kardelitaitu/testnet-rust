@@ -214,4 +214,112 @@ mod tests {
         let err = ExplorerGasTracker::parse_snapshot("<div>Nothing here</div>", &payload).unwrap_err();
         assert!(err.to_string().contains("No tracker row found"));
     }
+
+    #[test]
+    fn payload_default_is_empty_url() {
+        let payload = ExplorerGasTrackerPayload::default();
+        assert_eq!(payload.url, "");
+        assert_eq!(payload.row_label, "Normal");
+        assert!(payload.proxies.is_empty());
+        assert_eq!(payload.request_timeout.as_secs(), 60);
+    }
+
+    #[test]
+    fn payload_new_with_url() {
+        let payload = ExplorerGasTrackerPayload::new("https://example.com/gas");
+        assert_eq!(payload.url, "https://example.com/gas");
+        assert_eq!(payload.row_label, "Normal");
+    }
+
+    #[test]
+    fn payload_with_row_label() {
+        let payload = ExplorerGasTrackerPayload::new("url").with_row_label("Fast");
+        assert_eq!(payload.row_label, "Fast");
+    }
+
+    #[test]
+    fn payload_with_proxies() {
+        let proxy = ProxyConfig { url: "http://10.0.0.1:3128".into(), username: None, password: None };
+        let payload = ExplorerGasTrackerPayload::new("url").with_proxies(vec![proxy.clone()]);
+        assert_eq!(payload.proxies.len(), 1);
+        assert_eq!(payload.proxies[0].url, proxy.url);
+    }
+
+    #[test]
+    fn payload_with_timeout() {
+        let payload = ExplorerGasTrackerPayload::new("url").with_timeout(Duration::from_secs(30));
+        assert_eq!(payload.request_timeout.as_secs(), 30);
+    }
+
+    #[test]
+    fn parse_rejects_empty_html() {
+        let payload = ExplorerGasTrackerPayload::new("url");
+        let err = ExplorerGasTracker::parse_snapshot("", &payload).unwrap_err();
+        assert!(err.to_string().contains("No tracker row found"));
+    }
+
+    #[test]
+    fn parse_rejects_non_matching_label() {
+        let html = r#"<li><div>Fast</div><div>10 Gwei</div></li>"#;
+        let payload = ExplorerGasTrackerPayload::new("url").with_row_label("Slow");
+        let err = ExplorerGasTracker::parse_snapshot(html, &payload).unwrap_err();
+        assert!(err.to_string().contains("No tracker row found"));
+    }
+
+    #[test]
+    fn parse_rejects_row_without_gwei() {
+        let html = r#"<li><div>Normal</div><div>No number here</div></li>"#;
+        let payload = ExplorerGasTrackerPayload::new("url");
+        let err = ExplorerGasTracker::parse_snapshot(html, &payload).unwrap_err();
+        assert!(err.to_string().contains("No Gwei value"));
+    }
+
+    #[test]
+    fn parse_normalize_text_strips_whitespace() {
+        let result = normalize_text("  hello    world  ");
+        assert_eq!(result, "hello world");
+    }
+
+    #[test]
+    fn parse_number_with_commas() {
+        assert_eq!(parse_number("1,234.56"), Some(1234.56));
+        assert_eq!(parse_number("644"), Some(644.0));
+        assert_eq!(parse_number("not_a_number"), None);
+    }
+
+    #[test]
+    fn find_number_before_unit_works() {
+        let tokens = vec!["Normal", "644.6", "Gwei", "per", "tx"];
+        assert_eq!(find_number_before_unit(&tokens, "Gwei"), Some(644.6));
+        assert_eq!(find_number_before_unit(&tokens, "ETH"), None);
+    }
+
+    #[test]
+    fn find_number_after_label_works() {
+        let tokens = vec!["Base", "634", "Priority", "10"];
+        assert_eq!(find_number_after_label(&tokens, "Base"), Some(634.0));
+        assert_eq!(find_number_after_label(&tokens, "Priority"), Some(10.0));
+        assert_eq!(find_number_after_label(&tokens, "Missing"), None);
+    }
+
+    #[test]
+    fn find_number_before_unit_case_insensitive() {
+        let tokens = vec!["100", "GWEI"];
+        assert_eq!(find_number_before_unit(&tokens, "Gwei"), Some(100.0));
+    }
+
+    #[test]
+    fn find_number_after_label_case_insensitive() {
+        let tokens = vec!["BASE", "50"];
+        assert_eq!(find_number_after_label(&tokens, "Base"), Some(50.0));
+    }
+
+    #[test]
+    fn tracker_from_url_creates_with_defaults() {
+        let tracker = ExplorerGasTracker::from_url("https://example.com/gas").unwrap();
+        assert_eq!(tracker.payload.url, "https://example.com/gas");
+        assert_eq!(tracker.payload.row_label, "Normal");
+        assert!(tracker.payload.proxies.is_empty());
+        assert_eq!(tracker.payload.request_timeout.as_secs(), 60);
+    }
 }
