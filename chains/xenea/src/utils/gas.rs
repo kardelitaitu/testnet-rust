@@ -164,4 +164,88 @@ mod tests {
     fn test_parse_units_ether() {
         assert_eq!(parse_units(1.0, "ether").unwrap(), U256::from(10u128.pow(18)));
     }
+
+    #[test]
+    fn test_parse_units_fractional() {
+        assert_eq!(parse_units(0.5, "gwei").unwrap(), U256::from(500_000_000u64));
+    }
+
+    #[test]
+    fn test_parse_units_zero() {
+        assert_eq!(parse_units(0.0, "gwei").unwrap(), U256::zero());
+    }
+
+    #[test]
+    fn test_parse_units_invalid_unit_errors() {
+        assert!(parse_units(1.0, "bad_unit").is_err());
+    }
+
+    #[test]
+    fn test_parse_units_empty_unit_errors() {
+        assert!(parse_units(1.0, "").is_err());
+    }
+
+    #[test]
+    fn test_parse_units_wei_unit() {
+        assert_eq!(parse_units(1.0, "wei").unwrap(), U256::from(1));
+    }
+
+    #[test]
+    fn test_parse_units_kwei() {
+        assert_eq!(parse_units(1.0, "kwei").unwrap(), U256::from(1_000u64));
+    }
+
+    #[test]
+    fn test_parse_units_mwei() {
+        assert_eq!(parse_units(1.0, "mwei").unwrap(), U256::from(1_000_000u64));
+    }
+
+    #[test]
+    fn test_get_max_fee_below_cap() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider);
+        let base = U256::from(5);
+        assert_eq!(mgr.get_max_fee(base), U256::from(6));
+    }
+
+    #[test]
+    fn test_get_max_fee_above_cap() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider);
+        assert_eq!(mgr.get_max_fee(U256::from(20)), U256::from(9));
+    }
+
+    #[test]
+    fn test_get_max_fee_zero_base() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider);
+        assert_eq!(mgr.get_max_fee(U256::zero()), U256::from(1));
+    }
+
+    #[test]
+    fn test_get_max_fee_at_cap() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider);
+        assert_eq!(mgr.get_max_fee(U256::from(8)), U256::from(9));
+    }
+
+    #[test]
+    fn test_get_max_fee_with_custom_config() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider);
+        let custom = GasConfig::new().with_max_fee(20.0).with_priority_fee(2.0);
+        let mgr = mgr.with_config(custom);
+        let base = parse_units(10.0, "gwei").unwrap();
+        assert_eq!(mgr.get_max_fee(base), parse_units(12.0, "gwei").unwrap());
+    }
+
+    #[test]
+    fn test_limit_deploy_returns_config() {
+        let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
+        let mgr = GasManager::new(provider);
+        assert_eq!(mgr.limit_deploy(), U256::from(1_200_000u64));
+        assert_eq!(mgr.limit_transfer(), U256::from(21_000u64));
+        assert_eq!(mgr.limit_counter_interact(), U256::from(50_000u64));
+        assert_eq!(mgr.limit_send_meme(), U256::from(100_000u64));
+    }
 }

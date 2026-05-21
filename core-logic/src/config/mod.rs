@@ -134,6 +134,53 @@ mod tests {
     }
 
     #[test]
+    fn test_wallet_source_file_toml() {
+        let toml = r#"
+rpc_url = "https://rpc.test.com"
+chain_id = 42
+target_tps = 10
+wallet_source = { File = { path = "wallets.json", encrypted = true } }
+"#;
+        let cfg: SpamConfig = toml::from_str(toml).unwrap();
+        match cfg.wallet_source {
+            WalletSource::File { path, encrypted } => {
+                assert_eq!(path, "wallets.json");
+                assert!(encrypted);
+            }
+            _ => panic!("Expected File variant"),
+        }
+    }
+
+    #[test]
+    fn test_wallet_source_env_toml() {
+        let toml = r#"
+rpc_url = "https://rpc.test.com"
+chain_id = 42
+target_tps = 10
+wallet_source = { Env = { key = "PRIVATE_KEY" } }
+"#;
+        let cfg: SpamConfig = toml::from_str(toml).unwrap();
+        match cfg.wallet_source {
+            WalletSource::Env { key } => assert_eq!(key, "PRIVATE_KEY"),
+            _ => panic!("Expected Env variant"),
+        }
+    }
+
+    #[test]
+    fn test_wallet_source_json_roundtrip() {
+        let src = WalletSource::File { path: "/tmp/wallet.json".into(), encrypted: false };
+        let json = serde_json::to_string(&src).unwrap();
+        let deserialized: WalletSource = serde_json::from_str(&json).unwrap();
+        match deserialized {
+            WalletSource::File { path, encrypted } => {
+                assert_eq!(path, "/tmp/wallet.json");
+                assert!(!encrypted);
+            }
+            _ => panic!("Expected File variant"),
+        }
+    }
+
+    #[test]
     fn test_proxy_config_serde_roundtrip() {
         let proxy = ProxyConfig {
             url: "http://proxy:8080".into(),
