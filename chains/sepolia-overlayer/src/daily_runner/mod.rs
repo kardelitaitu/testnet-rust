@@ -37,12 +37,12 @@ use chrono::{Local, Timelike};
 use database::DailyDb;
 use ethers::signers::Signer;
 use rand::Rng;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use core_logic::config::ProxyConfig;
 use core_logic::{ProxyHealthManager, ProxyRateLimiter, WalletManager};
@@ -482,7 +482,7 @@ impl DailyRunner {
                     stats.successful += 1;
                     info!(
                         target: "task_result",
-                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} {} {}",
+                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{}] {}",
                         Local::now().format("%H:%M:%S"),
                         worker_id, wallet_idx, proxy_id,
                         "OK", task_name, message,
@@ -493,7 +493,7 @@ impl DailyRunner {
                     stats.failed += 1;
                     info!(
                         target: "task_result",
-                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} {} {}",
+                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{}] {}",
                         Local::now().format("%H:%M:%S"),
                         worker_id, wallet_idx, proxy_id,
                         "RETRY", task_name, message,
@@ -504,7 +504,7 @@ impl DailyRunner {
                     stats.failed += 1;
                     error!(
                         target: "task_result",
-                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} {} {}",
+                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{}] {}",
                         Local::now().format("%H:%M:%S"),
                         worker_id, wallet_idx, proxy_id,
                         "TIMEOUT", task_name, message,
@@ -797,6 +797,8 @@ impl DailyRunner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
+    use tracing::debug;
 
     // ---- pause window ----
 
