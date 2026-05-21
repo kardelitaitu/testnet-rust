@@ -13,6 +13,10 @@ path = "src/main.rs"
 name = "sepolia-debug_task"
 path = "src/bin/debug_task.rs"
 
+[[bin]]
+name = "sepolia-daily"
+path = "src/bin/daily.rs"
+
 [lib]
 name = "sepolia_overlayer"
 path = "src/lib.rs"
@@ -40,6 +44,7 @@ url = "2.5"
 hex = "0.4"
 base64 = "0.21"
 once_cell = "1.19"
+chrono = "0.4"
 
 [dependencies.core-logic]
 path = "../../core-logic"

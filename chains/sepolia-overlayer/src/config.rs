@@ -1,7 +1,12 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use config::{Config, File};
 use core_logic::config::{ProxyConfig, SpamConfig};
 use serde::Deserialize;
+
+/// Per-task daily run limit. Task not present → default limit = 1.
+pub type TaskLimits = HashMap<String, u32>;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct SepoliaConfig {
@@ -19,6 +24,9 @@ pub struct SepoliaConfig {
     pub wallet_dir: Option<String>,
     #[allow(dead_code)]
     pub proxies: Option<Vec<ProxyConfig>>,
+    /// Per-task daily limits. Example: {"01_checkBalance" = 100, "10_aaveUsdtFaucet" = 5}
+    #[serde(default)]
+    pub task_limits: Option<TaskLimits>,
 }
 
 impl SepoliaConfig {

@@ -18,3 +18,29 @@ max_delay_ms = 15000
 # url = "http://proxy1:port"
 # username = "user"
 # password = "pass"
+
+# ── Daily Runner — Per-Task Limits ─────────────────────────────────────
+# Uncomment and set daily limits per task. Default = 1 for unlisted tasks.
+# The daily runner will execute each task up to this many times per wallet
+# per day. Failed executions do NOT count toward the limit.
+#
+# To see all 17 task names: chains/sepolia-overlayer/src/task/
+#
+# [task_limits]
+# 01_checkBalance = 100
+# 02_mintUsdtPlus = 10
+# 03_mintUsdcPlus = 10
+# 04_redeemUsdtPlus = 5
+# 05_redeemUsdcPlus = 5
+# 06_stakeUsdtPlus = 10
+# 07_stakeUsdcPlus = 10
+# 08_unstakeTplus = 5
+# 09_unstakeCplus = 5
+# 10_aaveUsdtFaucet = 5
+# 11_aaveUsdcFaucet = 5
+# 12_bridgeTplus = 3
+# 13_bridgeCplus = 3
+# 14_sendRandomUsdtPlus = 10
+# 15_sendRandomUsdcPlus = 10
+# 16_bridgeBackTplus = 3
+# 17_bridgeBackCplus = 3
