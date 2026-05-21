@@ -9,6 +9,7 @@ test_logs/
 *.db-wal
 wallet-json/
 chains/da-chain/wallets-json-da-chain
+chains/sepolia-overlayer/wallets-json-sepolia-overlayer
 address.txt
 proxies.txt
 target-xenea

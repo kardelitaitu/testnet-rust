@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
     std::mem::forget(_log_guard);
 
     let args = Args::parse();
-    info!("=== Sepolia Overlayer — Daily Runner ===");
+    println!("=== Sepolia Overlayer — Daily Runner ===");
 
     // Load .env from config directory
     if let Some(parent) = Path::new(&args.config).parent() {
@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
     // Load config
     let config = SepoliaConfig::load(&args.config)
         .context("Failed to load config")?;
-    info!("Config loaded: chain_id={}, symbol={}", config.chain_id, config.symbol);
+    println!("Config loaded: chain_id={}, symbol={}", config.chain_id, config.symbol);
 
     // Load base config if provided
     let (base_rpc_url, base_config) = if let Some(ref base_path) = args.base_config {
@@ -101,7 +101,7 @@ async fn main() -> Result<()> {
         Arc::new(core_logic::WalletManager::new()?)
     };
     let total_wallets = manager.count();
-    info!("Found {} wallet files", total_wallets);
+    println!("Found {} wallet files", total_wallets);
 
     if total_wallets == 0 {
         anyhow::bail!("No wallet files found. Create wallets first.");
@@ -109,15 +109,16 @@ async fn main() -> Result<()> {
 
     // Password
     let wallet_password = resolve_password(&manager).await?;
+    println!("Password resolved ({} chars)", wallet_password.as_deref().unwrap_or("").len());
 
     // Proxies
     let proxy_pool: Arc<RwLock<Vec<core_logic::config::ProxyConfig>>> = if args.no_proxy {
-        info!("Proxies disabled by --no-proxy");
+        println!("Proxies disabled by --no-proxy");
         Arc::new(RwLock::new(Vec::new()))
     } else {
         let proxies = core_logic::ProxyManager::load_proxies()?;
         if !proxies.is_empty() {
-            info!("Loaded {} proxies", proxies.len());
+            println!("Loaded {} proxies", proxies.len());
         }
         Arc::new(RwLock::new(proxies))
     };
@@ -127,7 +128,7 @@ async fn main() -> Result<()> {
 
     // Daily database
     let db = sepolia_overlayer::daily_runner::database::DailyDb::new(&args.db_path).await?;
-    info!("Daily database ready: {}", args.db_path);
+    println!("Daily database ready: {}", args.db_path);
 
     // Worker count
     let worker_count = args
@@ -135,7 +136,7 @@ async fn main() -> Result<()> {
         .unwrap_or(config.worker_amount.unwrap_or(5))
         .min(total_wallets)
         .max(1);
-    info!("Workers: {}", worker_count);
+    println!("Workers: {}", worker_count);
 
     // Gas managers
     let client = reqwest::Client::new();
@@ -162,7 +163,7 @@ async fn main() -> Result<()> {
         .clone()
         .unwrap_or_default();
     if !task_limits.is_empty() {
-        info!("Task limits configured: {:?}", task_limits);
+        println!("Task limits configured: {:?}", task_limits);
     }
 
     // Build runner
@@ -199,8 +200,8 @@ async fn main() -> Result<()> {
 
     let stats = runner.run(cancel).await?;
 
-    info!("=== Daily Runner Finished ===");
-    info!(
+    println!("=== Daily Runner Finished ===");
+    println!(
         "Attempts: {}, Success: {}, Failed: {}",
         stats.total_attempts, stats.successful, stats.failed
     );
