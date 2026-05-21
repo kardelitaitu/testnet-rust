@@ -191,8 +191,8 @@ impl WalletManager {
         })
     }
 
-    /// Create a new WalletManager that scans a specific directory recursively for wallet files.
-    /// This is useful for chains that require a dedicated wallet folder with subdirectories.
+    /// Create a new WalletManager that scans a specific directory for wallet files.
+    /// Only top-level `.json` files are loaded — subdirectories are NOT scanned.
     pub fn with_wallet_dir<P: AsRef<Path>>(dir: P) -> Result<Self> {
         let dir_path = dir.as_ref().to_path_buf();
         let mut sources = Vec::new();
@@ -200,7 +200,7 @@ impl WalletManager {
         if dir_path.exists() && dir_path.is_dir() {
             Self::collect_wallet_files(&dir_path, &mut sources);
             println!(
-                "[WalletManager] Found {} wallet files in {:?} (recursive)",
+                "[WalletManager] Found {} wallet files in {:?} (top-level only)",
                 sources.len(),
                 dir_path
             );
@@ -217,7 +217,8 @@ impl WalletManager {
         })
     }
 
-    /// Recursively collect all `.json` wallet files from a directory tree.
+    /// Collect all `.json` wallet files from a directory's top level only.
+    /// Subdirectories are ignored.
     fn collect_wallet_files(dir: &Path, sources: &mut Vec<WalletSource>) {
         if let Ok(entries) = std::fs::read_dir(dir) {
             let mut entries: Vec<_> = entries
@@ -226,9 +227,7 @@ impl WalletManager {
             entries.sort_by_key(|e| e.path());
             for entry in entries {
                 let path = entry.path();
-                if path.is_dir() {
-                    Self::collect_wallet_files(&path, sources);
-                } else if path.extension().is_some_and(|ext| ext == "json") {
+                if path.is_file() && path.extension().is_some_and(|ext| ext == "json") {
                     sources.push(WalletSource::JsonFile(path));
                 }
             }
@@ -552,13 +551,15 @@ mod tests {
     }
 
     #[test]
-    fn test_with_wallet_dir_scans_subdirectories() {
+    fn test_with_wallet_dir_ignores_subdirectories() {
         let dir = tempfile::tempdir().expect("Failed to create temp dir");
         let sub = dir.path().join("subdir");
         std::fs::create_dir(&sub).unwrap();
         std::fs::write(sub.join("wallet.json"), "{}").unwrap();
+        // Also put one at top level
+        std::fs::write(dir.path().join("top.json"), "{}").unwrap();
         let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
-        assert_eq!(mgr.count(), 1, "Should find wallet in subdirectory");
+        assert_eq!(mgr.count(), 1, "Should only find top-level wallet, not subdirectory wallet");
     }
 
     #[test]

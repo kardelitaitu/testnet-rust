@@ -77,8 +77,8 @@ pub const ALL_TASK_NAMES: &[&str] = &[
 
 /// Pause window start (23:55 UTC) in minutes since midnight.
 const PAUSE_START_MINUTES: u32 = 23 * 60 + 55; // 1435
-/// Pause window end (00:05 UTC) in minutes since midnight.
-const PAUSE_END_MINUTES: u32 = 5;
+/// Pause window end (00:04:59 UTC) in minutes since midnight.
+const PAUSE_END_MINUTES: u32 = 4;
 
 /// How long to sleep between iterations when no work is available.
 const IDLE_SLEEP_SECS: u64 = 30;
@@ -803,7 +803,7 @@ mod tests {
     #[test]
     fn test_pause_window_constants() {
         assert_eq!(PAUSE_START_MINUTES, 1435);
-        assert_eq!(PAUSE_END_MINUTES, 5);
+        assert_eq!(PAUSE_END_MINUTES, 4);
     }
 
     #[test]
@@ -844,8 +844,8 @@ mod tests {
 
     #[test]
     fn test_is_in_pause_window_at_end_edge() {
-        // 00:05 UTC — pause window just closed
-        let end = chrono::DateTime::parse_from_rfc3339("2025-06-16T00:05:00Z")
+        // 00:04 UTC — pause window's last minute
+        let end = chrono::DateTime::parse_from_rfc3339("2025-06-16T00:04:00Z")
             .unwrap()
             .to_utc();
         assert!(is_in_pause_window_at(end));

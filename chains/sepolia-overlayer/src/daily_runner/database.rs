@@ -11,8 +11,10 @@ use tracing::{debug, info};
 /// uniqueness at the database level — a task can never exceed its daily limit
 /// even if a bug tries to insert duplicate completions.
 ///
-/// **Daily reset**: all queries filter by `date = YYYY-MM-DD`, so when
-/// UTC midnight passes all counters reset automatically.
+/// **Daily reset**: the `date` column is derived from `chrono::Utc::now()`
+/// **inside** `record_task_completion`, not from the caller's parameter.
+/// This guarantees completions always count toward the correct UTC day,
+/// even if a task crosses midnight during execution.
 ///
 /// **Wallet identity**: wallets are identified by their EVM address string
 /// (`0x...`), not by an opaque index. Addresses are resolved at startup
@@ -156,6 +158,10 @@ impl DailyDb {
 
     /// Record a task execution outcome for a wallet today.
     ///
+    /// **Date is derived from `chrono::Utc::now()` internally**, not from the
+    /// `_date` parameter. This guarantees the stored date matches the actual
+    /// completion time — even if a task crosses UTC midnight while executing.
+    ///
     /// Uses `ON CONFLICT` UPSERT — the PRIMARY KEY (wallet, task, date) prevents
     /// duplicate rows. On success, `count_success` is incremented; on failure,
     /// `count_failed` is incremented.
@@ -163,11 +169,13 @@ impl DailyDb {
         &self,
         wallet_address: &str,
         task_name: &str,
-        date: &str,
+        _date: &str,
         success: bool,
         message: &str,
     ) -> Result<()> {
-        let timestamp = chrono::Utc::now().timestamp();
+        let now = chrono::Utc::now();
+        let date = now.format("%Y-%m-%d").to_string();
+        let timestamp = now.timestamp();
 
         if success {
             sqlx::query(
@@ -182,7 +190,7 @@ impl DailyDb {
             )
             .bind(wallet_address)
             .bind(task_name)
-            .bind(date)
+            .bind(&date)
             .bind(timestamp)
             .bind(message)
             .execute(&self.pool)
@@ -205,7 +213,7 @@ impl DailyDb {
             )
             .bind(wallet_address)
             .bind(task_name)
-            .bind(date)
+            .bind(&date)
             .bind(timestamp)
             .bind(message)
             .execute(&self.pool)
@@ -277,6 +285,37 @@ mod tests {
         let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
         assert_eq!(counts.len(), 1);
         assert_eq!(counts.get("01_checkBalance").copied().unwrap_or(0), 1);
+    }
+
+    #[tokio::test]
+    async fn test_record_task_completion_derives_date_internally() {
+        let db = test_db().await;
+        let expected_today = today();
+
+        // Call with a deliberately WRONG date ("2099-01-01") to prove
+        // the function ignores the passed date and derives its own.
+        db.record_task_completion("0xalice", "01_checkBalance", "2099-01-01", true, "cross-midnight")
+            .await
+            .unwrap();
+
+        // Record should be found under today's date, NOT the fake date
+        let counts_today = db.get_completed_counts("0xalice", &expected_today).await.unwrap();
+        assert_eq!(
+            counts_today.get("01_checkBalance").copied().unwrap_or(0),
+            1,
+            "Should be found under today's date (derived from Utc::now())"
+        );
+
+        // Should NOT be found under the fake date
+        let counts_fake = db.get_completed_counts("0xalice", "2099-01-01").await.unwrap();
+        assert!(
+            counts_fake.is_empty(),
+            "Should NOT be found under the passed date"
+        );
+
+        // Verify total reflects the correct count
+        let total = db.get_total_completed("0xalice", &expected_today).await.unwrap();
+        assert_eq!(total, 1, "Total should count the completion under today's date");
     }
 
     #[tokio::test]
@@ -405,20 +444,34 @@ mod tests {
         let today = today();
         let yesterday = yesterday();
 
-        // 3 successes yesterday
-        for _ in 0..3 {
-            db.record_task_completion("0xalice", "01_checkBalance", &yesterday, true, "ok")
-                .await
-                .unwrap();
-        }
+        // Insert 3 records under yesterday's date via raw SQL (bypassing
+        // record_task_completion which derives date from Utc::now()).
+        // count_success=3 means the task was completed 3 times yesterday.
+        let now_ts = Utc::now().timestamp();
+        sqlx::query(
+            "INSERT INTO daily_task_completions
+             (wallet_address, task_name, date, count_success, completed_at, message)
+             VALUES (?, ?, ?, 3, ?, 'yesterday')",
+        )
+        .bind("0xalice")
+        .bind("01_checkBalance")
+        .bind(&yesterday)
+        .bind(now_ts)
+        .execute(&db.pool)
+        .await
+        .unwrap();
 
-        // Today should be empty
+        // Today should be empty — queries filter by date
         let counts_today = db.get_completed_counts("0xalice", &today).await.unwrap();
         assert!(counts_today.is_empty(), "Yesterday's data should not appear today");
 
         // Yesterday should have the data
         let counts_yesterday = db.get_completed_counts("0xalice", &yesterday).await.unwrap();
-        assert_eq!(counts_yesterday.get("01_checkBalance").copied().unwrap_or(0), 3);
+        assert_eq!(
+            counts_yesterday.get("01_checkBalance").copied().unwrap_or(0),
+            3,
+            "Yesterday's data should be queryable by yesterday's date"
+        );
     }
 
     #[tokio::test]
