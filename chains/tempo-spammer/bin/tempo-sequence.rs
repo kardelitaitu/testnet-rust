@@ -272,7 +272,8 @@ async fn main() -> Result<()> {
                         wallet_idx, task_id, proxy_idx_str, attempt
                     );
 
-                    let context = TaskContext::new(client, config.clone(), db.clone(), Arc::new(GasManager));
+                    let context =
+                        TaskContext::new(client, config.clone(), db.clone(), Arc::new(GasManager));
                     let start = std::time::Instant::now();
 
                     // 3. Run Task

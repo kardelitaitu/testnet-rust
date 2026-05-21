@@ -319,7 +319,9 @@ impl Spammer for EvmSpammer {
 
                     // Apply rate limit before executing task
                     if let Some(ref proxy) = proxy_config {
-                        self.proxy_rate_limiter.wait_until_available(&proxy.url).await;
+                        self.proxy_rate_limiter
+                            .wait_until_available(&proxy.url)
+                            .await;
                     }
 
                     // Create provider with selected proxy

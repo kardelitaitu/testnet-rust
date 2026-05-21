@@ -109,7 +109,10 @@ impl DailyDb {
         .await
         .context("Failed to query completion counts")?;
 
-        Ok(rows.into_iter().map(|(name, cnt)| (name, cnt as usize)).collect())
+        Ok(rows
+            .into_iter()
+            .map(|(name, cnt)| (name, cnt as usize))
+            .collect())
     }
 
     /// Return the total number of **successful** completions for a wallet today.
@@ -152,7 +155,11 @@ impl DailyDb {
                 .insert(task_name, cnt as usize);
         }
 
-        debug!("All completed counts for {}: {} wallets have data", date, result.len());
+        debug!(
+            "All completed counts for {}: {} wallets have data",
+            date,
+            result.len()
+        );
         Ok(result)
     }
 
@@ -219,9 +226,7 @@ impl DailyDb {
             .execute(&self.pool)
             .await
             .with_context(|| {
-                format!(
-                    "Failed to record task failure for wallet {wallet_address} / {task_name}"
-                )
+                format!("Failed to record task failure for wallet {wallet_address} / {task_name}")
             })?;
         }
 
@@ -294,12 +299,21 @@ mod tests {
 
         // Call with a deliberately WRONG date ("2099-01-01") to prove
         // the function ignores the passed date and derives its own.
-        db.record_task_completion("0xalice", "01_checkBalance", "2099-01-01", true, "cross-midnight")
-            .await
-            .unwrap();
+        db.record_task_completion(
+            "0xalice",
+            "01_checkBalance",
+            "2099-01-01",
+            true,
+            "cross-midnight",
+        )
+        .await
+        .unwrap();
 
         // Record should be found under today's date, NOT the fake date
-        let counts_today = db.get_completed_counts("0xalice", &expected_today).await.unwrap();
+        let counts_today = db
+            .get_completed_counts("0xalice", &expected_today)
+            .await
+            .unwrap();
         assert_eq!(
             counts_today.get("01_checkBalance").copied().unwrap_or(0),
             1,
@@ -307,15 +321,24 @@ mod tests {
         );
 
         // Should NOT be found under the fake date
-        let counts_fake = db.get_completed_counts("0xalice", "2099-01-01").await.unwrap();
+        let counts_fake = db
+            .get_completed_counts("0xalice", "2099-01-01")
+            .await
+            .unwrap();
         assert!(
             counts_fake.is_empty(),
             "Should NOT be found under the passed date"
         );
 
         // Verify total reflects the correct count
-        let total = db.get_total_completed("0xalice", &expected_today).await.unwrap();
-        assert_eq!(total, 1, "Total should count the completion under today's date");
+        let total = db
+            .get_total_completed("0xalice", &expected_today)
+            .await
+            .unwrap();
+        assert_eq!(
+            total, 1,
+            "Total should count the completion under today's date"
+        );
     }
 
     #[tokio::test]
@@ -463,12 +486,21 @@ mod tests {
 
         // Today should be empty — queries filter by date
         let counts_today = db.get_completed_counts("0xalice", &today).await.unwrap();
-        assert!(counts_today.is_empty(), "Yesterday's data should not appear today");
+        assert!(
+            counts_today.is_empty(),
+            "Yesterday's data should not appear today"
+        );
 
         // Yesterday should have the data
-        let counts_yesterday = db.get_completed_counts("0xalice", &yesterday).await.unwrap();
+        let counts_yesterday = db
+            .get_completed_counts("0xalice", &yesterday)
+            .await
+            .unwrap();
         assert_eq!(
-            counts_yesterday.get("01_checkBalance").copied().unwrap_or(0),
+            counts_yesterday
+                .get("01_checkBalance")
+                .copied()
+                .unwrap_or(0),
             3,
             "Yesterday's data should be queryable by yesterday's date"
         );
@@ -504,7 +536,9 @@ mod tests {
     async fn test_init_schema_idempotent() {
         let db = test_db().await;
         // Calling init_schema twice should not error
-        db.init_schema().await.expect("Second init_schema call should succeed");
+        db.init_schema()
+            .await
+            .expect("Second init_schema call should succeed");
         // And queries should still work
         let counts = db.get_completed_counts("0xalice", &today()).await.unwrap();
         assert!(counts.is_empty());
@@ -550,7 +584,10 @@ mod tests {
         db.init_schema().await.expect("Migration should succeed");
 
         // Old data should be gone (DROP TABLE during migration)
-        let counts = db.get_completed_counts("0xalice", "2025-01-01").await.unwrap();
+        let counts = db
+            .get_completed_counts("0xalice", "2025-01-01")
+            .await
+            .unwrap();
         assert!(
             counts.is_empty(),
             "Old data should be dropped during migration"
@@ -564,10 +601,7 @@ mod tests {
 
         // Read back under new schema
         let new_counts = db.get_completed_counts("0xalice", &today).await.unwrap();
-        assert_eq!(
-            new_counts.get("01_checkBalance").copied().unwrap_or(0),
-            1
-        );
+        assert_eq!(new_counts.get("01_checkBalance").copied().unwrap_or(0), 1);
 
         // Verify UPSERT correctly increments count_success
         db.record_task_completion("0xalice", "01_checkBalance", &today, true, "second")

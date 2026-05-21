@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::prelude::*;
 use rand::rngs::OsRng;
-use rand::{Rng, seq::SliceRandom};
+use rand::{seq::SliceRandom, Rng};
 use std::sync::Arc;
 
 use crate::contracts::MEME_TOKEN_ABI;
@@ -82,7 +82,9 @@ impl Task<TaskContext> for BatchSendCreatedMemeTask {
                 success: false,
                 message: format!(
                     "Insufficient balance: need {} for {} recipients, have {}",
-                    total_needed, recipients.len(), balance
+                    total_needed,
+                    recipients.len(),
+                    balance
                 ),
                 tx_hash: None,
             });
@@ -141,7 +143,10 @@ impl Task<TaskContext> for BatchSendCreatedMemeTask {
             match client.send_transaction(tx, None).await {
                 Ok(pending) => {
                     tx_hashes.push(format!("{:?}", pending.tx_hash()));
-                    debug!("BatchSendCreatedMeme transfer submitted: {:?}", pending.tx_hash());
+                    debug!(
+                        "BatchSendCreatedMeme transfer submitted: {:?}",
+                        pending.tx_hash()
+                    );
                 }
                 Err(e) => {
                     debug!("BatchSendCreatedMeme transfer submit failed: {}", e);
@@ -151,8 +156,8 @@ impl Task<TaskContext> for BatchSendCreatedMemeTask {
             }
         }
 
-        let amount_display = ethers::utils::format_units(amount_per, 18)
-            .unwrap_or_else(|_| amount_per.to_string());
+        let amount_display =
+            ethers::utils::format_units(amount_per, 18).unwrap_or_else(|_| amount_per.to_string());
 
         if tx_hashes.is_empty() {
             Ok(TaskResult {

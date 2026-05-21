@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::prelude::*;
 use rand::rngs::OsRng;
-use rand::{Rng, seq::SliceRandom};
+use rand::{seq::SliceRandom, Rng};
 use std::sync::Arc;
 
 use crate::contracts::MEME_TOKEN_ABI;
@@ -83,13 +83,16 @@ impl Task<TaskContext> for MintMemeTask {
 
         match pending_tx {
             Ok(pending) => {
-                let amount_display = ethers::utils::format_units(amount, 18)
-                    .unwrap_or_else(|_| amount.to_string());
+                let amount_display =
+                    ethers::utils::format_units(amount, 18).unwrap_or_else(|_| amount.to_string());
                 Ok(TaskResult {
                     success: true,
                     message: format!(
                         "Minted {} MEME on {:?} to {:?} (tx: {:?})",
-                        amount_display, token_address, address, pending.tx_hash()
+                        amount_display,
+                        token_address,
+                        address,
+                        pending.tx_hash()
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })

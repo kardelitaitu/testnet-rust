@@ -186,7 +186,7 @@ impl TempoTask for DistributeSharesMemeTask {
                             tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
                             continue;
                         }
-                        
+
                         if err_str.contains("nonce too low") || err_str.contains("already known") {
                             client.reset_nonce_cache().await;
                             continue;

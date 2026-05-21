@@ -78,7 +78,11 @@ impl Task<TaskContext> for SendMemeTokenTask {
         if amount.is_zero() {
             return Ok(TaskResult {
                 success: false,
-                message: format!("Balance too low to send {}.% (balance: {})", pct_basis as f64 / 100.0, balance),
+                message: format!(
+                    "Balance too low to send {}.% (balance: {})",
+                    pct_basis as f64 / 100.0,
+                    balance
+                ),
                 tx_hash: None,
             });
         }

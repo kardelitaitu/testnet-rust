@@ -117,4 +117,3 @@ impl Task<TaskContext> for MulticallTask {
         }
     }
 }
-

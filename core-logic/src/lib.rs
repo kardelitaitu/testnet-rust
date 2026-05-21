@@ -56,8 +56,8 @@ pub use utils::memory_optimized_logger::{
     MemoryOptimizedLoggerConfig,
 };
 pub use utils::memory_optimizer::{
-    get_memory_status, init_memory_optimization, perform_memory_cleanup, register_memory_cleanup_hook, MemoryOptimizer,
-    MemoryOptimizerConfig,
+    get_memory_status, init_memory_optimization, perform_memory_cleanup,
+    register_memory_cleanup_hook, MemoryOptimizer, MemoryOptimizerConfig,
 };
 
 // Export retry utilities for testing

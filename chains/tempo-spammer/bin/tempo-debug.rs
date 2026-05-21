@@ -8,8 +8,8 @@ use dotenv::dotenv;
 use rand::Rng;
 use std::env;
 use std::sync::Arc;
-use tempo_spammer::TempoClient;
 use tempo_spammer::RobustNonceManager;
+use tempo_spammer::TempoClient;
 use tempo_spammer::config::TempoSpammerConfig;
 use tempo_spammer::tasks::{GasManager, TaskContext, TempoTask, load_proxies};
 use tracing;
@@ -121,7 +121,7 @@ async fn main() -> Result<()> {
     let config_dir = config_path_obj
         .parent()
         .unwrap_or(std::path::Path::new("."));
-    
+
     // Check multiple locations for proxies.txt
     let possible_paths = vec![
         std::path::PathBuf::from("../../proxies.txt"),
@@ -145,7 +145,7 @@ async fn main() -> Result<()> {
             }
         }
     }
-    
+
     println!(
         "Loaded {} proxies from {}",
         proxies.len(),
@@ -191,7 +191,7 @@ async fn main() -> Result<()> {
         &decrypted.evm_private_key,
         proxy,
         proxy_idx,
-        None, // No shared provider in debug mode
+        None,  // No shared provider in debug mode
         false, // default
     )
     .await?;

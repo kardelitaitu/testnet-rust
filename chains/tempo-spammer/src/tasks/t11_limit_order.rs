@@ -98,24 +98,24 @@ impl TempoTask for LimitOrderTask {
             let mut attempt = 0;
             loop {
                 let nonce = match client.get_pending_nonce(&ctx.config.rpc_url).await {
-                     Ok(n) => n,
-                     Err(_) => break, // Skip approval if nonce fetch fails, try order anyway
+                    Ok(n) => n,
+                    Err(_) => break, // Skip approval if nonce fetch fails, try order anyway
                 };
-                
+
                 let approve_tx = TransactionRequest::default()
                     .to(pathusd_addr)
                     .input(TransactionInput::from(approve_calldata.clone()))
                     .from(address)
                     .nonce(nonce);
-                
+
                 match client.provider.send_transaction(approve_tx).await {
                     Ok(_) => break, // Approval sent (fire and forget)
                     Err(e) => {
                         let err = e.to_string().to_lowercase();
                         if (err.contains("nonce") || err.contains("known")) && attempt < 2 {
-                             client.reset_nonce_cache().await;
-                             attempt += 1;
-                             continue;
+                            client.reset_nonce_cache().await;
+                            attempt += 1;
+                            continue;
                         }
                         break;
                     }
@@ -147,35 +147,35 @@ impl TempoTask for LimitOrderTask {
 
             // Approve system token for DEX
             let approve_calldata = build_approve_calldata(dex_addr, U256::MAX);
-            
+
             // Send approval with retry logic (Simplified)
             let mut attempt = 0;
             loop {
                 let nonce = match client.get_pending_nonce(&ctx.config.rpc_url).await {
-                     Ok(n) => n,
-                     Err(_) => break, 
+                    Ok(n) => n,
+                    Err(_) => break,
                 };
-                
+
                 let approve_tx = TransactionRequest::default()
                     .to(token_addr)
                     .input(TransactionInput::from(approve_calldata.clone()))
                     .from(address)
                     .nonce(nonce);
-                
+
                 match client.provider.send_transaction(approve_tx).await {
-                    Ok(_) => break, 
+                    Ok(_) => break,
                     Err(e) => {
                         let err = e.to_string().to_lowercase();
                         if (err.contains("nonce") || err.contains("known")) && attempt < 2 {
-                             client.reset_nonce_cache().await;
-                             attempt += 1;
-                             continue;
+                            client.reset_nonce_cache().await;
+                            attempt += 1;
+                            continue;
                         }
                         break;
                     }
                 }
             }
-            
+
             // println!("{} approved for DEX", token_name);
         }
 
@@ -186,11 +186,17 @@ impl TempoTask for LimitOrderTask {
         // Send place order with retry logic
         let mut attempt = 0;
         let max_retries = 3;
-        
+
         loop {
             let nonce = match client.get_pending_nonce(&ctx.config.rpc_url).await {
                 Ok(n) => n,
-                Err(e) => return Ok(TaskResult { success: false, message: format!("Nonce error: {}", e), tx_hash: None }),
+                Err(e) => {
+                    return Ok(TaskResult {
+                        success: false,
+                        message: format!("Nonce error: {}", e),
+                        tx_hash: None,
+                    });
+                }
             };
 
             let tx = TransactionRequest::default()
@@ -217,7 +223,7 @@ impl TempoTask for LimitOrderTask {
                             tx_hash
                         ),
                         tx_hash: Some(format!("{:?}", tx_hash)),
-                    })
+                    });
                 }
                 Err(e) => {
                     let err = e.to_string().to_lowercase();
@@ -227,7 +233,7 @@ impl TempoTask for LimitOrderTask {
                         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                         continue;
                     }
-                    
+
                     return Ok(TaskResult {
                         success: false,
                         message: format!("Limit order reverted: {}", e),

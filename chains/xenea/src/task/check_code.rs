@@ -22,9 +22,9 @@ impl Task<TaskContext> for XeneaCheckCodeTask {
         let provider = &ctx.provider;
         let addr: Address = "0x4200000000000000000000000000000000000017".parse()?;
         let code = provider.get_code(addr, None).await?;
-        
+
         debug!("Code at {:?}: {} bytes", addr, code.len());
-        
+
         Ok(TaskResult {
             success: true,
             message: format!("Code len: {}", code.len()),

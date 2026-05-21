@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::prelude::*;
 use rand::rngs::OsRng;
-use rand::{Rng, seq::SliceRandom};
+use rand::{seq::SliceRandom, Rng};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -42,9 +42,15 @@ impl Task<TaskContext> for Erc1155MintTask {
         let contract_address = if let Some(db) = &ctx.db {
             match db.get_all_assets_by_type("ERC1155").await {
                 Ok(contracts) if !contracts.is_empty() => {
-                    let addr_str = contracts.choose(&mut rng).context("Failed to pick contract")?;
+                    let addr_str = contracts
+                        .choose(&mut rng)
+                        .context("Failed to pick contract")?;
                     debug!("Using existing ERC1155: {}", addr_str);
-                    Some(addr_str.parse::<Address>().context("Invalid address in DB")?)
+                    Some(
+                        addr_str
+                            .parse::<Address>()
+                            .context("Invalid address in DB")?,
+                    )
                 }
                 _ => None,
             }
@@ -104,15 +110,19 @@ impl Task<TaskContext> for Erc1155MintTask {
                         let tx_hash = format!("{:?}", pending.tx_hash());
                         match pending.await {
                             Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
-                                let addr = receipt.contract_address.context("No contract address in receipt")?;
+                                let addr = receipt
+                                    .contract_address
+                                    .context("No contract address in receipt")?;
                                 if let Some(db) = &ctx.db {
-                                    let _ = db.log_asset_creation(
-                                        &format!("{:?}", address),
-                                        &format!("{:?}", addr),
-                                        "ERC1155",
-                                        "TestERC1155",
-                                        "T1155",
-                                    ).await;
+                                    let _ = db
+                                        .log_asset_creation(
+                                            &format!("{:?}", address),
+                                            &format!("{:?}", addr),
+                                            "ERC1155",
+                                            "TestERC1155",
+                                            "T1155",
+                                        )
+                                        .await;
                                 }
                                 addr
                             }

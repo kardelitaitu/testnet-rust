@@ -196,7 +196,10 @@ mod tests {
     #[test]
     fn test_gas_config_new_equals_default() {
         assert_eq!(GasConfig::new().max_gwei, GasConfig::default().max_gwei);
-        assert_eq!(GasConfig::new().priority_gwei, GasConfig::default().priority_gwei);
+        assert_eq!(
+            GasConfig::new().priority_gwei,
+            GasConfig::default().priority_gwei
+        );
     }
 
     #[test]

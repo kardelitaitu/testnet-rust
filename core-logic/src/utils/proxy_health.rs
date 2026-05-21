@@ -41,10 +41,10 @@ impl ProxyHealthManager {
     pub async fn record_failure(&self, proxy_url: &str) {
         let mut health_map = self.inner.write().await;
         let health = health_map.entry(proxy_url.to_string()).or_default();
-        
+
         health.failure_count += 1;
         health.last_failure = Some(Instant::now());
-        
+
         if health.failure_count >= self.failure_threshold {
             health.paused_until = Some(Instant::now() + self.pause_duration);
             health.failure_count = 0; // Reset after pausing
@@ -65,15 +65,15 @@ impl ProxyHealthManager {
     pub async fn record_success(&self, proxy_url: &str) {
         let mut health_map = self.inner.write().await;
         let health = health_map.entry(proxy_url.to_string()).or_default();
-        
+
         health.failure_count = 0;
         health.success_count += 1;
-        
+
         // If proxy was paused but now succeeding, it might have recovered
         if health.paused_until.is_some() {
             info!("Proxy {} recovered (success after pause)", proxy_url);
         }
-        
+
         health.paused_until = None; // Clear any pause
     }
 
@@ -94,21 +94,27 @@ impl ProxyHealthManager {
         health_map.get(proxy_url).map(|h| {
             let status = if let Some(paused) = h.paused_until {
                 if Instant::now() < paused {
-                    format!("PAUSED ({}s remaining)", (paused - Instant::now()).as_secs())
+                    format!(
+                        "PAUSED ({}s remaining)",
+                        (paused - Instant::now()).as_secs()
+                    )
                 } else {
                     format!("active ({} failures)", h.failure_count)
                 }
             } else {
                 format!("active ({} failures)", h.failure_count)
             };
-            format!("{} success, {} - {}", h.success_count, h.failure_count, status)
+            format!(
+                "{} success, {} - {}",
+                h.success_count, h.failure_count, status
+            )
         })
     }
 
     pub async fn cleanup_expired(&self) {
         let mut health_map = self.inner.write().await;
         let now = Instant::now();
-        
+
         for (_, health) in health_map.iter_mut() {
             if let Some(paused_until) = health.paused_until {
                 if now >= paused_until {
@@ -122,15 +128,18 @@ impl ProxyHealthManager {
     pub async fn get_healthy_count(&self, proxies: &[String]) -> usize {
         let health_map = self.inner.read().await;
         let now = Instant::now();
-        
-        proxies.iter().filter(|p| {
-            if let Some(health) = health_map.get(*p) {
-                if let Some(paused_until) = health.paused_until {
-                    return now >= paused_until;
+
+        proxies
+            .iter()
+            .filter(|p| {
+                if let Some(health) = health_map.get(*p) {
+                    if let Some(paused_until) = health.paused_until {
+                        return now >= paused_until;
+                    }
                 }
-            }
-            true
-        }).count()
+                true
+            })
+            .count()
     }
 }
 
@@ -282,7 +291,11 @@ mod tests {
         let status = mgr.get_status("http://proxy:8080").await;
         assert!(status.is_some());
         let s = status.unwrap();
-        assert!(s.contains("PAUSED"), "paused proxy should show PAUSED: {}", s);
+        assert!(
+            s.contains("PAUSED"),
+            "paused proxy should show PAUSED: {}",
+            s
+        );
         assert!(s.contains("remaining"), "should show time remaining: {}", s);
     }
 

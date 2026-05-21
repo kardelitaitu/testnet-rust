@@ -60,7 +60,9 @@ impl Task<TaskContext> for StoragePatternTask {
         let value_b: u128 = rng.gen();
         let packed = (U256::from(value_a) << 128) | U256::from(value_b);
 
-        let deploy_data = crate::utils::strip_push0(&hex::decode(&storage_bytecode.trim_start_matches("0x")).unwrap());
+        let deploy_data = crate::utils::strip_push0(
+            &hex::decode(&storage_bytecode.trim_start_matches("0x")).unwrap(),
+        );
 
         let deploy_nonce = nonce_manager.next().await?;
         let deploy_tx = TransactionRequest::new()
@@ -75,11 +77,9 @@ impl Task<TaskContext> for StoragePatternTask {
             Ok(pending) => {
                 let tx_hash = format!("{:?}", pending.tx_hash());
                 match pending.await {
-                    Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
-                        receipt
-                            .contract_address
-                            .context("No contract address in receipt")?
-                    }
+                    Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => receipt
+                        .contract_address
+                        .context("No contract address in receipt")?,
                     _ => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -91,7 +91,10 @@ impl Task<TaskContext> for StoragePatternTask {
                 }
             }
             Err(e) => {
-                debug!("StoragePattern deploy submit failed, resyncing nonce: {}", e);
+                debug!(
+                    "StoragePattern deploy submit failed, resyncing nonce: {}",
+                    e
+                );
                 let _ = nonce_manager.resync().await;
                 return Ok(TaskResult {
                     success: false,

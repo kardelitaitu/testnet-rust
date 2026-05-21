@@ -11,7 +11,10 @@ use alloy_rlp::{RlpDecodable, RlpEncodable};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
+#[cfg_attr(
+    all(test, feature = "reth-codec"),
+    reth_codecs::add_arbitrary_tests(compact, rlp)
+)]
 pub struct TempoHeader {
     /// Non-payment gas limit for the block.
     #[cfg_attr(

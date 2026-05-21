@@ -80,7 +80,6 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
             .data(simple_bootstrap.clone())
             .gas(gas_limit)
             .gas_price(gas_price)
-            
             .from(wallet.address());
 
         messages.push("Sending simple bootstrap...".to_string());
@@ -127,7 +126,6 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
             .data(create2_bootstrap)
             .gas(gas_limit)
             .gas_price(gas_price)
-            
             .from(wallet.address());
 
         messages.push("Sending CREATE2 bootstrap...".to_string());
@@ -171,7 +169,6 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
             .data(multibyte)
             .gas(gas_limit)
             .gas_price(gas_price)
-            
             .from(wallet.address());
 
         messages.push("Sending multibyte...".to_string());
@@ -205,7 +202,6 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
             .data(invalid)
             .gas(gas_limit)
             .gas_price(gas_price)
-            
             .from(wallet.address());
 
         match client.send_transaction(tx4, None).await {
@@ -231,7 +227,6 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
             .data(sstore)
             .gas(gas_limit)
             .gas_price(gas_price)
-            
             .from(wallet.address());
 
         match client.send_transaction(tx5, None).await {
@@ -285,4 +280,3 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
         })
     }
 }
-

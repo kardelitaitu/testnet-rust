@@ -62,6 +62,7 @@ pub mod t63_burn_meme;
 // Wrapped-native tasks are intentionally not wired for Xenea until a real wrapped token is confirmed.
 pub mod check_code;
 
+pub use self::check_code::XeneaCheckCodeTask;
 pub use self::t18_contract_call_raw::ContractCallRawTask;
 pub use self::t19_high_gas_limit::HighGasLimitTask;
 pub use self::t20_gas_price_test::GasPriceTestTask;
@@ -107,7 +108,6 @@ pub use self::t60_nonce_repair::NonceRepairTask;
 pub use self::t61_mint_meme::MintMemeTask;
 pub use self::t62_batch_send_meme::BatchSendCreatedMemeTask;
 pub use self::t63_burn_meme::BurnMemeTask;
-pub use self::check_code::XeneaCheckCodeTask;
 
 pub use core_logic::traits::{Task, TaskResult};
 
@@ -181,8 +181,15 @@ mod tests {
         for task in &tasks {
             let name = task.name();
             assert!(name.len() >= 3, "Task '{}' too short", name);
-            let _: u32 = name[..2].parse().expect("Task should start with 2-digit number");
-            assert_eq!(name.as_bytes()[2], b'_', "Task '{}' missing separator", name);
+            let _: u32 = name[..2]
+                .parse()
+                .expect("Task should start with 2-digit number");
+            assert_eq!(
+                name.as_bytes()[2],
+                b'_',
+                "Task '{}' missing separator",
+                name
+            );
             assert!(seen.insert(name), "Duplicate task name: {}", name);
         }
     }

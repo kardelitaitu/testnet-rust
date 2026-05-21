@@ -11,20 +11,17 @@ impl Task<TaskContext> for SimpleEthTransferTask {
     async fn run(&self, ctx: TaskContext) -> Result<TaskResult> {
         let address = ctx.wallet.address();
         let provider = &ctx.provider;
-        
+
         let to = address;
         let amount = parse_ether(0.0001)?;
 
         info!("Sending 0.0001 ETH from {} to {}", address, to);
 
-        let tx = TransactionRequest::new()
-            .to(to)
-            .value(amount)
-            .from(address);
+        let tx = TransactionRequest::new().to(to).value(amount).from(address);
 
         let pending_tx = provider.send_transaction(tx, None).await?;
         let tx_hash = pending_tx.tx_hash();
-        
+
         Ok(TaskResult {
             success: true,
             message: format!("Transferred 0.0001 ETH to self"),

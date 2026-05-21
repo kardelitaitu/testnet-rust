@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::prelude::*;
 use rand::rngs::OsRng;
-use rand::{Rng, seq::SliceRandom};
+use rand::{seq::SliceRandom, Rng};
 use std::sync::Arc;
 use tokio::time::{timeout, Duration};
 use tracing::debug;
@@ -38,7 +38,7 @@ impl Task<TaskContext> for Erc1155TransferTask {
         let deploy_gas_limit = 3_000_000u64;
         let mint_gas_limit = 500_000u64;
         let transfer_gas_limit = 500_000u64;
-        
+
         // If using existing contract, no deploy needed
         let estimated_gas = if ctx.db.is_some() {
             U256::from(mint_gas_limit + transfer_gas_limit) * gas_price
@@ -72,9 +72,15 @@ impl Task<TaskContext> for Erc1155TransferTask {
             match db.get_all_assets_by_type("ERC1155").await {
                 Ok(contracts) if !contracts.is_empty() => {
                     // Use existing contract
-                    let addr_str = contracts.choose(&mut rng).context("Failed to pick contract")?;
+                    let addr_str = contracts
+                        .choose(&mut rng)
+                        .context("Failed to pick contract")?;
                     debug!("Using existing ERC1155: {}", addr_str);
-                    Some(addr_str.parse::<Address>().context("Invalid address in DB")?)
+                    Some(
+                        addr_str
+                            .parse::<Address>()
+                            .context("Invalid address in DB")?,
+                    )
                 }
                 _ => None,
             }
@@ -110,16 +116,20 @@ impl Task<TaskContext> for Erc1155TransferTask {
                         let tx_hash = format!("{:?}", pending.tx_hash());
                         match timeout(Duration::from_secs(90), pending).await {
                             Ok(Ok(Some(receipt))) if receipt.status == Some(U64::from(1)) => {
-                                let addr = receipt.contract_address.context("No contract address in receipt")?;
+                                let addr = receipt
+                                    .contract_address
+                                    .context("No contract address in receipt")?;
                                 // Save to DB
                                 if let Some(db) = &ctx.db {
-                                    let _ = db.log_asset_creation(
-                                        &format!("{:?}", address),
-                                        &format!("{:?}", addr),
-                                        "ERC1155",
-                                        "TestERC1155",
-                                        "T1155",
-                                    ).await;
+                                    let _ = db
+                                        .log_asset_creation(
+                                            &format!("{:?}", address),
+                                            &format!("{:?}", addr),
+                                            "ERC1155",
+                                            "TestERC1155",
+                                            "T1155",
+                                        )
+                                        .await;
                                 }
                                 addr
                             }
@@ -143,7 +153,10 @@ impl Task<TaskContext> for Erc1155TransferTask {
                                 let _ = nonce_manager.resync().await;
                                 return Ok(TaskResult {
                                     success: false,
-                                    message: format!("ERC1155 deploy receipt failed (tx: {}): {}", tx_hash, e),
+                                    message: format!(
+                                        "ERC1155 deploy receipt failed (tx: {}): {}",
+                                        tx_hash, e
+                                    ),
                                     tx_hash: Some(tx_hash),
                                 });
                             }
@@ -203,7 +216,10 @@ impl Task<TaskContext> for Erc1155TransferTask {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
                             success: false,
-                            message: format!("ERC1155 mint timed out or unavailable (tx: {})", mint_tx_hash),
+                            message: format!(
+                                "ERC1155 mint timed out or unavailable (tx: {})",
+                                mint_tx_hash
+                            ),
                             tx_hash: Some(mint_tx_hash),
                         });
                     }
@@ -211,7 +227,10 @@ impl Task<TaskContext> for Erc1155TransferTask {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
                             success: false,
-                            message: format!("ERC1155 mint receipt failed (tx: {}): {}", mint_tx_hash, e),
+                            message: format!(
+                                "ERC1155 mint receipt failed (tx: {}): {}",
+                                mint_tx_hash, e
+                            ),
                             tx_hash: Some(mint_tx_hash),
                         });
                     }

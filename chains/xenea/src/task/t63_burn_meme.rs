@@ -125,7 +125,9 @@ impl Task<TaskContext> for BurnMemeTask {
                     success: true,
                     message: format!(
                         "Burned {} MEME from {:?} (tx: {:?})",
-                        burn_display, token_address, pending.tx_hash()
+                        burn_display,
+                        token_address,
+                        pending.tx_hash()
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })

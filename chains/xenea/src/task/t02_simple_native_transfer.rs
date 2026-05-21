@@ -79,7 +79,10 @@ impl Task<TaskContext> for SimpleEthTransferTask {
                     success: true,
                     message: format!(
                         "Sent {} TXENE ({:.2}%) to {:?} (tx: {:?})",
-                        amount_native, amount_pct, recipient, pending.tx_hash()
+                        amount_native,
+                        amount_pct,
+                        recipient,
+                        pending.tx_hash()
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })

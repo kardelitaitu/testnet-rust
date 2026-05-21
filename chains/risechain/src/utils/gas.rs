@@ -152,17 +152,26 @@ mod tests {
 
     #[test]
     fn test_parse_units_gwei() {
-        assert_eq!(parse_units(1.0, "gwei").unwrap(), U256::from(1_000_000_000u64));
+        assert_eq!(
+            parse_units(1.0, "gwei").unwrap(),
+            U256::from(1_000_000_000u64)
+        );
     }
 
     #[test]
     fn test_parse_units_ether() {
-        assert_eq!(parse_units(1.0, "ether").unwrap(), U256::from(10u128.pow(18)));
+        assert_eq!(
+            parse_units(1.0, "ether").unwrap(),
+            U256::from(10u128.pow(18))
+        );
     }
 
     #[test]
     fn test_parse_units_fractional() {
-        assert_eq!(parse_units(0.5, "gwei").unwrap(), U256::from(500_000_000u64));
+        assert_eq!(
+            parse_units(0.5, "gwei").unwrap(),
+            U256::from(500_000_000u64)
+        );
     }
 
     #[test]

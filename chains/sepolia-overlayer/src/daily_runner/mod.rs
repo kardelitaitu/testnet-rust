@@ -26,9 +26,9 @@ use crate::config::{SepoliaConfig, TaskLimits};
 use crate::task::{
     AaveUsdcFaucetTask, AaveUsdtFaucetTask, BridgeBackCplusTask, BridgeBackTplusTask,
     BridgeCplusTask, BridgeTplusTask, MintUsdcPlusTask, MintUsdtPlusTask, RedeemUsdcPlusTask,
-    RedeemUsdtPlusTask, SendRandomUsdcPlusTask, SendRandomUsdtPlusTask,
-    SepoliaCheckBalanceTask, SepoliaTask, StakeUsdcPlusTask, StakeUsdtPlusTask, TaskContext,
-    UnstakeCplusTask, UnstakeTplusTask,
+    RedeemUsdtPlusTask, SendRandomUsdcPlusTask, SendRandomUsdtPlusTask, SepoliaCheckBalanceTask,
+    SepoliaTask, StakeUsdcPlusTask, StakeUsdtPlusTask, TaskContext, UnstakeCplusTask,
+    UnstakeTplusTask,
 };
 use crate::utils::gas::GasManager;
 
@@ -102,7 +102,7 @@ pub fn is_in_pause_window() -> bool {
 /// Like [`is_in_pause_window()`] but accepts an explicit timestamp,
 /// making it testable with known boundary values.
 pub fn is_in_pause_window_at(now: chrono::DateTime<chrono::Utc>) -> bool {
-    let minutes = now.hour() as u32 * 60 + now.minute() as u32;
+    let minutes = now.hour() * 60 + now.minute();
     minutes >= PAUSE_START_MINUTES || minutes <= PAUSE_END_MINUTES
 }
 
@@ -148,13 +148,38 @@ pub struct DailyRunStats {
 
 enum TaskOutcome {
     /// Task succeeded → recorded in DB (counts toward daily limit).
-    Success { task_name: String, message: String, proxy_id: String },
+    Success {
+        task_name: String,
+        message: String,
+        proxy_id: String,
+        count: usize,
+        limit: usize,
+    },
     /// Task failed → NOT counted toward daily limit, stays in pool.
-    Retry { task_name: String, message: String, proxy_id: String },
+    Retry {
+        task_name: String,
+        message: String,
+        proxy_id: String,
+        count: usize,
+        limit: usize,
+    },
     /// Task exceeded the runner timeout → not recorded, will be retried.
-    Timeout { task_name: String, message: String, proxy_id: String },
+    Timeout {
+        task_name: String,
+        message: String,
+        proxy_id: String,
+        count: usize,
+        limit: usize,
+    },
     /// Wallet has no remaining capacity for any task today.
-    WalletComplete { wallet_idx: usize, wallet_address: String, task_name: String, proxy_id: String },
+    WalletComplete {
+        wallet_idx: usize,
+        wallet_address: String,
+        task_name: String,
+        proxy_id: String,
+        count: usize,
+        limit: usize,
+    },
 }
 
 // -----------------------------------------------------------------------
@@ -172,10 +197,7 @@ pub fn get_task_limit(limits: &TaskLimits, task_name: &str) -> u32 {
 }
 
 /// Return `true` if the wallet has at least one task with remaining capacity.
-pub fn wallet_has_remaining(
-    task_counts: &HashMap<String, usize>,
-    limits: &TaskLimits,
-) -> bool {
+pub fn wallet_has_remaining(task_counts: &HashMap<String, usize>, limits: &TaskLimits) -> bool {
     ALL_TASK_NAMES.iter().copied().any(|task| {
         let count = task_counts.get(task).copied().unwrap_or(0);
         let limit = get_task_limit(limits, task) as usize;
@@ -422,8 +444,7 @@ impl DailyRunner {
             // Pick a random non-busy wallet
             let wallet_idx = {
                 let busy = self.busy_wallets.lock().await;
-                let available: Vec<&usize> =
-                    active.iter().filter(|w| !busy.contains(w)).collect();
+                let available: Vec<&usize> = active.iter().filter(|w| !busy.contains(w)).collect();
                 if available.is_empty() {
                     drop(busy);
                     sleep(Duration::from_millis(BUSY_SLEEP_MS)).await;
@@ -463,6 +484,8 @@ impl DailyRunner {
                             task_name: "unknown".into(),
                             message: format!("Task exceeded {}s timeout", task_timeout_secs),
                             proxy_id: "---".into(),
+                            count: 0,
+                            limit: 0,
                         },
                     })
                 }
@@ -477,46 +500,71 @@ impl DailyRunner {
 
             // Track stats
             match outcome {
-                TaskOutcome::Success { task_name, message, proxy_id } => {
+                TaskOutcome::Success {
+                    task_name,
+                    message,
+                    proxy_id,
+                    count,
+                    limit,
+                } => {
                     stats.total_attempts += 1;
                     stats.successful += 1;
                     info!(
                         target: "task_result",
-                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{}] {}",
+                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{:02}/{:02}][{}] {}",
                         Local::now().format("%H:%M:%S"),
                         worker_id, wallet_idx, proxy_id,
-                        "OK", task_name, message,
+                        "OK", count, limit, task_name, message,
                     );
                 }
-                TaskOutcome::Retry { task_name, message, proxy_id } => {
+                TaskOutcome::Retry {
+                    task_name,
+                    message,
+                    proxy_id,
+                    count,
+                    limit,
+                } => {
                     stats.total_attempts += 1;
                     stats.failed += 1;
                     info!(
                         target: "task_result",
-                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{}] {}",
+                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{:02}/{:02}][{}] {}",
                         Local::now().format("%H:%M:%S"),
                         worker_id, wallet_idx, proxy_id,
-                        "RETRY", task_name, message,
+                        "RETRY", count, limit, task_name, message,
                     );
                 }
-                TaskOutcome::Timeout { task_name, message, proxy_id } => {
+                TaskOutcome::Timeout {
+                    task_name,
+                    message,
+                    proxy_id,
+                    count,
+                    limit,
+                } => {
                     stats.total_attempts += 1;
                     stats.failed += 1;
                     error!(
                         target: "task_result",
-                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{}] {}",
+                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{:02}/{:02}][{}] {}",
                         Local::now().format("%H:%M:%S"),
                         worker_id, wallet_idx, proxy_id,
-                        "TIMEOUT", task_name, message,
+                        "TIMEOUT", count, limit, task_name, message,
                     );
                 }
-                TaskOutcome::WalletComplete { wallet_idx, wallet_address, task_name, proxy_id } => {
+                TaskOutcome::WalletComplete {
+                    wallet_idx,
+                    wallet_address,
+                    task_name,
+                    proxy_id,
+                    count,
+                    limit,
+                } => {
                     info!(
                         target: "task_result",
-                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{}] Daily tasks done - Address : {}",
+                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{:02}/{:02}][{}] Daily tasks done - Address : {}",
                         Local::now().format("%H:%M:%S"),
                         worker_id, wallet_idx, proxy_id,
-                        "LIMIT", task_name, wallet_address,
+                        "LIMIT", count, limit, task_name, wallet_address,
                     );
                 }
             }
@@ -546,6 +594,8 @@ impl DailyRunner {
                     task_name: "unknown".into(),
                     message: format!("DB error: {}", e),
                     proxy_id: "---".into(),
+                    count: 0,
+                    limit: 0,
                 };
             }
         };
@@ -557,16 +607,25 @@ impl DailyRunner {
         let pending: Vec<&str> = get_remaining_tasks(&task_counts, &self.task_limits);
 
         if pending.is_empty() {
+            let rep_task = ALL_TASK_NAMES[0];
+            let wc_count = task_counts.get(rep_task).copied().unwrap_or(0);
+            let wc_limit = get_task_limit(&self.task_limits, rep_task) as usize;
             return TaskOutcome::WalletComplete {
                 wallet_idx,
                 wallet_address: wallet_addr.to_string(),
-                task_name: ALL_TASK_NAMES[0].to_string(),
+                task_name: rep_task.to_string(),
                 proxy_id,
+                count: wc_count,
+                limit: wc_limit,
             };
         }
 
         // Pick random pending task
         let task_name = pending[rand::thread_rng().gen_range(0..pending.len())];
+
+        // Current count & limit for this task (before this execution)
+        let current_count = task_counts.get(task_name).copied().unwrap_or(0);
+        let current_limit = get_task_limit(&self.task_limits, task_name) as usize;
 
         // Find the task implementation
         let task = match self.tasks.iter().find(|t| t.name() == task_name) {
@@ -576,6 +635,8 @@ impl DailyRunner {
                     task_name: task_name.to_string(),
                     message: "Task implementation not found".into(),
                     proxy_id: proxy_id.clone(),
+                    count: current_count,
+                    limit: current_limit,
                 };
             }
         };
@@ -588,13 +649,10 @@ impl DailyRunner {
         }
 
         // Determine if this is a base-chain task (bridge-back)
-        let is_base =
-            task_name == "16_bridgeBackTplus" || task_name == "17_bridgeBackCplus";
+        let is_base = task_name == "16_bridgeBackTplus" || task_name == "17_bridgeBackCplus";
 
         let rpc_url = if is_base {
-            self.base_rpc_url
-                .as_deref()
-                .unwrap_or(&self.config.rpc_url)
+            self.base_rpc_url.as_deref().unwrap_or(&self.config.rpc_url)
         } else {
             &self.config.rpc_url
         };
@@ -617,13 +675,18 @@ impl DailyRunner {
                 } else {
                     self.config.chain_id
                 };
-                match decrypted.evm_private_key.parse::<ethers::signers::LocalWallet>() {
+                match decrypted
+                    .evm_private_key
+                    .parse::<ethers::signers::LocalWallet>()
+                {
                     Ok(w) => w.with_chain_id(chain_id),
                     Err(e) => {
                         return TaskOutcome::Retry {
                             task_name: task_name.to_string(),
                             message: format!("wallet parse error: {}", e),
                             proxy_id: proxy_id.clone(),
+                            count: current_count,
+                            limit: current_limit,
                         };
                     }
                 }
@@ -633,6 +696,8 @@ impl DailyRunner {
                     task_name: task_name.to_string(),
                     message: format!("wallet decrypt error: {}", e),
                     proxy_id: proxy_id.clone(),
+                    count: current_count,
+                    limit: current_limit,
                 };
             }
         };
@@ -648,10 +713,7 @@ impl DailyRunner {
         };
 
         let ctx_config = if is_base {
-            self.base_config
-                .as_ref()
-                .unwrap_or(&self.config)
-                .clone()
+            self.base_config.as_ref().unwrap_or(&self.config).clone()
         } else {
             self.config.clone()
         };
@@ -694,12 +756,16 @@ impl DailyRunner {
                         task_name: task_name.to_string(),
                         message: result.message,
                         proxy_id: proxy_id.clone(),
+                        count: current_count + 1,
+                        limit: current_limit,
                     }
                 } else {
                     TaskOutcome::Retry {
                         task_name: task_name.to_string(),
                         message: result.message,
                         proxy_id: proxy_id.clone(),
+                        count: current_count,
+                        limit: current_limit,
                     }
                 }
             }
@@ -724,6 +790,8 @@ impl DailyRunner {
                     task_name: task_name.to_string(),
                     message: format!("{}", e),
                     proxy_id: proxy_id.clone(),
+                    count: current_count,
+                    limit: current_limit,
                 }
             }
         }
@@ -1024,9 +1092,10 @@ mod tests {
         // checkBalance: 100/100, faucet: 5/5, others: 1/1
         counts.insert("01_checkBalance".to_string(), 100usize);
         counts.insert("10_aaveUsdtFaucet".to_string(), 5usize);
-        for task in ALL_TASK_NAMES.iter().filter(|t| {
-            **t != "01_checkBalance" && **t != "10_aaveUsdtFaucet"
-        }) {
+        for task in ALL_TASK_NAMES
+            .iter()
+            .filter(|t| **t != "01_checkBalance" && **t != "10_aaveUsdtFaucet")
+        {
             counts.insert(task.to_string(), 1usize);
         }
 
@@ -1120,7 +1189,7 @@ mod tests {
 
         let remaining = get_remaining_tasks(&counts, &limits);
         assert!(!remaining.contains(&"01_checkBalance")); // 5 >= 3 → excluded
-        // Other 16 tasks still pending
+                                                          // Other 16 tasks still pending
         assert_eq!(remaining.len(), 16);
     }
 
@@ -1142,8 +1211,15 @@ mod tests {
     fn test_all_task_names_prefix_format() {
         for name in ALL_TASK_NAMES {
             assert!(name.len() >= 3, "Task '{}' too short", name);
-            let _: u32 = name[..2].parse().expect("Task should start with 2-digit number");
-            assert_eq!(name.as_bytes()[2], b'_', "Task '{}' missing underscore after prefix", name);
+            let _: u32 = name[..2]
+                .parse()
+                .expect("Task should start with 2-digit number");
+            assert_eq!(
+                name.as_bytes()[2],
+                b'_',
+                "Task '{}' missing underscore after prefix",
+                name
+            );
         }
     }
 
@@ -1151,9 +1227,21 @@ mod tests {
 
     #[test]
     fn test_daily_run_stats_partial_eq() {
-        let a = DailyRunStats { total_attempts: 5, successful: 3, failed: 2 };
-        let b = DailyRunStats { total_attempts: 5, successful: 3, failed: 2 };
-        let c = DailyRunStats { total_attempts: 5, successful: 4, failed: 1 };
+        let a = DailyRunStats {
+            total_attempts: 5,
+            successful: 3,
+            failed: 2,
+        };
+        let b = DailyRunStats {
+            total_attempts: 5,
+            successful: 3,
+            failed: 2,
+        };
+        let c = DailyRunStats {
+            total_attempts: 5,
+            successful: 4,
+            failed: 1,
+        };
         assert_eq!(a, b);
         assert_ne!(a, c);
     }
@@ -1424,7 +1512,9 @@ mod tests {
         // ---- Phase 4: Complete all remaining tasks (14 x limit=1) ----
         let remaining_tasks: Vec<&&str> = ALL_TASK_NAMES
             .iter()
-            .filter(|t| **t != "01_checkBalance" && **t != "02_mintUsdtPlus" && **t != "03_mintUsdcPlus")
+            .filter(|t| {
+                **t != "01_checkBalance" && **t != "02_mintUsdtPlus" && **t != "03_mintUsdcPlus"
+            })
             .collect();
         assert_eq!(remaining_tasks.len(), 14, "14 remaining tasks expected");
 
@@ -1467,10 +1557,7 @@ mod tests {
 
         // ---- Verify total completions ----
         let total = db.get_total_completed(wallet, &date).await.unwrap();
-        assert_eq!(
-            total, 24,
-            "Total completions = 5 + 3 + 2 + (14 x 1) = 24"
-        );
+        assert_eq!(total, 24, "Total completions = 5 + 3 + 2 + (14 x 1) = 24");
     }
 
     #[tokio::test]
@@ -1588,7 +1675,10 @@ mod tests {
 
         // Empty pool should return None
         let (proxy, id) = runner.select_proxy().await;
-        assert!(proxy.is_none(), "No proxy should be selected from empty pool");
+        assert!(
+            proxy.is_none(),
+            "No proxy should be selected from empty pool"
+        );
         assert_eq!(id, "000");
     }
 
@@ -1655,7 +1745,10 @@ mod tests {
         };
 
         let (proxy, id) = runner.select_proxy().await;
-        assert!(proxy.is_none(), "No proxy should be selected when all unhealthy");
+        assert!(
+            proxy.is_none(),
+            "No proxy should be selected when all unhealthy"
+        );
         assert_eq!(id, "000");
     }
 
@@ -1788,10 +1881,7 @@ mod tests {
                     let wallet = wallets[wallet_idx];
 
                     // 2. Get counts and check remaining (double-check)
-                    let counts = db
-                        .get_completed_counts(wallet, &date)
-                        .await
-                        .unwrap();
+                    let counts = db.get_completed_counts(wallet, &date).await.unwrap();
                     let remaining = get_remaining_tasks(&counts, &limits);
 
                     if remaining.is_empty() {
@@ -1832,7 +1922,10 @@ mod tests {
                 assert!(
                     count <= limit,
                     "INVARIANT VIOLATION: wallet={} task={} count={} limit={}",
-                    wallet, task, count, limit
+                    wallet,
+                    task,
+                    count,
+                    limit
                 );
             }
 
@@ -1929,7 +2022,10 @@ mod tests {
         });
 
         let result = runner.run(cancel).await;
-        assert!(result.is_ok(), "Runner should exit cleanly from pause window when cancelled");
+        assert!(
+            result.is_ok(),
+            "Runner should exit cleanly from pause window when cancelled"
+        );
         let stats = result.unwrap();
         assert_eq!(stats.total_attempts, 0, "No tasks should run during pause");
     }
@@ -2135,7 +2231,9 @@ mod tests {
             username: None,
             password: None,
         };
-        let provider = runner.create_provider(&Some(proxy), "http://localhost:9999").await;
+        let provider = runner
+            .create_provider(&Some(proxy), "http://localhost:9999")
+            .await;
         let _ = provider;
     }
 
@@ -2232,7 +2330,11 @@ mod tests {
     fn test_all_task_names_no_empty() {
         for name in ALL_TASK_NAMES {
             assert!(!name.is_empty(), "Task name should not be empty");
-            assert!(!name.contains(' '), "Task name '{}' should not contain spaces", name);
+            assert!(
+                !name.contains(' '),
+                "Task name '{}' should not contain spaces",
+                name
+            );
         }
     }
 
@@ -2307,7 +2409,11 @@ mod tests {
         assert_eq!(date.len(), 10);
         // Verify format YYYY-MM-DD
         assert!(date.chars().enumerate().all(|(i, c)| {
-            if i == 4 || i == 7 { c == '-' } else { c.is_ascii_digit() }
+            if i == 4 || i == 7 {
+                c == '-'
+            } else {
+                c.is_ascii_digit()
+            }
         }));
     }
 
@@ -2321,7 +2427,11 @@ mod tests {
         }
         assert!(!wallet_has_remaining(&counts, &limits));
         let remaining = get_remaining_tasks(&counts, &limits);
-        assert!(remaining.is_empty(), "Expected empty vec, got {} items", remaining.len());
+        assert!(
+            remaining.is_empty(),
+            "Expected empty vec, got {} items",
+            remaining.len()
+        );
     }
 
     #[test]
@@ -2346,8 +2456,10 @@ mod tests {
         limits.insert("02_mintUsdtPlus".into(), 5u32);
 
         // Should still return true because 02_mintUsdtPlus has remaining
-        assert!(wallet_has_remaining(&counts, &limits),
-            "Should be true when at least one task has remaining capacity");
+        assert!(
+            wallet_has_remaining(&counts, &limits),
+            "Should be true when at least one task has remaining capacity"
+        );
 
         // Now set ALL tasks to exceeded limits
         let mut all_counts = HashMap::new();
@@ -2357,12 +2469,17 @@ mod tests {
             all_limits.insert(task.to_string(), 5u32);
         }
         // Now every task has count >= limit → no remaining
-        assert!(!wallet_has_remaining(&all_counts, &all_limits),
-            "Should be false when all tasks have exceeded limits");
+        assert!(
+            !wallet_has_remaining(&all_counts, &all_limits),
+            "Should be false when all tasks have exceeded limits"
+        );
 
         // get_remaining_tasks should be empty
         let remaining = get_remaining_tasks(&all_counts, &all_limits);
-        assert!(remaining.is_empty(), "Expected no remaining tasks when all exceeded");
+        assert!(
+            remaining.is_empty(),
+            "Expected no remaining tasks when all exceeded"
+        );
     }
 
     #[tokio::test]
@@ -2423,7 +2540,10 @@ mod tests {
         cancel_child.cancel();
 
         let result = runner.run(cancel_child).await;
-        assert!(result.is_ok(), "Runner should exit cleanly on immediate cancel");
+        assert!(
+            result.is_ok(),
+            "Runner should exit cleanly on immediate cancel"
+        );
         let stats = result.unwrap();
         assert_eq!(stats.total_attempts, 0);
     }
@@ -2499,7 +2619,9 @@ mod tests {
             username: Some("myuser".into()),
             password: Some("mypassword".into()),
         };
-        let provider = runner.create_provider(&Some(proxy), "http://localhost:9999").await;
+        let provider = runner
+            .create_provider(&Some(proxy), "http://localhost:9999")
+            .await;
         let _ = provider;
     }
 
@@ -2512,19 +2634,30 @@ mod tests {
         for t in &tasks {
             let name = t.name();
             assert!(!name.is_empty(), "Task name must not be empty");
-            assert!(name.len() >= 3, "Task name '{}' too short for 'XX_' prefix", name);
+            assert!(
+                name.len() >= 3,
+                "Task name '{}' too short for 'XX_' prefix",
+                name
+            );
             assert!(
                 name.chars().take(2).all(|c| c.is_ascii_digit()),
-                "Task name '{}' must start with 2 digits", name
+                "Task name '{}' must start with 2 digits",
+                name
             );
             assert_eq!(
                 name.chars().nth(2),
                 Some('_'),
-                "Task name '{}' must have underscore after 2 digits", name
+                "Task name '{}' must have underscore after 2 digits",
+                name
             );
             names.insert(name);
         }
-        assert_eq!(names.len(), 17, "Duplicate task names found: {} unique, expected 17", names.len());
+        assert_eq!(
+            names.len(),
+            17,
+            "Duplicate task names found: {} unique, expected 17",
+            names.len()
+        );
     }
 
     // --- wallet_usage_pct ---
@@ -2557,7 +2690,12 @@ mod tests {
         let limits = HashMap::new();
         let pct = wallet_usage_pct(&counts, &limits);
         let expected = 8.0 / 17.0 * 100.0;
-        assert!((pct - expected).abs() < 0.5, "Expected ~{:.1}%, got {}", expected, pct);
+        assert!(
+            (pct - expected).abs() < 0.5,
+            "Expected ~{:.1}%, got {}",
+            expected,
+            pct
+        );
     }
 
     #[test]
@@ -2680,7 +2818,7 @@ mod tests {
             wallet_manager: Arc::new(WalletManager::new().unwrap()),
             wallet_password: None,
             total_wallets: 1,
-            wallet_addresses: vec![],  // empty but total_wallets = 1
+            wallet_addresses: vec![], // empty but total_wallets = 1
             worker_count: 1,
             tasks: all_tasks(),
             task_limits: HashMap::new(),

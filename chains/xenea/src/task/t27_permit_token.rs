@@ -80,11 +80,9 @@ impl Task<TaskContext> for PermitTokenTask {
             Ok(pending) => {
                 let tx_hash = format!("{:?}", pending.tx_hash());
                 match pending.await {
-                    Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
-                        receipt
-                            .contract_address
-                            .context("No contract address in receipt")?
-                    }
+                    Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => receipt
+                        .contract_address
+                        .context("No contract address in receipt")?,
                     _ => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {

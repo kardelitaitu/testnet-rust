@@ -5,45 +5,42 @@ use dialoguer::{theme::ColorfulTheme, Password, Select};
 use dotenv::dotenv;
 use ethers::prelude::*;
 use reqwest;
-use xenea_project::config::XeneaConfig;
-use xenea_project::task::{
-    t01_check_balance::XeneaCheckBalanceTask, t02_simple_native_transfer::SimpleEthTransferTask,
-    t03_deploy_contract::XeneaDeployContractTask,
-    t04_interact_contract::XeneaInteractContractTask,
-    t05_self_transfer::SelfTransferTask, t06_send_meme::SendMemeTokenTask,
-    t07_create_meme::CreateMemeTask,
-    t11_batch_transfer::BatchTransferTask, t12_nft_mint::NftMintTask,
-    t13_nft_transfer::NftTransferTask, t14_approve_token::ApproveTokenTask,
-    t16_multicall::MulticallTask, t17_read_oracle::ReadOracleTask,
-    t18_contract_call_raw::ContractCallRawTask, t19_high_gas_limit::HighGasLimitTask,
-    t20_gas_price_test::GasPriceTestTask, t21_erc1155_mint::Erc1155MintTask,
-    t22_erc1155_transfer::Erc1155TransferTask, t23_timed_interaction::TimedInteractionTask,
-    t24_create2_deploy::Create2DeployTask, t25_message_sign::MessageSignTask,
-    t26_verify_signature::VerifySignatureTask, t27_permit_token::PermitTokenTask,
-    t28_delegatecall::DelegatecallTask, t29_cross_contract_call::CrossContractCallTask,
-    t30_revert_test::RevertTestTask, t31_event_emission::EventEmissionTask,
-    t32_eth_with_data::EthWithDataTask, t33_batch_approve::BatchApproveTask,
-    t34_role_based_access::RoleBasedAccessTask, t35_pausable_contract::PausableContractTask,
-    t36_create2_factory::Create2FactoryTask, t37_uups_proxy::UUPSProxyTask,
-    t38_transparent_proxy::TransparentProxyTask, t39_uniswap_v2_swap::UniswapV2SwapTask,
-    t40_erc4626_vault::ERC4626VaultTask, t41_flash_loan::FlashLoanTestTask,
-    t42_erc721_mint::ERC721MintTask, t43_erc1155_batch::ERC1155BatchTask,
-    t44_storage_pattern::StoragePatternTask, t45_custom_error::CustomErrorTestTask,
-    t46_revert_reason::RevertWithReasonTask, t47_assert_fail::AssertFailTask,
-    t48_anonymous_event::AnonymousEventTask, t49_indexed_topics::IndexedTopicsTask,
-    t50_large_event::LargeEventDataTask, t51_memory_expansion::MemoryExpansionTask,
-    t52_calldata_size::CalldataSizeTask, t53_gas_stipend::GasStipendTask,
-    t54_gas_price_zero::GasPriceZeroTask, t55_block_hash::BlockHashUsageTask,
-    t57_eip7702_explore::XeneaEip7702ExploreTask, t58_verify_create2::VerifyCreate2Task,
-    t59_deploy_factory::DeployFactoryTask, t60_nonce_repair::NonceRepairTask,
-    t61_mint_meme::MintMemeTask,
-    t62_batch_send_meme::BatchSendCreatedMemeTask,
-    t63_burn_meme::BurnMemeTask,
-    Task, XeneaTask, TaskContext,
-};
 use std::env;
 use tracing::{error, info};
 use url::Url;
+use xenea_project::config::XeneaConfig;
+use xenea_project::task::{
+    t01_check_balance::XeneaCheckBalanceTask, t02_simple_native_transfer::SimpleEthTransferTask,
+    t03_deploy_contract::XeneaDeployContractTask, t04_interact_contract::XeneaInteractContractTask,
+    t05_self_transfer::SelfTransferTask, t06_send_meme::SendMemeTokenTask,
+    t07_create_meme::CreateMemeTask, t11_batch_transfer::BatchTransferTask,
+    t12_nft_mint::NftMintTask, t13_nft_transfer::NftTransferTask,
+    t14_approve_token::ApproveTokenTask, t16_multicall::MulticallTask,
+    t17_read_oracle::ReadOracleTask, t18_contract_call_raw::ContractCallRawTask,
+    t19_high_gas_limit::HighGasLimitTask, t20_gas_price_test::GasPriceTestTask,
+    t21_erc1155_mint::Erc1155MintTask, t22_erc1155_transfer::Erc1155TransferTask,
+    t23_timed_interaction::TimedInteractionTask, t24_create2_deploy::Create2DeployTask,
+    t25_message_sign::MessageSignTask, t26_verify_signature::VerifySignatureTask,
+    t27_permit_token::PermitTokenTask, t28_delegatecall::DelegatecallTask,
+    t29_cross_contract_call::CrossContractCallTask, t30_revert_test::RevertTestTask,
+    t31_event_emission::EventEmissionTask, t32_eth_with_data::EthWithDataTask,
+    t33_batch_approve::BatchApproveTask, t34_role_based_access::RoleBasedAccessTask,
+    t35_pausable_contract::PausableContractTask, t36_create2_factory::Create2FactoryTask,
+    t37_uups_proxy::UUPSProxyTask, t38_transparent_proxy::TransparentProxyTask,
+    t39_uniswap_v2_swap::UniswapV2SwapTask, t40_erc4626_vault::ERC4626VaultTask,
+    t41_flash_loan::FlashLoanTestTask, t42_erc721_mint::ERC721MintTask,
+    t43_erc1155_batch::ERC1155BatchTask, t44_storage_pattern::StoragePatternTask,
+    t45_custom_error::CustomErrorTestTask, t46_revert_reason::RevertWithReasonTask,
+    t47_assert_fail::AssertFailTask, t48_anonymous_event::AnonymousEventTask,
+    t49_indexed_topics::IndexedTopicsTask, t50_large_event::LargeEventDataTask,
+    t51_memory_expansion::MemoryExpansionTask, t52_calldata_size::CalldataSizeTask,
+    t53_gas_stipend::GasStipendTask, t54_gas_price_zero::GasPriceZeroTask,
+    t55_block_hash::BlockHashUsageTask, t57_eip7702_explore::XeneaEip7702ExploreTask,
+    t58_verify_create2::VerifyCreate2Task, t59_deploy_factory::DeployFactoryTask,
+    t60_nonce_repair::NonceRepairTask, t61_mint_meme::MintMemeTask,
+    t62_batch_send_meme::BatchSendCreatedMemeTask, t63_burn_meme::BurnMemeTask, Task, TaskContext,
+    XeneaTask,
+};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -324,8 +321,14 @@ async fn main() -> Result<()> {
         // Create Provider
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(reqwest::header::USER_AGENT, reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"));
-        headers.insert(reqwest::header::ACCEPT, reqwest::header::HeaderValue::from_static("application/json, text/plain, */*"));
-        headers.insert(reqwest::header::ACCEPT_LANGUAGE, reqwest::header::HeaderValue::from_static("en-US,en;q=0.9"));
+        headers.insert(
+            reqwest::header::ACCEPT,
+            reqwest::header::HeaderValue::from_static("application/json, text/plain, */*"),
+        );
+        headers.insert(
+            reqwest::header::ACCEPT_LANGUAGE,
+            reqwest::header::HeaderValue::from_static("en-US,en;q=0.9"),
+        );
         let client_builder = reqwest::Client::builder().default_headers(headers);
         let client = if let Some(u) = &proxy_url {
             println!("Using proxy: {}", u.split('@').last().unwrap_or("..."));

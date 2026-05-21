@@ -270,6 +270,9 @@ mod tests {
         assert!(json.contains("\"success\":0"));
         assert!(json.contains("\"failed\":1"));
         // Compact JSON should be a single line (no pretty-print)
-        assert!(!json.contains("  "), "Compact JSON should not have indentation");
+        assert!(
+            !json.contains("  "),
+            "Compact JSON should not have indentation"
+        );
     }
 }

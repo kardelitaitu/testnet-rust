@@ -27,10 +27,17 @@ async fn get_cplus_balance(provider: &Provider<Http>, wallet: Address) -> Result
         serde_json::from_str::<ethers::abi::Abi>(STAKE_ABI)?,
         Arc::new(provider.clone()),
     );
-    Ok(contract.method::<_, U256>("balanceOf", wallet)?.call().await?)
+    Ok(contract
+        .method::<_, U256>("balanceOf", wallet)?
+        .call()
+        .await?)
 }
 
-async fn get_cplus_allowance(provider: &Provider<Http>, wallet: Address, spender: Address) -> Result<U256> {
+async fn get_cplus_allowance(
+    provider: &Provider<Http>,
+    wallet: Address,
+    spender: Address,
+) -> Result<U256> {
     let addr: Address = USDC_PLUS.parse()?;
     let contract = Contract::new(
         addr,
@@ -88,10 +95,7 @@ impl SepoliaTask for StakeUsdcPlusTask {
 
             // Use max uint256 for unlimited approval
             let approve_call = cplus_contract
-                .method::<_, H256>(
-                    "approve",
-                    (vault_addr, U256::MAX),
-                )?
+                .method::<_, H256>("approve", (vault_addr, U256::MAX))?
                 .gas(50_000);
             let approve_tx = approve_call.send().await?;
 
@@ -112,13 +116,13 @@ impl SepoliaTask for StakeUsdcPlusTask {
         );
 
         let deposit_call = vault_contract
-            .method::<(U256, Address), H256>(
-                "deposit",
-                (U256::from(stake_amount), address),
-            )?
+            .method::<(U256, Address), H256>("deposit", (U256::from(stake_amount), address))?
             .gas(150_000)
             .gas_price(max_fee);
-        let deposit_tx = deposit_call.send().await.context("Failed to send deposit tx")?;
+        let deposit_tx = deposit_call
+            .send()
+            .await
+            .context("Failed to send deposit tx")?;
 
         let tx_hash = deposit_tx.tx_hash();
 
@@ -148,4 +152,3 @@ mod tests {
         assert_eq!(task.name(), "07_stakeUsdcPlus");
     }
 }
-

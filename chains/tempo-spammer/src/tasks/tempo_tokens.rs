@@ -183,7 +183,9 @@ mod tests {
     #[test]
     fn test_get_path_usd_address() {
         let addr = TempoTokens::get_path_usd_address();
-        let expected: Address = "0x20c0000000000000000000000000000000000000".parse().unwrap();
+        let expected: Address = "0x20c0000000000000000000000000000000000000"
+            .parse()
+            .unwrap();
         assert_eq!(addr, expected);
     }
 
@@ -201,10 +203,18 @@ mod tests {
         assert!(!memo.is_empty());
         // Should have words and a number: "word1 word2 123"
         let parts: Vec<&str> = memo.split(' ').collect();
-        assert!(parts.len() >= 3, "memo should have words + number: got '{}'", memo);
+        assert!(
+            parts.len() >= 3,
+            "memo should have words + number: got '{}'",
+            memo
+        );
         // Last part should be numeric
         let last = parts.last().unwrap();
-        assert!(last.parse::<u64>().is_ok(), "last part should be number: got '{}'", last);
+        assert!(
+            last.parse::<u64>().is_ok(),
+            "last part should be number: got '{}'",
+            last
+        );
     }
 
     #[test]
@@ -220,7 +230,10 @@ mod tests {
 
     #[test]
     fn test_format_amount_u128() {
-        assert_eq!(TempoTokens::format_amount_u128(5_000_000_000_000_000_000, 18), "5");
+        assert_eq!(
+            TempoTokens::format_amount_u128(5_000_000_000_000_000_000, 18),
+            "5"
+        );
     }
 
     #[test]
@@ -247,7 +260,9 @@ mod tests {
 
     #[test]
     fn test_token_info_new() {
-        let expected_addr: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap();
+        let expected_addr: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            .parse()
+            .unwrap();
         let t = TokenInfo::new("TEST", "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false);
         assert_eq!(t.symbol, "TEST");
         assert!(!t.is_system);
@@ -307,7 +322,10 @@ mod tests {
     fn test_format_compact_colored_ansi_wrapping() {
         let amount = U256::from(5_000_000_000_000_000_000_000u128);
         let result = TempoTokens::format_compact_colored(amount, 18);
-        assert!(result.starts_with("\x1b[38;5;208m"), "should start with ANSI orange");
+        assert!(
+            result.starts_with("\x1b[38;5;208m"),
+            "should start with ANSI orange"
+        );
         assert!(result.ends_with("\x1b[0m"), "should end with ANSI reset");
     }
 
@@ -321,7 +339,11 @@ mod tests {
             word_counts.push(parts.len() - 1); // exclude the trailing number
         }
         let avg_words: f64 = word_counts.iter().sum::<usize>() as f64 / word_counts.len() as f64;
-        assert!(avg_words >= 2.0 && avg_words <= 4.0, "avg words should be 2-3, got {:.1}", avg_words);
+        assert!(
+            avg_words >= 2.0 && avg_words <= 4.0,
+            "avg words should be 2-3, got {:.1}",
+            avg_words
+        );
     }
 
     #[test]

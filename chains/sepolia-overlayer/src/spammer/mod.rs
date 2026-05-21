@@ -100,14 +100,21 @@ mod tests {
             chain_id: 1,
             target_tps: 10,
             duration_seconds: None,
-            wallet_source: core_logic::config::WalletSource::File { path: "wallet.json".into(), encrypted: true },
+            wallet_source: core_logic::config::WalletSource::File {
+                path: "wallet.json".into(),
+                encrypted: true,
+            },
         };
         let result = EvmSpammer::new(config).await;
         assert!(result.is_err());
         match result {
             Err(e) => {
                 let msg = e.to_string();
-                assert!(msg.contains("new_with_signer"), "Error should mention new_with_signer: {}", msg);
+                assert!(
+                    msg.contains("new_with_signer"),
+                    "Error should mention new_with_signer: {}",
+                    msg
+                );
             }
             _ => panic!("Expected Err"),
         }
@@ -197,7 +204,8 @@ impl EvmSpammer {
         // Create base Sepolia gas manager if base config is provided
         let base_gas_manager = base_config.as_ref().map(|_| {
             let base_provider = Provider::new(Http::new_with_client(
-                reqwest::Url::parse(base_rpc_url.as_deref().unwrap()).expect("Invalid base RPC URL"),
+                reqwest::Url::parse(base_rpc_url.as_deref().unwrap())
+                    .expect("Invalid base RPC URL"),
                 reqwest::Client::new(),
             ));
             Arc::new(crate::utils::gas::GasManager::new(
@@ -276,7 +284,10 @@ impl Spammer for EvmSpammer {
             info!(
                 "Sepolia Spammer started for chain {} (base: {})",
                 self.config.chain_id,
-                self.base_config.as_ref().map(|c| c.chain_id.to_string()).unwrap_or_else(|| "none".into())
+                self.base_config
+                    .as_ref()
+                    .map(|c| c.chain_id.to_string())
+                    .unwrap_or_else(|| "none".into())
             );
             let mut stats = core_logic::traits::SpammerStats::default();
 
@@ -323,8 +334,8 @@ impl Spammer for EvmSpammer {
                             .await;
                     }
 
-                    let is_base_task = task.name() == "16_bridgeBackTplus"
-                        || task.name() == "17_bridgeBackCplus";
+                    let is_base_task =
+                        task.name() == "16_bridgeBackTplus" || task.name() == "17_bridgeBackCplus";
 
                     let rpc_url = if is_base_task {
                         self.base_rpc_url.as_deref().unwrap_or(&self.config.rpc_url)
@@ -332,7 +343,9 @@ impl Spammer for EvmSpammer {
                         &self.config.rpc_url
                     };
 
-                    let provider = self.create_provider_with_proxy(&proxy_config, rpc_url).await;
+                    let provider = self
+                        .create_provider_with_proxy(&proxy_config, rpc_url)
+                        .await;
 
                     let mut rng = OsRng;
                     let wallet_idx = loop {
@@ -352,7 +365,10 @@ impl Spammer for EvmSpammer {
                         Ok(decrypted) => {
                             let key = decrypted.evm_private_key.clone();
                             let chain_id = if is_base_task {
-                                self.base_config.as_ref().map(|c| c.chain_id).unwrap_or(self.config.chain_id)
+                                self.base_config
+                                    .as_ref()
+                                    .map(|c| c.chain_id)
+                                    .unwrap_or(self.config.chain_id)
                             } else {
                                 self.config.chain_id
                             };
@@ -375,13 +391,19 @@ impl Spammer for EvmSpammer {
                     let wallet_address = wallet.address();
 
                     let ctx_gas_manager = if is_base_task {
-                        self.base_gas_manager.as_ref().unwrap_or(&self.gas_manager).clone()
+                        self.base_gas_manager
+                            .as_ref()
+                            .unwrap_or(&self.gas_manager)
+                            .clone()
                     } else {
                         self.gas_manager.clone()
                     };
 
                     let ctx_config = if is_base_task {
-                        self.base_config.as_ref().unwrap_or(&self.sepolia_config).clone()
+                        self.base_config
+                            .as_ref()
+                            .unwrap_or(&self.sepolia_config)
+                            .clone()
                     } else {
                         self.sepolia_config.clone()
                     };

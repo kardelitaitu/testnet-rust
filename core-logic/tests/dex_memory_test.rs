@@ -1,7 +1,7 @@
 use core_logic::database::{DatabaseManager, DexOrder};
 use core_logic::{
-    get_memory_status, init_memory_optimization, perform_memory_cleanup, register_memory_cleanup_hook,
-    MemoryOptimizer, MemoryOptimizerConfig,
+    get_memory_status, init_memory_optimization, perform_memory_cleanup,
+    register_memory_cleanup_hook, MemoryOptimizer, MemoryOptimizerConfig,
 };
 
 // ─── Database DEX operations ─────────────────────────────
@@ -13,14 +13,34 @@ async fn test_database_dex_order_log_and_query() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap())
+        .await
+        .unwrap();
 
-    db.log_dex_order("w1", "order_001", "USDC", "USDT", "100", true, 100i16, "0xtx1")
-        .await
-        .unwrap();
-    db.log_dex_order("w1", "order_002", "USDT", "USDC", "50", false, -50i16, "0xtx2")
-        .await
-        .unwrap();
+    db.log_dex_order(
+        "w1",
+        "order_001",
+        "USDC",
+        "USDT",
+        "100",
+        true,
+        100i16,
+        "0xtx1",
+    )
+    .await
+    .unwrap();
+    db.log_dex_order(
+        "w1",
+        "order_002",
+        "USDT",
+        "USDC",
+        "50",
+        false,
+        -50i16,
+        "0xtx2",
+    )
+    .await
+    .unwrap();
 
     let orders = db.get_active_orders("w1").await;
     assert!(orders.is_ok());
@@ -37,11 +57,22 @@ async fn test_database_dex_order_update_status() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
-
-    db.log_dex_order("w1", "order_001", "USDC", "USDT", "100", true, 100i16, "0xtx1")
+    let db = DatabaseManager::new(db_path.to_str().unwrap())
         .await
         .unwrap();
+
+    db.log_dex_order(
+        "w1",
+        "order_001",
+        "USDC",
+        "USDT",
+        "100",
+        true,
+        100i16,
+        "0xtx1",
+    )
+    .await
+    .unwrap();
 
     let orders = db.get_active_orders("w1").await.unwrap();
     assert_eq!(orders.len(), 1);
@@ -83,7 +114,9 @@ async fn test_database_get_all_assets_by_type() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap())
+        .await
+        .unwrap();
 
     db.log_asset_creation("w1", "0xaaa", "Counter", "CounterV1", "CTR1")
         .await
@@ -107,7 +140,9 @@ async fn test_database_get_all_deployed_counter_contracts() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap())
+        .await
+        .unwrap();
 
     db.log_counter_contract_creation("w1", "0x1111", 21894)
         .await
@@ -137,7 +172,9 @@ async fn test_database_get_all_deployed_counter_with_wallets() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap())
+        .await
+        .unwrap();
 
     db.log_counter_contract_creation("w1", "0x1111", 21894)
         .await
@@ -146,7 +183,9 @@ async fn test_database_get_all_deployed_counter_with_wallets() {
         .await
         .unwrap();
 
-    let result = db.get_all_deployed_counter_contracts_with_wallets(21894).await;
+    let result = db
+        .get_all_deployed_counter_contracts_with_wallets(21894)
+        .await;
     assert!(result.is_ok());
     let entries = result.unwrap();
     assert_eq!(entries.len(), 2);
@@ -161,7 +200,9 @@ async fn test_database_get_latest_asset_by_type() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap())
+        .await
+        .unwrap();
 
     db.log_asset_creation("w1", "0xaaa", "MEME", "MemeCoin", "MEME")
         .await
@@ -200,9 +241,7 @@ async fn test_memory_optimizer_perform_cleanup() {
 
 #[tokio::test]
 async fn test_memory_optimizer_register_hook() {
-    register_memory_cleanup_hook(|_is_emergency| {
-        Box::pin(async move {})
-    });
+    register_memory_cleanup_hook(|_is_emergency| Box::pin(async move {}));
 }
 
 #[test]

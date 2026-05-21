@@ -171,7 +171,9 @@ mod tests {
         for task in &tasks {
             let name = task.name();
             assert!(name.len() >= 3, "Task '{}' too short", name);
-            let _: u32 = name[..2].parse().expect("Task should start with 2-digit number");
+            let _: u32 = name[..2]
+                .parse()
+                .expect("Task should start with 2-digit number");
             assert!(seen.insert(name), "Duplicate task name: {}", name);
         }
     }
@@ -191,8 +193,15 @@ mod tests {
         ];
         for task in &tasks {
             let name = task.name();
-            let _: u32 = name[..2].parse().expect("Task should start with 2-digit number");
-            assert_eq!(name.as_bytes()[2], b'_', "Task '{}' missing separator", name);
+            let _: u32 = name[..2]
+                .parse()
+                .expect("Task should start with 2-digit number");
+            assert_eq!(
+                name.as_bytes()[2],
+                b'_',
+                "Task '{}' missing separator",
+                name
+            );
         }
     }
 }

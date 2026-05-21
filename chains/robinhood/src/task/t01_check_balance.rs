@@ -13,7 +13,7 @@ impl Task<TaskContext> for CheckBalanceTask {
 
         let balance = provider.get_balance(address, None).await?;
         let balance_eth = ethers::utils::format_units(balance, "ether")?;
-        
+
         Ok(TaskResult {
             success: true,
             message: format!("Balance: {} ETH", balance_eth),

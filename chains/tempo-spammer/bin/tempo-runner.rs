@@ -75,7 +75,7 @@ async fn main() -> Result<()> {
     let config_dir = std::path::Path::new(&config_path)
         .parent()
         .unwrap_or(std::path::Path::new("."));
-    
+
     // Check multiple locations for proxies.txt
     let possible_paths = vec![
         std::path::PathBuf::from("../../proxies.txt"),
@@ -96,7 +96,7 @@ async fn main() -> Result<()> {
             }
         }
     }
-    
+
     let total_proxies = proxies.len();
 
     // 4. Initialize DB and ClientPool
@@ -240,7 +240,8 @@ async fn main() -> Result<()> {
                     .map(|idx| format!("{:03}", idx))
                     .unwrap_or_else(|| "DIR".to_string());
 
-                let context = TaskContext::new(client, config.clone(), db.clone(), Arc::new(GasManager));
+                let context =
+                    TaskContext::new(client, config.clone(), db.clone(), Arc::new(GasManager));
                 let result = tokio::time::timeout(context.timeout, task.run(&context)).await;
                 let duration = start.elapsed();
 

@@ -25,12 +25,7 @@ const BRIDGE_ABI: &str = r#"[
 const SEND_SELECTOR: [u8; 4] = [0xc7, 0xc7, 0xf5, 0xb3];
 
 /// Build the SendParam token array for LayerZero OFT send
-fn build_send_param(
-    dst_eid: u32,
-    to: Address,
-    amount: U256,
-    extra_options: Vec<u8>,
-) -> Token {
+fn build_send_param(dst_eid: u32, to: Address, amount: U256, extra_options: Vec<u8>) -> Token {
     let to_bytes32 = {
         let mut b = [0u8; 32];
         let addr: [u8; 20] = to.into();
@@ -39,13 +34,13 @@ fn build_send_param(
     };
 
     Token::Tuple(vec![
-        Token::Uint(U256::from(dst_eid)),        // dstEid (uint32 padded)
-        Token::FixedBytes(to_bytes32.to_vec()),   // to (bytes32)
-        Token::Uint(amount),                      // amountLD
-        Token::Uint(amount),                      // minAmountLD
-        Token::Bytes(extra_options),              // extraOptions
-        Token::Bytes(Vec::new()),                 // composeMsg
-        Token::Bytes(Vec::new()),                 // oftCmd
+        Token::Uint(U256::from(dst_eid)),       // dstEid (uint32 padded)
+        Token::FixedBytes(to_bytes32.to_vec()), // to (bytes32)
+        Token::Uint(amount),                    // amountLD
+        Token::Uint(amount),                    // minAmountLD
+        Token::Bytes(extra_options),            // extraOptions
+        Token::Bytes(Vec::new()),               // composeMsg
+        Token::Bytes(Vec::new()),               // oftCmd
     ])
 }
 
@@ -71,7 +66,9 @@ mod tests {
 
     #[test]
     fn test_build_send_param_creates_7_element_tuple() {
-        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let param = build_send_param(40245, addr, U256::from(100), vec![0x00, 0x03]);
         match param {
             Token::Tuple(items) => {
@@ -95,7 +92,9 @@ mod tests {
 
     #[test]
     fn test_build_send_param_addr_to_bytes32() {
-        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let param = build_send_param(1, addr, U256::zero(), vec![]);
         match param {
             Token::Tuple(items) => {
@@ -127,7 +126,9 @@ mod tests {
 
     #[test]
     fn test_encode_send_starts_with_correct_selector() {
-        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let param = build_send_param(1, addr, U256::zero(), vec![]);
         let fee = build_fee(U256::zero(), U256::zero());
         let encoded = encode_send(&param, &fee, addr);
@@ -141,7 +142,9 @@ mod tests {
 
     #[test]
     fn test_addr_to_bytes32_padding() {
-        let addr: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap();
+        let addr: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            .parse()
+            .unwrap();
         let param = build_send_param(0, addr, U256::zero(), vec![]);
         match param {
             Token::Tuple(items) => {
@@ -166,7 +169,10 @@ async fn get_tplus_balance(provider: &Provider<Http>, wallet: Address) -> Result
         serde_json::from_str::<ethers::abi::Abi>(BRIDGE_ABI)?,
         Arc::new(provider.clone()),
     );
-    Ok(contract.method::<_, U256>("balanceOf", wallet)?.call().await?)
+    Ok(contract
+        .method::<_, U256>("balanceOf", wallet)?
+        .call()
+        .await?)
 }
 
 pub struct BridgeTplusTask;
@@ -223,7 +229,10 @@ impl SepoliaTask for BridgeTplusTask {
             .gas_price(max_fee)
             .value(native_fee);
 
-        let pending_tx = middleware.send_transaction(tx, None).await.context("Failed to send bridge tx")?;
+        let pending_tx = middleware
+            .send_transaction(tx, None)
+            .await
+            .context("Failed to send bridge tx")?;
         let tx_hash = pending_tx.tx_hash();
 
         let receipt = pending_tx
@@ -236,7 +245,9 @@ impl SepoliaTask for BridgeTplusTask {
             success,
             message: format!(
                 "Bridged {} T+ → Base Sepolia (tx: {:?}) | fee: {:.6} ETH",
-                whole_tplus, tx_hash, native_fee.as_u128() as f64 / 1e18
+                whole_tplus,
+                tx_hash,
+                native_fee.as_u128() as f64 / 1e18
             ),
         })
     }

@@ -25,17 +25,18 @@ async fn get_token_balance(
     wallet: Address,
 ) -> Result<(String, String)> {
     let addr: Address = token_addr.parse()?;
-    let contract = Contract::new(addr, serde_json::from_str::<ethers::abi::Abi>(ERC20_ABI)?, Arc::new(provider.clone()));
+    let contract = Contract::new(
+        addr,
+        serde_json::from_str::<ethers::abi::Abi>(ERC20_ABI)?,
+        Arc::new(provider.clone()),
+    );
 
     let raw_balance: U256 = contract
         .method::<_, U256>("balanceOf", wallet)?
         .call()
         .await?;
 
-    let decimals: u8 = contract
-        .method::<_, u8>("decimals", ())?
-        .call()
-        .await?;        // Format as integer (no decimals — truncate/floored)
+    let decimals: u8 = contract.method::<_, u8>("decimals", ())?.call().await?; // Format as integer (no decimals — truncate/floored)
     let divisor = 10u128.pow(decimals as u32);
     let integer = raw_balance.as_u128() / divisor;
     let formatted = integer.to_string();
@@ -56,7 +57,11 @@ fn format_eth_5dec(raw: U256) -> String {
     if display_fraction == 0 {
         integer.to_string()
     } else {
-        let frac_str = format!("{:0width$}", display_fraction, width = DISPLAY_DECIMALS as usize);
+        let frac_str = format!(
+            "{:0width$}",
+            display_fraction,
+            width = DISPLAY_DECIMALS as usize
+        );
         let trimmed = frac_str.trim_end_matches('0');
         format!("{}.{}", integer, trimmed)
     }
@@ -126,7 +131,12 @@ impl SepoliaTask for SepoliaCheckBalanceTask {
         let eth_display = format_eth_5dec(balance);
 
         // --- Token balances ---
-        let tokens = [(USDC, "USDC"), (USDT, "USDT"), (USDC_PLUS, "USDC+"), (USDT_PLUS, "USDT+")];
+        let tokens = [
+            (USDC, "USDC"),
+            (USDT, "USDT"),
+            (USDC_PLUS, "USDC+"),
+            (USDT_PLUS, "USDT+"),
+        ];
         let mut token_lines = Vec::new();
 
         for (token_addr, token_name) in &tokens {
@@ -148,9 +158,7 @@ impl SepoliaTask for SepoliaCheckBalanceTask {
             success: true,
             message: format!(
                 "ETH: {} | {} | Gas: {:.2}",
-                eth_display,
-                token_str,
-                max_fee_gwei,
+                eth_display, token_str, max_fee_gwei,
             ),
         })
     }

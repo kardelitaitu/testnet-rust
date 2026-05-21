@@ -25,7 +25,10 @@ impl Task<TaskContext> for XeneaInteractContractTask {
         if balance < estimated_gas {
             return Ok(TaskResult {
                 success: false,
-                message: format!("Insufficient funds: have {} wei, need {} wei", balance, estimated_gas),
+                message: format!(
+                    "Insufficient funds: have {} wei, need {} wei",
+                    balance, estimated_gas
+                ),
                 tx_hash: None,
             });
         }
@@ -67,7 +70,10 @@ impl Task<TaskContext> for XeneaInteractContractTask {
                 }
             }
             Err(e) => {
-                debug!("InteractContract deploy submit failed, resyncing nonce: {}", e);
+                debug!(
+                    "InteractContract deploy submit failed, resyncing nonce: {}",
+                    e
+                );
                 let _ = nonce_manager.resync().await;
                 return Ok(TaskResult {
                     success: false,
@@ -82,7 +88,11 @@ impl Task<TaskContext> for XeneaInteractContractTask {
         // Log to DB
         if let Some(db) = &ctx.db {
             let _ = db
-                .log_counter_contract_creation(&format!("{:?}", address), &format!("{:?}", counter_address), ctx.config.chain_id)
+                .log_counter_contract_creation(
+                    &format!("{:?}", address),
+                    &format!("{:?}", counter_address),
+                    ctx.config.chain_id,
+                )
                 .await;
         }
 
@@ -109,12 +119,16 @@ impl Task<TaskContext> for XeneaInteractContractTask {
                 success: true,
                 message: format!(
                     "Counter deployed at {:?}, increment() submitted (tx: {:?})",
-                    counter_address, pending.tx_hash()
+                    counter_address,
+                    pending.tx_hash()
                 ),
                 tx_hash: Some(format!("{:?}", pending.tx_hash())),
             }),
             Err(e) => {
-                debug!("InteractContract call submit failed, resyncing nonce: {}", e);
+                debug!(
+                    "InteractContract call submit failed, resyncing nonce: {}",
+                    e
+                );
                 let _ = nonce_manager.resync().await;
                 Ok(TaskResult {
                     success: false,

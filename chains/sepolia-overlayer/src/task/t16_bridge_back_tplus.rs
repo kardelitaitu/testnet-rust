@@ -28,12 +28,7 @@ const BRIDGE_ABI: &str = r#"[
 const SEND_SELECTOR: [u8; 4] = [0xc7, 0xc7, 0xf5, 0xb3];
 
 /// Build the SendParam tuple for LayerZero OFT send
-fn build_send_param(
-    dst_eid: u32,
-    to: Address,
-    amount: U256,
-    extra_options: Vec<u8>,
-) -> Token {
+fn build_send_param(dst_eid: u32, to: Address, amount: U256, extra_options: Vec<u8>) -> Token {
     let to_bytes32 = {
         let mut b = [0u8; 32];
         let addr: [u8; 20] = to.into();
@@ -42,13 +37,13 @@ fn build_send_param(
     };
 
     Token::Tuple(vec![
-        Token::Uint(U256::from(dst_eid)),        // dstEid (uint32 padded)
-        Token::FixedBytes(to_bytes32.to_vec()),   // to (bytes32)
-        Token::Uint(amount),                      // amountLD
-        Token::Uint(amount),                      // minAmountLD
-        Token::Bytes(extra_options),              // extraOptions
-        Token::Bytes(Vec::new()),                 // composeMsg
-        Token::Bytes(Vec::new()),                 // oftCmd
+        Token::Uint(U256::from(dst_eid)),       // dstEid (uint32 padded)
+        Token::FixedBytes(to_bytes32.to_vec()), // to (bytes32)
+        Token::Uint(amount),                    // amountLD
+        Token::Uint(amount),                    // minAmountLD
+        Token::Bytes(extra_options),            // extraOptions
+        Token::Bytes(Vec::new()),               // composeMsg
+        Token::Bytes(Vec::new()),               // oftCmd
     ])
 }
 
@@ -75,7 +70,10 @@ async fn get_tplus_balance(provider: &Provider<Http>, wallet: Address) -> Result
         serde_json::from_str::<ethers::abi::Abi>(BRIDGE_ABI)?,
         Arc::new(provider.clone()),
     );
-    Ok(contract.method::<_, U256>("balanceOf", wallet)?.call().await?)
+    Ok(contract
+        .method::<_, U256>("balanceOf", wallet)?
+        .call()
+        .await?)
 }
 
 pub struct BridgeBackTplusTask;
@@ -105,7 +103,8 @@ impl SepoliaTask for BridgeBackTplusTask {
         if whole_tplus == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "5% of T+ balance on Base Sepolia rounds to 0, nothing to bridge".to_string(),
+                message: "5% of T+ balance on Base Sepolia rounds to 0, nothing to bridge"
+                    .to_string(),
             });
         }
 
@@ -146,7 +145,9 @@ impl SepoliaTask for BridgeBackTplusTask {
             success,
             message: format!(
                 "Bridged {} T+ from Base Sepolia → Eth Sepolia (tx: {:?}) | fee: {:.6} ETH",
-                whole_tplus, tx_hash, NATIVE_FEE as f64 / 1e18
+                whole_tplus,
+                tx_hash,
+                NATIVE_FEE as f64 / 1e18
             ),
         })
     }
@@ -158,7 +159,9 @@ mod tests {
 
     #[test]
     fn test_build_send_param_back() {
-        let addr: Address = "0x11731e95c1423cd570194f07eeef606bf2d4c0ba".parse().unwrap();
+        let addr: Address = "0x11731e95c1423cd570194f07eeef606bf2d4c0ba"
+            .parse()
+            .unwrap();
         let param = build_send_param(40161, addr, U256::from(1000), vec![0x00, 0x03]);
         match param {
             Token::Tuple(items) => {

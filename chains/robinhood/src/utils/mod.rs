@@ -1,10 +1,10 @@
 pub mod gas;
 
 use anyhow::{Context, Result};
+use core_logic::config::ProxyConfig;
+use reqwest::Url;
 use std::fs;
 use std::path::Path;
-use reqwest::Url;
-use core_logic::config::ProxyConfig;
 
 pub fn load_proxies(path: &str) -> Result<Vec<ProxyConfig>> {
     if !Path::new(path).exists() {
@@ -63,7 +63,7 @@ pub fn load_proxies(path: &str) -> Result<Vec<ProxyConfig>> {
                     password: None,
                 }),
                 3 => Some(ProxyConfig {
-                    url: format!("http://{}", parts[0]), 
+                    url: format!("http://{}", parts[0]),
                     username: Some(parts[1].to_string()),
                     password: Some(parts[2].to_string()),
                 }),
@@ -92,7 +92,13 @@ mod tests {
     impl TempProxy {
         fn new(content: &str) -> Self {
             let mut path = std::env::temp_dir();
-            path.push(format!("proxy_test_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().subsec_nanos()));
+            path.push(format!(
+                "proxy_test_{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .subsec_nanos()
+            ));
             let mut f = std::fs::File::create(&path).unwrap();
             write!(f, "{}", content).unwrap();
             TempProxy { path }

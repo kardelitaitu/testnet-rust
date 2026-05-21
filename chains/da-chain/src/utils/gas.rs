@@ -18,10 +18,7 @@ impl GasManager {
     pub const LIMIT_COUNTER_INTERACT: U256 = U256([50_000, 0, 0, 0]);
     pub const LIMIT_SEND_MEME: U256 = U256([100_000, 0, 0, 0]);
 
-    pub fn new(
-        provider: Arc<Provider<Http>>,
-        min_fee_gwei: f64,
-    ) -> Self {
+    pub fn new(provider: Arc<Provider<Http>>, min_fee_gwei: f64) -> Self {
         Self {
             config: GasConfig::new()
                 .with_max_fee(Self::MAX_FEE_GWEI_DEFAULT)
@@ -210,7 +207,11 @@ mod tests {
         // base_fee = 100 gwei → max_fee = 100 + 10 = 110 gwei → capped at 20000 → 110
         let base_fee = U256::from(100_000_000_000u128); // 100 gwei
         let result = mgr.get_max_fee(base_fee);
-        assert_eq!(result, U256::from(110_000_000_000u128), "100 gwei base + 10 gwei priority = 110 gwei");
+        assert_eq!(
+            result,
+            U256::from(110_000_000_000u128),
+            "100 gwei base + 10 gwei priority = 110 gwei"
+        );
     }
 
     #[test]
@@ -220,7 +221,11 @@ mod tests {
         // base_fee = 50000 gwei → max_fee = 50000 + 10 = 50010 → capped at 20000 → 20000
         let base_fee = U256::from(50_000_000_000_000u128); // 50000 gwei
         let result = mgr.get_max_fee(base_fee);
-        assert_eq!(result, U256::from(20_000_000_000_000u128), "Capped at 20000 gwei");
+        assert_eq!(
+            result,
+            U256::from(20_000_000_000_000u128),
+            "Capped at 20000 gwei"
+        );
     }
 
     #[test]
@@ -230,7 +235,11 @@ mod tests {
         // base_fee = 0 → max_fee = 0 + 10 = 10 gwei → capped at 20000 → 10
         let base_fee = U256::zero();
         let result = mgr.get_max_fee(base_fee);
-        assert_eq!(result, U256::from(10_000_000_000u128), "0 base + 10 gwei priority = 10 gwei");
+        assert_eq!(
+            result,
+            U256::from(10_000_000_000u128),
+            "0 base + 10 gwei priority = 10 gwei"
+        );
     }
 
     #[test]
@@ -240,7 +249,11 @@ mod tests {
         // base_fee = 19990 gwei → max_fee = 19990 + 10 = 20000 → exactly at cap
         let base_fee = U256::from(19_990_000_000_000u128);
         let result = mgr.get_max_fee(base_fee);
-        assert_eq!(result, U256::from(20_000_000_000_000u128), "Exactly at 20000 gwei cap");
+        assert_eq!(
+            result,
+            U256::from(20_000_000_000_000u128),
+            "Exactly at 20000 gwei cap"
+        );
     }
 
     #[test]
@@ -248,14 +261,16 @@ mod tests {
         let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
         let mut mgr = GasManager::new(provider, 0.0);
         // Override config: max=50 gwei, priority=2 gwei
-        let custom = GasConfig::new()
-            .with_max_fee(50.0)
-            .with_priority_fee(2.0);
+        let custom = GasConfig::new().with_max_fee(50.0).with_priority_fee(2.0);
         mgr = mgr.with_config(custom);
         // base_fee = 40 gwei → max_fee = 40 + 2 = 42 gwei → capped at 50 → 42
         let base_fee = U256::from(40_000_000_000u128);
         let result = mgr.get_max_fee(base_fee);
-        assert_eq!(result, U256::from(42_000_000_000u128), "40 base + 2 priority = 42 gwei");
+        assert_eq!(
+            result,
+            U256::from(42_000_000_000u128),
+            "40 base + 2 priority = 42 gwei"
+        );
     }
 
     #[test]

@@ -78,7 +78,13 @@ mod tests {
     impl TempProxy {
         fn new(content: &str) -> Self {
             let mut path = std::env::temp_dir();
-            path.push(format!("cm_proxy_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().subsec_nanos()));
+            path.push(format!(
+                "cm_proxy_{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .subsec_nanos()
+            ));
             let mut f = std::fs::File::create(&path).unwrap();
             use std::io::Write;
             write!(f, "{}", content).unwrap();
@@ -126,7 +132,9 @@ mod tests {
 
     #[test]
     fn test_skips_comments() {
-        let tp = TempProxy::new("# this is a comment\n10.0.0.1:3128\n# another comment\n10.0.0.2:3128:user:pass");
+        let tp = TempProxy::new(
+            "# this is a comment\n10.0.0.1:3128\n# another comment\n10.0.0.2:3128:user:pass",
+        );
         let proxies = ProxyManager::load_proxies_from(tp.path.to_str().unwrap()).unwrap();
         assert_eq!(proxies.len(), 2);
     }
@@ -185,7 +193,10 @@ mod tests {
             std::fs::rename(&proxies_txt, cwd.join("proxies.txt.bak")).ok();
         }
         let result = ProxyManager::load_proxies().unwrap();
-        assert!(result.is_empty(), "load_proxies() should return empty when proxies.txt missing");
+        assert!(
+            result.is_empty(),
+            "load_proxies() should return empty when proxies.txt missing"
+        );
         // Restore if we moved it
         if existed {
             std::fs::rename(cwd.join("proxies.txt.bak"), &proxies_txt).ok();

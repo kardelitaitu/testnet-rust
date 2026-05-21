@@ -1,5 +1,6 @@
 use core_logic::database::{
-    AsyncDbConfig, DatabaseManager, DbMetrics, DbMetricsSnapshot, FallbackStrategy, QueuedTaskResult,
+    AsyncDbConfig, DatabaseManager, DbMetrics, DbMetricsSnapshot, FallbackStrategy,
+    QueuedTaskResult,
 };
 
 // ─── Database config/constants ──────────────────────────
@@ -141,7 +142,9 @@ async fn test_database_manager_new_with_async_config() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap())
+        .await
+        .unwrap();
     let count = db.get_transaction_count("nonexistent").await;
     assert!(count.is_ok());
     assert_eq!(count.unwrap(), 0);
@@ -156,7 +159,9 @@ async fn test_database_manager_counts_initially_zero() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap())
+        .await
+        .unwrap();
 
     assert_eq!(db.get_transaction_count("w1").await.unwrap(), 0);
     assert_eq!(db.get_success_count("w1").await.unwrap(), 0);

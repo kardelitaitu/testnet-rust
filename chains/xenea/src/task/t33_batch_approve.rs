@@ -29,9 +29,7 @@ impl Task<TaskContext> for BatchApproveTask {
 
         // 1. Get meme tokens from DB
         let db = ctx.db.as_ref().context("Database not initialized")?;
-        let token_addresses = db
-            .get_all_assets_by_type("MEME")
-            .await?;
+        let token_addresses = db.get_all_assets_by_type("MEME").await?;
 
         if token_addresses.is_empty() {
             return Ok(TaskResult {
@@ -125,11 +123,7 @@ impl Task<TaskContext> for BatchApproveTask {
             success: successes == max_tokens && successes > 0,
             message: format!(
                 "Batch approved {} MEME tokens for {:?} ({}/{} submitted, need {} for success)",
-                amount_formatted,
-                spender,
-                successes,
-                max_tokens,
-                success_threshold
+                amount_formatted, spender, successes, max_tokens, success_threshold
             ),
             tx_hash: Some(tx_hashes.join(",")),
         })

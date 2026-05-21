@@ -24,7 +24,10 @@ impl Task<TaskContext> for XeneaDeployContractTask {
         if balance < estimated_gas {
             return Ok(TaskResult {
                 success: false,
-                message: format!("Insufficient funds: have {} wei, need {} wei", balance, estimated_gas),
+                message: format!(
+                    "Insufficient funds: have {} wei, need {} wei",
+                    balance, estimated_gas
+                ),
                 tx_hash: None,
             });
         }
@@ -77,7 +80,10 @@ impl Task<TaskContext> for XeneaDeployContractTask {
                         let _ = nonce_manager.resync().await;
                         Ok(TaskResult {
                             success: false,
-                            message: format!("Counter deploy receipt unavailable (tx: {})", tx_hash),
+                            message: format!(
+                                "Counter deploy receipt unavailable (tx: {})",
+                                tx_hash
+                            ),
                             tx_hash: Some(tx_hash),
                         })
                     }

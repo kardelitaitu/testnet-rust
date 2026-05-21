@@ -375,7 +375,9 @@ mod retry_config_tests {
 
     #[test]
     fn test_calculate_delay_caps_at_max() {
-        let cfg = RetryConfig::new(3, 1000).with_max_delay(3000).without_jitter();
+        let cfg = RetryConfig::new(3, 1000)
+            .with_max_delay(3000)
+            .without_jitter();
         // attempt 2: 1000 * 2^2 = 4000, but capped at 3000
         let d = cfg.calculate_delay(2);
         assert_eq!(d, Duration::from_millis(3000));
@@ -455,7 +457,7 @@ mod circuit_breaker_tests {
         cb.on_failure(); // 1 failure
         assert_eq!(cb.state(), "CLOSED");
         cb.on_success(); // should reset counter to 0
-        // 3 more failures → should still open
+                         // 3 more failures → should still open
         cb.on_failure();
         cb.on_failure();
         cb.on_failure();
@@ -490,7 +492,8 @@ mod circuit_breaker_tests {
         assert_eq!(cb.state(), "OPEN");
 
         // Set last_failure far in the past so should_attempt_reset returns true
-        cb.last_failure.store(0, std::sync::atomic::Ordering::SeqCst);
+        cb.last_failure
+            .store(0, std::sync::atomic::Ordering::SeqCst);
 
         let result = cb.execute(|| async { Ok::<_, anyhow::Error>(42) }).await;
         assert!(result.is_ok());
@@ -525,10 +528,13 @@ mod circuit_breaker_tests {
         let cb = CircuitBreaker::new("svc", config);
         cb.on_failure();
         assert_eq!(cb.state(), "OPEN");
-        cb.last_failure.store(0, std::sync::atomic::Ordering::SeqCst);
+        cb.last_failure
+            .store(0, std::sync::atomic::Ordering::SeqCst);
 
         // Execute a failing operation in HALF_OPEN → should go back to OPEN
-        let result = cb.execute(|| async { Err::<i32, _>(anyhow::anyhow!("fail")) }).await;
+        let result = cb
+            .execute(|| async { Err::<i32, _>(anyhow::anyhow!("fail")) })
+            .await;
         assert!(result.is_err());
         assert_eq!(cb.state(), "OPEN", "Failure in HALF_OPEN should reopen");
     }
@@ -542,7 +548,8 @@ mod circuit_breaker_tests {
         };
         let cb = CircuitBreaker::new("svc", config);
         // Manually set to HALF_OPEN
-        cb.state.store(STATE_HALF_OPEN, std::sync::atomic::Ordering::SeqCst);
+        cb.state
+            .store(STATE_HALF_OPEN, std::sync::atomic::Ordering::SeqCst);
         // on_success reads failure_count then increments (threshold N needs N+1)
         cb.on_success();
         assert_eq!(cb.state(), "HALF_OPEN"); // loaded 0 < 2

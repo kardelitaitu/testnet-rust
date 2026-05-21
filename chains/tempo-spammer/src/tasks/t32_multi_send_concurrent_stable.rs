@@ -90,7 +90,7 @@ impl TempoTask for MultiSendConcurrentStableTask {
 
         // 2. Mint if needed (Skip for PathUSD/AlphaUSD/BetaUSD/ThetaUSD as we can't mint them)
         let is_system_token = TempoTokens::SYSTEM_TOKENS.iter().any(|(s, _)| *s == symbol);
-        
+
         if (balance.is_zero() || amount_per_recipient.is_zero()) && !is_system_token {
             // println!("Low balance for {}. Minting more...", symbol);
             let mint_amount = U256::from(2000) * U256::from(10_u64.pow(decimals as u32));
@@ -117,29 +117,30 @@ impl TempoTask for MultiSendConcurrentStableTask {
                 Err(e) => {} // println!("Minting failed: {:?}", e),
             }
         } else if is_system_token && (balance.is_zero() || amount_per_recipient.is_zero()) {
-             // Try faucet if balance is zero or too low for system token
-             // Use Faucet Logic (similar to t02/t17)
-             let faucet_address = Address::from_str("0x4200000000000000000000000000000000000019").unwrap();
-             // Selector 0x4f9828f6 + address padded
-             let mut data = hex::decode("4f9828f6000000000000000000000000").unwrap();
-             data.extend_from_slice(address.as_slice());
+            // Try faucet if balance is zero or too low for system token
+            // Use Faucet Logic (similar to t02/t17)
+            let faucet_address =
+                Address::from_str("0x4200000000000000000000000000000000000019").unwrap();
+            // Selector 0x4f9828f6 + address padded
+            let mut data = hex::decode("4f9828f6000000000000000000000000").unwrap();
+            data.extend_from_slice(address.as_slice());
 
-             let faucet_tx = TransactionRequest::default()
-                 .to(faucet_address)
-                 .input(data.into())
-                 .from(address)
-                 .gas_limit(500_000);
+            let faucet_tx = TransactionRequest::default()
+                .to(faucet_address)
+                .input(data.into())
+                .from(address)
+                .gas_limit(500_000);
 
-             match client.provider.send_transaction(faucet_tx).await {
-                 Ok(pending) => {
-                     let _ = pending.get_receipt().await;
-                     // Refresh balance
-                     balance = TempoTokens::get_token_balance(client, token_addr, address).await?;
-                     total_impact = balance * U256::from(3) / U256::from(100);
-                     amount_per_recipient = total_impact / U256::from(count);
-                 }
-                 Err(_) => {} // Ignore faucet error
-             }
+            match client.provider.send_transaction(faucet_tx).await {
+                Ok(pending) => {
+                    let _ = pending.get_receipt().await;
+                    // Refresh balance
+                    balance = TempoTokens::get_token_balance(client, token_addr, address).await?;
+                    total_impact = balance * U256::from(3) / U256::from(100);
+                    amount_per_recipient = total_impact / U256::from(count);
+                }
+                Err(_) => {} // Ignore faucet error
+            }
         }
 
         if amount_per_recipient.is_zero() {
@@ -170,7 +171,7 @@ impl TempoTask for MultiSendConcurrentStableTask {
                 }
             }
         }
-        
+
         // If robust manager failed or not configured, fallback to legacy/RPC
         if nonces.len() < count {
             // Release any partial reservations
@@ -203,7 +204,7 @@ impl TempoTask for MultiSendConcurrentStableTask {
         let mut send_futures = Vec::new();
         // We need to match reservations to nonces if we have them
         let has_reservations = !reservations.is_empty();
-        
+
         for (i, nonce) in nonces.iter().enumerate() {
             let recipient = get_random_address()?;
             let transfer_call = IERC20Mintable::transferCall {
@@ -245,7 +246,10 @@ impl TempoTask for MultiSendConcurrentStableTask {
                                 results_status.push(true);
                             } else {
                                 results_status.push(false);
-                                errors.push(format!("transaction reverted {}", format!("{:?}", tx_hash)));
+                                errors.push(format!(
+                                    "transaction reverted {}",
+                                    format!("{:?}", tx_hash)
+                                ));
                             }
                         }
                         Err(e) => {
@@ -265,7 +269,7 @@ impl TempoTask for MultiSendConcurrentStableTask {
                 }
             }
         }
-        
+
         // Handle reservations (submit or release)
         if has_reservations {
             for (i, reservation) in reservations.into_iter().enumerate() {
@@ -279,7 +283,7 @@ impl TempoTask for MultiSendConcurrentStableTask {
 
         // Reset nonce manager if there were failures to resync
         if !failed_nonces.is_empty() && client.nonce_manager.is_some() {
-             client.reset_nonce_cache().await;
+            client.reset_nonce_cache().await;
         }
 
         if success_count == 0 && !errors.is_empty() {

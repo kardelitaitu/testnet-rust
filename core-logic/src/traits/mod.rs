@@ -62,14 +62,20 @@ mod tests {
 
     #[test]
     fn test_spammer_stats_with_values() {
-        let stats = SpammerStats { success: 42, failed: 7 };
+        let stats = SpammerStats {
+            success: 42,
+            failed: 7,
+        };
         assert_eq!(stats.success, 42);
         assert_eq!(stats.failed, 7);
     }
 
     #[test]
     fn test_spammer_stats_clone() {
-        let a = SpammerStats { success: 5, failed: 3 };
+        let a = SpammerStats {
+            success: 5,
+            failed: 3,
+        };
         let b = a.clone();
         assert_eq!(a, b);
     }

@@ -83,7 +83,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 /// Pool of clients for multi-wallet transaction spamming
 ///
@@ -215,10 +215,10 @@ impl ClientLease {
         let pool = self.pool.clone();
         let index = self.index;
         let nonce_config = pool.config.nonce.clone();
-        
+
         // If emergency or cooldown is small (<1s), ignore it and release immediately
         if is_emergency || nonce_config.base_cooldown_ms < 1000 {
-             pool.release_wallet(index);
+            pool.release_wallet(index);
         } else {
             tokio::spawn(async move {
                 let cooldown_ms = nonce_config
@@ -251,7 +251,7 @@ impl Drop for ClientLease {
         if let Some(permit) = self.permit.take() {
             drop(permit);
         }
-        
+
         // Phase 2.1: Synchronous release from Drop
         // Now that release_wallet is synchronous, we can call it directly
         self.pool.release_wallet(self.index);
@@ -574,7 +574,8 @@ impl ClientPool {
             Err(e) => {
                 tracing::error!(
                     "Failed to create TempoClient for wallet {}: {:?}",
-                    wallet_idx, e
+                    wallet_idx,
+                    e
                 );
                 return Err(e).with_context(|| {
                     format!("Failed to create TempoClient for wallet {}", wallet_idx)
@@ -632,7 +633,13 @@ impl ClientPool {
             {
                 Ok(reqwest_client) => {
                     // Try to get or create shared RpcClient for this proxy
-                    let shared_rpc = self.get_or_create_shared_rpc_client(Some(config.url.clone()), reqwest_client.clone()).await.ok();
+                    let shared_rpc = self
+                        .get_or_create_shared_rpc_client(
+                            Some(config.url.clone()),
+                            reqwest_client.clone(),
+                        )
+                        .await
+                        .ok();
 
                     match TempoClient::new_from_reqwest(
                         &self.config.rpc_url,
@@ -677,7 +684,10 @@ impl ClientPool {
         // Second attempt: Direct connection (no proxy)
         tracing::info!("Using direct connection for wallet {}", wallet_idx);
         let direct_client = self.get_or_create_http_client(None).await?;
-        let shared_rpc = self.get_or_create_shared_rpc_client(None, direct_client.clone()).await.ok();
+        let shared_rpc = self
+            .get_or_create_shared_rpc_client(None, direct_client.clone())
+            .await
+            .ok();
 
         let client = TempoClient::new_from_reqwest(
             &self.config.rpc_url,
@@ -712,13 +722,16 @@ impl ClientPool {
         }
 
         // Create a new RpcClient
-        use alloy::transports::http::Http;
         use alloy::rpc::client::ClientBuilder;
+        use alloy::transports::http::Http;
         use url::Url;
 
         let http_transport = Http::with_client(
             reqwest_client,
-            self.config.rpc_url.parse::<Url>().context("Invalid RPC URL")?,
+            self.config
+                .rpc_url
+                .parse::<Url>()
+                .context("Invalid RPC URL")?,
         );
 
         let rpc_client = ClientBuilder::default()
@@ -738,11 +751,9 @@ impl ClientPool {
     pub fn evict_idle_shared_rpc_clients(&self, max_idle: Duration) -> usize {
         let mut shared = self.shared_rpc_clients.write();
         let before_count = shared.len();
-        
-        shared.retain(|key, (_, last_used)| {
-            key.is_none() || last_used.elapsed() < max_idle
-        });
-        
+
+        shared.retain(|key, (_, last_used)| key.is_none() || last_used.elapsed() < max_idle);
+
         before_count - shared.len()
     }
 
@@ -799,12 +810,10 @@ impl ClientPool {
     pub fn evict_idle_http_clients(&self, max_idle: Duration) -> usize {
         let mut http_clients = self.http_clients.write();
         let before_count = http_clients.len();
-        
+
         // Don't evict the direct connection client (None)
-        http_clients.retain(|key, (_, last_used)| {
-            key.is_none() || last_used.elapsed() < max_idle
-        });
-        
+        http_clients.retain(|key, (_, last_used)| key.is_none() || last_used.elapsed() < max_idle);
+
         before_count - http_clients.len()
     }
 
@@ -839,19 +848,19 @@ impl ClientPool {
         self.clear_client_cache();
         self.evict_idle_http_clients(idle_timeout);
         self.evict_idle_shared_rpc_clients(idle_timeout);
-        
+
         if let Some(nm) = &self.nonce_manager {
             nm.clear().await;
         }
-        
+
         if let Some(rnm) = &self.robust_nonce_manager {
             rnm.evict_idle_wallets(wallet_idle_timeout).await;
         }
-        
+
         for snm in &self.sharded_nonce_managers {
             snm.clear().await;
         }
-        
+
         for srnm in &self.sharded_robust_nonce_managers {
             srnm.evict_idle_wallets(wallet_idle_timeout).await;
         }
@@ -1042,7 +1051,13 @@ impl ClientPool {
             .build()
             .context("Failed to build reqwest client")?;
 
-        let shared_rpc = self.get_or_create_shared_rpc_client(proxy_config.map(|p| p.url.clone()), reqwest_client.clone()).await.ok();
+        let shared_rpc = self
+            .get_or_create_shared_rpc_client(
+                proxy_config.map(|p| p.url.clone()),
+                reqwest_client.clone(),
+            )
+            .await
+            .ok();
 
         let client = TempoClient::new_from_reqwest(
             &self.config.rpc_url,

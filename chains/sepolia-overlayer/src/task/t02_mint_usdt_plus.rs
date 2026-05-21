@@ -23,14 +23,32 @@ const MINT_ABI: &str = r#"[
 
 async fn get_usdt_balance(provider: &Provider<Http>, wallet: Address) -> Result<U256> {
     let addr: Address = USDT.parse()?;
-    let contract = Contract::new(addr, serde_json::from_str::<ethers::abi::Abi>(MINT_ABI)?, Arc::new(provider.clone()));
-    Ok(contract.method::<_, U256>("balanceOf", wallet)?.call().await?)
+    let contract = Contract::new(
+        addr,
+        serde_json::from_str::<ethers::abi::Abi>(MINT_ABI)?,
+        Arc::new(provider.clone()),
+    );
+    Ok(contract
+        .method::<_, U256>("balanceOf", wallet)?
+        .call()
+        .await?)
 }
 
-async fn get_usdt_allowance(provider: &Provider<Http>, wallet: Address, spender: Address) -> Result<U256> {
+async fn get_usdt_allowance(
+    provider: &Provider<Http>,
+    wallet: Address,
+    spender: Address,
+) -> Result<U256> {
     let addr: Address = USDT.parse()?;
-    let contract = Contract::new(addr, serde_json::from_str::<ethers::abi::Abi>(MINT_ABI)?, Arc::new(provider.clone()));
-    Ok(contract.method::<_, U256>("allowance", (wallet, spender))?.call().await?)
+    let contract = Contract::new(
+        addr,
+        serde_json::from_str::<ethers::abi::Abi>(MINT_ABI)?,
+        Arc::new(provider.clone()),
+    );
+    Ok(contract
+        .method::<_, U256>("allowance", (wallet, spender))?
+        .call()
+        .await?)
 }
 
 pub struct MintUsdtPlusTask;
@@ -100,19 +118,18 @@ impl SepoliaTask for MintUsdtPlusTask {
 
         // Pass the struct as a 5-element tuple wrapped in a 1-tuple
         let order = (
-            address,              // benefactor
-            address,              // beneficiary (same wallet)
-            usdt_addr,            // collateral = USDT
+            address,                 // benefactor
+            address,                 // beneficiary (same wallet)
+            usdt_addr,               // collateral = USDT
             U256::from(mint_amount), // collateralAmount = 5 USDT
-            overlayer_wrap,       // overlayerWrapAmount = 5 T+
+            overlayer_wrap,          // overlayerWrapAmount = 5 T+
         );
 
         let mint_call = usdt_plus_contract
             .method::<((Address, Address, Address, U256, U256),), H256>("mint", (order,))?
             .gas(200_000)
             .gas_price(max_fee);
-        let mint_tx = mint_call.send().await
-            .context("Failed to send mint tx")?;
+        let mint_tx = mint_call.send().await.context("Failed to send mint tx")?;
 
         let tx_hash = mint_tx.tx_hash();
 
@@ -124,10 +141,7 @@ impl SepoliaTask for MintUsdtPlusTask {
         let success = receipt.is_some_and(|r| r.status == Some(1.into()));
         Ok(TaskResult {
             success,
-            message: format!(
-                "Minted {} T+ (tx: {:?})",
-                whole_usdt, tx_hash
-            ),
+            message: format!("Minted {} T+ (tx: {:?})", whole_usdt, tx_hash),
         })
     }
 }

@@ -54,7 +54,10 @@ impl Task<TaskContext> for SelfTransferTask {
         match pending_tx {
             Ok(pending) => Ok(TaskResult {
                 success: true,
-                message: format!("Self-transfer 0 TXENE submitted (tx: {:?})", pending.tx_hash()),
+                message: format!(
+                    "Self-transfer 0 TXENE submitted (tx: {:?})",
+                    pending.tx_hash()
+                ),
                 tx_hash: Some(format!("{:?}", pending.tx_hash())),
             }),
             Err(e) => {

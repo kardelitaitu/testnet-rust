@@ -342,7 +342,10 @@ chain_id = 1
     fn test_deserialize_u128_from_string() {
         let toml = r#"value = "50000""#;
         #[derive(Deserialize)]
-        struct Test { #[serde(deserialize_with = "deserialize_u128")] value: u128 }
+        struct Test {
+            #[serde(deserialize_with = "deserialize_u128")]
+            value: u128,
+        }
         let t: Test = toml::from_str(toml).unwrap();
         assert_eq!(t.value, 50_000);
     }
@@ -351,7 +354,10 @@ chain_id = 1
     fn test_deserialize_u128_from_int() {
         let toml = "value = 50000";
         #[derive(Deserialize)]
-        struct Test { #[serde(deserialize_with = "deserialize_u128")] value: u128 }
+        struct Test {
+            #[serde(deserialize_with = "deserialize_u128")]
+            value: u128,
+        }
         let t: Test = toml::from_str(toml).unwrap();
         assert_eq!(t.value, 50_000);
     }
@@ -360,7 +366,10 @@ chain_id = 1
     fn test_deserialize_u128_from_negative_int() {
         let toml = "value = -1";
         #[derive(Deserialize)]
-        struct Test { #[serde(deserialize_with = "deserialize_u128")] value: u128 }
+        struct Test {
+            #[serde(deserialize_with = "deserialize_u128")]
+            value: u128,
+        }
         let result: Result<Test, _> = toml::from_str(toml);
         assert!(result.is_err());
     }

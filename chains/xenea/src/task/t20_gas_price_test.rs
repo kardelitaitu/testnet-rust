@@ -96,4 +96,3 @@ impl Task<TaskContext> for GasPriceTestTask {
         }
     }
 }
-

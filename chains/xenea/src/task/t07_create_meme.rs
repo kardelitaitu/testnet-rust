@@ -57,7 +57,8 @@ impl Task<TaskContext> for CreateMemeTask {
         let gas_price = U256::from(1_100_000_000u64);
         let deploy_gas_limit = crate::utils::gas::GasManager::LIMIT_DEPLOY;
         let mint_gas_limit = crate::utils::gas::GasManager::LIMIT_SEND_MEME;
-        let estimated_gas = U256::from(deploy_gas_limit.as_u64() + mint_gas_limit.as_u64()) * gas_price;
+        let estimated_gas =
+            U256::from(deploy_gas_limit.as_u64() + mint_gas_limit.as_u64()) * gas_price;
 
         // 3. Balance check
         let balance = provider.get_balance(address, None).await?;
@@ -171,7 +172,11 @@ impl Task<TaskContext> for CreateMemeTask {
                     success: true,
                     message: format!(
                         "Created {} ({}) at {:?}, mint {} submitted (tx: {:?})",
-                        name, symbol, token_address, minted_display, pending.tx_hash()
+                        name,
+                        symbol,
+                        token_address,
+                        minted_display,
+                        pending.tx_hash()
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })

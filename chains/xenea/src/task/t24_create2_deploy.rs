@@ -132,7 +132,10 @@ impl Task<TaskContext> for Create2DeployTask {
                         let _ = nonce_manager.resync().await;
                         Ok(TaskResult {
                             success: false,
-                            message: format!("CREATE2 deploy receipt unavailable (tx: {})", tx_hash),
+                            message: format!(
+                                "CREATE2 deploy receipt unavailable (tx: {})",
+                                tx_hash
+                            ),
                             tx_hash: Some(tx_hash),
                         })
                     }
@@ -159,4 +162,3 @@ impl Task<TaskContext> for Create2DeployTask {
         }
     }
 }
-

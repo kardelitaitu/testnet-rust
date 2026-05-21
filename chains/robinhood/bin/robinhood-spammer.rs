@@ -1,21 +1,21 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use core_logic::WalletManager;
 use core_logic::database::{AsyncDbConfig, DatabaseManager, FallbackStrategy, QueuedTaskResult};
 use core_logic::setup_logger;
-use dialoguer::{Password, theme::ColorfulTheme};
+use core_logic::WalletManager;
+use dialoguer::{theme::ColorfulTheme, Password};
 use dotenv::dotenv;
 use ethers::prelude::*;
 use ethers::signers::Signer;
 use futures::future::join_all;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use robinhood_spammer::client_pool::ClientPool;
+use robinhood_spammer::config::EvmConfig;
+use robinhood_spammer::task::{RobinhoodTask, TaskContext};
+use robinhood_spammer::utils::gas::GasManager;
 use std::sync::Arc;
 use std::time::Duration;
-use robinhood_spammer::config::EvmConfig;
-use robinhood_spammer::client_pool::ClientPool;
-use robinhood_spammer::task::{TaskContext, RobinhoodTask};
-use robinhood_spammer::utils::gas::GasManager;
 use tracing::{error, info};
 use zeroize::Zeroizing;
 
@@ -73,7 +73,8 @@ async fn main() -> Result<()> {
             config.clone(),
             wallet_manager.clone(),
             Some(wallet_password.to_string()),
-        ).context("Failed to create client pool")?
+        )
+        .context("Failed to create client pool")?,
     );
 
     let tasks: Vec<Box<RobinhoodTask>> = vec![
@@ -118,7 +119,7 @@ async fn main() -> Result<()> {
 
                 let start = std::time::Instant::now();
                 let task_name = task.name().to_string();
-                
+
                 match task.run(ctx).await {
                     Ok(result) => {
                         let duration = start.elapsed();
@@ -143,7 +144,10 @@ async fn main() -> Result<()> {
                         );
                     }
                     Err(e) => {
-                        error!("[WK:{}][WL:{:03}] Error: {:?}", worker_id_str, lease.index, e);
+                        error!(
+                            "[WK:{}][WL:{:03}] Error: {:?}",
+                            worker_id_str, lease.index, e
+                        );
                     }
                 }
 

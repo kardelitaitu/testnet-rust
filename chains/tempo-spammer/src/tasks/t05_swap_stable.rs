@@ -107,7 +107,7 @@ impl TempoTask for SwapStableTask {
             let percentage = rand::thread_rng().gen_range(10..=20);
             let amount_raw = balance * U256::from(percentage) / U256::from(1000);
             let swap_amount: u128 = amount_raw.try_into().unwrap_or(u128::MAX); // Safe for realistic balances
-            
+
             // No cap - user requested full 1-2% logic
 
             if swap_amount == 0 {
@@ -192,7 +192,7 @@ impl TempoTask for SwapStableTask {
             };
 
             let tx_hash = *pending.tx_hash();
-            
+
             // Return success immediately without waiting for receipt
             return Ok(TaskResult {
                 success: true,

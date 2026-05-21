@@ -86,7 +86,10 @@ impl Task<TaskContext> for EthWithDataTask {
                     success: true,
                     message: format!(
                         "Sent {} TXENE to {:?} with data: 0x{} (tx: {:?})",
-                        amount_eth, recipient, data_hex, pending.tx_hash()
+                        amount_eth,
+                        recipient,
+                        data_hex,
+                        pending.tx_hash()
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })

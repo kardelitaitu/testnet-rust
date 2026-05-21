@@ -86,7 +86,10 @@ fn rlp_header(payload_length: usize) -> alloy_rlp::Header {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "reth-codec", derive(reth_codecs::Compact))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
+#[cfg_attr(
+    all(test, feature = "reth-codec"),
+    reth_codecs::add_arbitrary_tests(compact, rlp)
+)]
 pub struct Call {
     /// Call target.
     pub to: TxKind,

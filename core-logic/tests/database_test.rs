@@ -21,11 +21,20 @@ async fn test_database_manager_log_task_result() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap())
+        .await
+        .unwrap();
 
     // Log a task result
     let result = db
-        .log_task_result("wallet_1", "0xabc", "checkBalance", true, "Balance: 1.0 ETH", 100)
+        .log_task_result(
+            "wallet_1",
+            "0xabc",
+            "checkBalance",
+            true,
+            "Balance: 1.0 ETH",
+            100,
+        )
         .await;
     assert!(result.is_ok());
 
@@ -39,7 +48,9 @@ async fn test_database_manager_log_success_and_failure() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap())
+        .await
+        .unwrap();
 
     // Log a success
     db.log_task_result("w1", "0xaaa", "task1", true, "ok", 100)
@@ -60,7 +71,9 @@ async fn test_database_manager_rejects_empty_wallet_id() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap())
+        .await
+        .unwrap();
 
     let result = db
         .log_task_result("", "0xabc", "task1", true, "msg", 100)
@@ -79,7 +92,11 @@ async fn test_database_manager_concurrent_writes() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = std::sync::Arc::new(DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap());
+    let db = std::sync::Arc::new(
+        DatabaseManager::new(db_path.to_str().unwrap())
+            .await
+            .unwrap(),
+    );
 
     let mut handles = Vec::new();
     for i in 0..5 {

@@ -71,7 +71,8 @@ impl Task<TaskContext> for TransparentProxyTask {
                 let tx_hash = format!("{:?}", pending.tx_hash());
                 match pending.await {
                     Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
-                        let deployed_addr = receipt.contract_address
+                        let deployed_addr = receipt
+                            .contract_address
                             .context("No contract address in receipt")?;
                         Ok(TaskResult {
                             success: true,
@@ -94,7 +95,10 @@ impl Task<TaskContext> for TransparentProxyTask {
                         let _ = nonce_manager.resync().await;
                         Ok(TaskResult {
                             success: false,
-                            message: format!("Transparent proxy deploy receipt unavailable (tx: {})", tx_hash),
+                            message: format!(
+                                "Transparent proxy deploy receipt unavailable (tx: {})",
+                                tx_hash
+                            ),
                             tx_hash: Some(tx_hash),
                         })
                     }

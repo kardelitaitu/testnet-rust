@@ -147,7 +147,14 @@ mod tests {
     impl TempEnv {
         fn new(lines: &[&str]) -> Self {
             let mut path = std::env::temp_dir();
-            path.push(format!("addr_test_{}_{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().subsec_nanos()));
+            path.push(format!(
+                "addr_test_{}_{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .subsec_nanos()
+            ));
             std::fs::create_dir_all(&path).ok();
             let file_path = path.join("address.txt");
             let mut f = std::fs::File::create(&file_path).unwrap();
@@ -180,7 +187,9 @@ mod tests {
         assert_eq!(cache.len_instance(), 2);
         assert_eq!(
             cache.addresses()[0],
-            "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse::<Address>().unwrap()
+            "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+                .parse::<Address>()
+                .unwrap()
         );
     }
 
@@ -201,7 +210,10 @@ mod tests {
         let env = TempEnv::new(&["not_an_address", "invalid_hex"]);
         let result = AddressCache::load_from_file(env.path.to_str().unwrap());
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("No valid addresses"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No valid addresses"));
     }
 
     #[test]
@@ -213,7 +225,9 @@ mod tests {
 
     #[test]
     fn test_cache_instance_methods() {
-        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let cache = AddressCache {
             addresses: vec![addr],
         };
@@ -255,7 +269,11 @@ mod tests {
             assert_eq!(many.len(), 100);
             // all should be non-empty addresses
             for addr in &many {
-                assert!(addr.to_string().starts_with("0x"), "address should start with 0x: {}", addr);
+                assert!(
+                    addr.to_string().starts_with("0x"),
+                    "address should start with 0x: {}",
+                    addr
+                );
             }
         }
     }
@@ -275,7 +293,11 @@ mod tests {
         // If cache was not yet initialized (no test ran before), it should error
         if early.is_err() {
             let err = early.unwrap_err().to_string();
-            assert!(err.contains("not initialized"), "Error should mention not initialized: {}", err);
+            assert!(
+                err.contains("not initialized"),
+                "Error should mention not initialized: {}",
+                err
+            );
         }
     }
 

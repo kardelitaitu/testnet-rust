@@ -77,7 +77,10 @@ max_delay_ms = 15000
     #[test]
     fn test_sepolia_config_deserialize() {
         let settings = Config::builder()
-            .add_source(config::File::from_str(test_config_toml(), config::FileFormat::Toml))
+            .add_source(config::File::from_str(
+                test_config_toml(),
+                config::FileFormat::Toml,
+            ))
             .build()
             .unwrap();
         let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
@@ -87,7 +90,10 @@ max_delay_ms = 15000
         assert_eq!(cfg.symbol, "ETH");
         assert_eq!(cfg.tps, 10);
         assert_eq!(cfg.worker_amount, Some(5));
-        assert_eq!(cfg.wallet_dir.as_deref(), Some("chains/sepolia-overlayer/wallets-json-sepolia-overlayer"));
+        assert_eq!(
+            cfg.wallet_dir.as_deref(),
+            Some("chains/sepolia-overlayer/wallets-json-sepolia-overlayer")
+        );
         assert_eq!(cfg.min_delay_ms, Some(5000));
         assert_eq!(cfg.max_delay_ms, Some(15000));
     }
@@ -116,7 +122,10 @@ tps = 5
     #[test]
     fn test_sepolia_config_to_spam_config() {
         let settings = Config::builder()
-            .add_source(config::File::from_str(test_config_toml(), config::FileFormat::Toml))
+            .add_source(config::File::from_str(
+                test_config_toml(),
+                config::FileFormat::Toml,
+            ))
             .build()
             .unwrap();
         let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
@@ -260,7 +269,10 @@ tps = 10
             .build()
             .unwrap();
         let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
-        assert!(cfg.task_limits.is_none(), "task_limits should be None when no [task_limits] section");
+        assert!(
+            cfg.task_limits.is_none(),
+            "task_limits should be None when no [task_limits] section"
+        );
     }
 
     #[test]
@@ -285,11 +297,25 @@ tps = 10
         let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
         let limits = cfg.task_limits.expect("task_limits should be Some");
         // Lowercased keys should exist
-        assert_eq!(limits.get("01_checkbalance"), Some(&20), "lowercased key '01_checkbalance' should exist");
-        assert_eq!(limits.get("02_mintusdtplus"), Some(&10), "lowercased key '02_mintusdtplus' should exist");
+        assert_eq!(
+            limits.get("01_checkbalance"),
+            Some(&20),
+            "lowercased key '01_checkbalance' should exist"
+        );
+        assert_eq!(
+            limits.get("02_mintusdtplus"),
+            Some(&10),
+            "lowercased key '02_mintusdtplus' should exist"
+        );
         // CamelCase keys should NOT exist
-        assert!(limits.get("01_checkBalance").is_none(), "camelCase key '01_checkBalance' should NOT exist");
-        assert!(limits.get("02_MintUsdtPlus").is_none(), "camelCase key '02_MintUsdtPlus' should NOT exist");
+        assert!(
+            limits.get("01_checkBalance").is_none(),
+            "camelCase key '01_checkBalance' should NOT exist"
+        );
+        assert!(
+            limits.get("02_MintUsdtPlus").is_none(),
+            "camelCase key '02_MintUsdtPlus' should NOT exist"
+        );
     }
 
     #[test]
@@ -407,7 +433,10 @@ wallet_dir = "chains/sepolia-overlayer/wallets-json-sepolia-overlayer"
         // WalletSource should use private_key_file path (empty default when unset)
         match spam.wallet_source {
             core_logic::config::WalletSource::File { path, encrypted } => {
-                assert_eq!(path, "", "private_key_file not set, should default to empty string");
+                assert_eq!(
+                    path, "",
+                    "private_key_file not set, should default to empty string"
+                );
                 assert!(encrypted);
             }
             _ => panic!("Expected File wallet source"),

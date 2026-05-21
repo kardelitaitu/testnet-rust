@@ -1,5 +1,5 @@
-pub mod gas;
 pub mod calc;
+pub mod gas;
 
 #[cfg(test)]
 mod tests {

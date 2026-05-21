@@ -55,7 +55,9 @@ impl Task<TaskContext> for LargeEventDataTask {
         // 3. Deploy large event contract
         let large_event_bytecode = "0x6080604052348015600e575f5ffd5b506102cd8061001c5f395ff3fe608060405234801561000f575f5ffd5b5060043610610029575f3560e01c806396dba1241461002d575b5f5ffd5b610047600480360381019061004291906101d0565b610049565b005b7f178db412f5c2aa6788c65368d58c78f81681c56c2f6c8001a8ecb108e72a02ae816040516100789190610277565b60405180910390a150565b5f604051905090565b5f5ffd5b5f5ffd5b5f5ffd5b5f5ffd5b5f601f19601f8301169050919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b6100e28261009c565b810181811067ffffffffffffffff82111715610101576101006100ac565b5b80604052505050565b5f610113610083565b905061011f82826100d9565b919050565b5f67ffffffffffffffff82111561013e5761013d6100ac565b5b6101478261009c565b9050602081019050919050565b828183375f83830152505050565b5f61017461016f84610124565b61010a565b9050828152602081018484840111156101905761018f610098565b5b61019b848285610154565b509392505050565b5f82601f8301126101b7576101b6610094565b5b81356101c7848260208601610162565b91505092915050565b5f602082840312156101e5576101e461008c565b5b5f82013567ffffffffffffffff81111561020257610201610090565b5b61020e848285016101a3565b91505092915050565b5f81519050919050565b5f82825260208201905092915050565b8281835e5f83830152505050565b5f61024982610217565b6102538185610221565b9350610263818560208601610231565b61026c8161009c565b840191505092915050565b5f6020820190508181035f83015261028f818461023f565b90509291505056fea2646970667358221220d3b71faf2fbcd6961456b6c2b210bf931f00c4082092d2ae59358d22de765ceb64736f6c63430008210033";
 
-        let deploy_data = crate::utils::strip_push0(&hex::decode(&large_event_bytecode.trim_start_matches("0x")).unwrap());
+        let deploy_data = crate::utils::strip_push0(
+            &hex::decode(&large_event_bytecode.trim_start_matches("0x")).unwrap(),
+        );
 
         let deploy_nonce = nonce_manager.next().await?;
         let deploy_tx = TransactionRequest::new()
@@ -70,11 +72,9 @@ impl Task<TaskContext> for LargeEventDataTask {
             Ok(pending) => {
                 let tx_hash = format!("{:?}", pending.tx_hash());
                 match pending.await {
-                    Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
-                        receipt
-                            .contract_address
-                            .context("No contract address in receipt")?
-                    }
+                    Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => receipt
+                        .contract_address
+                        .context("No contract address in receipt")?,
                     _ => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -86,7 +86,10 @@ impl Task<TaskContext> for LargeEventDataTask {
                 }
             }
             Err(e) => {
-                debug!("LargeEventData deploy submit failed, resyncing nonce: {}", e);
+                debug!(
+                    "LargeEventData deploy submit failed, resyncing nonce: {}",
+                    e
+                );
                 let _ = nonce_manager.resync().await;
                 return Ok(TaskResult {
                     success: false,
@@ -102,7 +105,11 @@ impl Task<TaskContext> for LargeEventDataTask {
             {"type":"function","name":"emitLargeData(bytes)","stateMutability":"nonpayable","inputs":[{"name":"data","type":"bytes"}],"outputs":[]}
         ]"#;
         let large_event_abi: abi::Abi = serde_json::from_str(large_event_abi_json)?;
-        let large_event_contract = Contract::new(contract_address, large_event_abi, Arc::new(provider.clone()));
+        let large_event_contract = Contract::new(
+            contract_address,
+            large_event_abi,
+            Arc::new(provider.clone()),
+        );
 
         // 4. emitLargeData (fire-and-forget)
         let mut rng = OsRng;
@@ -112,7 +119,8 @@ impl Task<TaskContext> for LargeEventDataTask {
         }
 
         let emit_nonce = nonce_manager.next().await?;
-        let emit_data = large_event_contract.encode("emitLargeData", Bytes::from(large_data.clone()))?;
+        let emit_data =
+            large_event_contract.encode("emitLargeData", Bytes::from(large_data.clone()))?;
 
         let emit_tx = TransactionRequest::new()
             .to(contract_address)

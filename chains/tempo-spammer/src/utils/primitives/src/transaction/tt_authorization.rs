@@ -22,7 +22,10 @@ pub const MAGIC: u8 = 0x05;
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
+#[cfg_attr(
+    all(test, feature = "reth-codec"),
+    reth_codecs::add_arbitrary_tests(compact, rlp)
+)]
 pub struct TempoSignedAuthorization {
     /// Inner authorization (reuses alloy's Authorization)
     #[cfg_attr(feature = "serde", serde(flatten))]

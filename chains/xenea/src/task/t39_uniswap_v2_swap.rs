@@ -69,7 +69,11 @@ impl Task<TaskContext> for UniswapV2SwapTask {
             {"inputs":[{"internalType":"uint256","name":"amountOutMin","type":"uint256"},{"internalType":"address[]","name":"path","type":"address[]"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"deadline","type":"uint256"}],"name":"swapExactETHForTokens","outputs":[{"internalType":"uint256[]","name":"amounts","type":"uint256[]"}],"stateMutability":"payable","type":"function"}
         ]"#;
         let router_abi_parsed: abi::Abi = serde_json::from_str(router_abi)?;
-        let router_contract = Contract::new(router_address, router_abi_parsed, Arc::new(provider.clone()));
+        let router_contract = Contract::new(
+            router_address,
+            router_abi_parsed,
+            Arc::new(provider.clone()),
+        );
 
         let path = vec![weth_address];
         let swap_data = router_contract.encode(
@@ -96,7 +100,8 @@ impl Task<TaskContext> for UniswapV2SwapTask {
                     success: true,
                     message: format!(
                         "UniswapV2 swap submitted: {} TXENE -> WETH (tx: {:?})",
-                        amount_eth, pending.tx_hash()
+                        amount_eth,
+                        pending.tx_hash()
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })

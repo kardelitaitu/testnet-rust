@@ -15,7 +15,11 @@ struct MockSpammer {
 
 impl MockSpammer {
     fn new(stats: Arc<AtomicU64>, fail: bool, delay_ms: u64) -> Self {
-        Self { stats, fail, delay_ms }
+        Self {
+            stats,
+            fail,
+            delay_ms,
+        }
     }
 }
 
@@ -29,10 +33,7 @@ impl SpammerTrait for MockSpammer {
         })
     }
 
-    async fn start(
-        &self,
-        cancellation_token: CancellationToken,
-    ) -> anyhow::Result<SpammerStats> {
+    async fn start(&self, cancellation_token: CancellationToken) -> anyhow::Result<SpammerStats> {
         // Simulate work by checking cancellation
         for _ in 0..10 {
             if cancellation_token.is_cancelled() {
@@ -131,5 +132,8 @@ async fn test_runner_concurrent_execution() {
 
     assert!(result.is_ok());
     // Should finish in roughly 100ms (the slower one), not 150ms (sum)
-    assert!(elapsed.as_millis() < 200, "Concurrent execution should finish faster than sequential");
+    assert!(
+        elapsed.as_millis() < 200,
+        "Concurrent execution should finish faster than sequential"
+    );
 }

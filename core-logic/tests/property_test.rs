@@ -1,7 +1,7 @@
-use proptest::prelude::*;
+use core_logic::ExplorerGasSnapshot;
 use core_logic::GasConfig;
 use core_logic::ProxyHealthManager;
-use core_logic::ExplorerGasSnapshot;
+use proptest::prelude::*;
 
 // ─── GasConfig property tests ────────────────────────────
 

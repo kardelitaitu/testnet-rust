@@ -44,7 +44,12 @@ mod tests {
         let large = u128::MAX / 10;
         let result = calc_eighty_pct_6dec(large);
         assert_ne!(result, 0, "Result should be non-zero for large input");
-        assert!(result < large, "Result {} should be less than input {}", result, large);
+        assert!(
+            result < large,
+            "Result {} should be less than input {}",
+            result,
+            large
+        );
     }
 
     #[test]
@@ -66,7 +71,11 @@ mod tests {
         let balance = 100 * 10u128.pow(18);
         let result = calc_pct_rounded(balance, 2, 100, 16);
         assert!(result > 0, "2% of 100 tokens should be non-zero");
-        assert_eq!(result % 10u128.pow(16), 0, "Should be rounded to 2 dp (multiple of 10^16)");
+        assert_eq!(
+            result % 10u128.pow(16),
+            0,
+            "Should be rounded to 2 dp (multiple of 10^16)"
+        );
     }
 
     #[test]

@@ -46,33 +46,33 @@ impl fmt::Display for ChainType {
 pub struct DecryptedWallet {
     #[serde(default)]
     pub mnemonic: String,
-    
+
     // Targeted fields - only populated for the requested chain
     #[serde(default)]
     pub evm_private_key: String,
     #[serde(default)]
     pub evm_address: String,
-    
+
     #[serde(default)]
     pub sol_private_key: String,
     #[serde(default)]
     pub sol_address: String,
-    
+
     #[serde(default)]
     pub sui_private_key: String,
     #[serde(default)]
     pub sui_address: String,
-    
+
     #[serde(default)]
     pub tron_private_key: String,
     #[serde(default)]
     pub tron_address: String,
-    
+
     #[serde(default)]
     pub aptos_private_key: String,
     #[serde(default)]
     pub aptos_address: String,
-    
+
     #[serde(default)]
     pub ton_private_key: String,
     #[serde(default)]
@@ -221,9 +221,7 @@ impl WalletManager {
     /// Subdirectories are ignored.
     fn collect_wallet_files(dir: &Path, sources: &mut Vec<WalletSource>) {
         if let Ok(entries) = std::fs::read_dir(dir) {
-            let mut entries: Vec<_> = entries
-                .filter_map(|res| res.ok())
-                .collect();
+            let mut entries: Vec<_> = entries.filter_map(|res| res.ok()).collect();
             entries.sort_by_key(|e| e.path());
             for entry in entries {
                 let path = entry.path();
@@ -271,7 +269,8 @@ impl WalletManager {
         password: Option<&str>,
     ) -> Result<Arc<DecryptedWallet>> {
         // Default to EVM for backward compatibility
-        self.get_wallet_for_chain(index, password, ChainType::Evm).await
+        self.get_wallet_for_chain(index, password, ChainType::Evm)
+            .await
     }
 
     /// Get a decrypted wallet specifically for a targeted chain
@@ -295,9 +294,11 @@ impl WalletManager {
             index,
             self.sources.len()
         ))?;
-        
+
         let wallet = match source {
-            WalletSource::JsonFile(path) => Arc::new(Self::decrypt_json_wallet_targeted(path, password, chain)?),
+            WalletSource::JsonFile(path) => {
+                Arc::new(Self::decrypt_json_wallet_targeted(path, password, chain)?)
+            }
             WalletSource::RawKey(key) => {
                 // Raw keys are assumed to be EVM hex strings for now
                 let mut w = DecryptedWallet {
@@ -316,8 +317,8 @@ impl WalletManager {
                     ton_address: "".to_string(),
                     active_chain: ChainType::Evm,
                 };
-                
-                // If requested non-EVM for raw key, it might not work as expected, 
+
+                // If requested non-EVM for raw key, it might not work as expected,
                 // but we populate the target field just in case it's a multi-format key
                 match chain {
                     ChainType::Solana => w.sol_private_key = key.clone(),
@@ -326,7 +327,7 @@ impl WalletManager {
                 }
                 w.active_chain = chain;
                 Arc::new(w)
-            },
+            }
         };
 
         // Store in cache
@@ -339,7 +340,11 @@ impl WalletManager {
     }
 
     /// Internal: Targeted decryption that only extracts the requested chain keys
-    fn decrypt_json_wallet_targeted(path: &Path, password: Option<&str>, chain: ChainType) -> Result<DecryptedWallet> {
+    fn decrypt_json_wallet_targeted(
+        path: &Path,
+        password: Option<&str>,
+        chain: ChainType,
+    ) -> Result<DecryptedWallet> {
         let content = fs::read_to_string(path)?;
         let json: Value = serde_json::from_str(&content)?;
 
@@ -347,57 +352,128 @@ impl WalletManager {
             if encrypted_val.is_object() {
                 let pass = password.context("Password required for encrypted wallet")?;
 
-                let ciphertext_hex = encrypted_val.get("ciphertext").and_then(|v| v.as_str()).unwrap_or("");
-                let iv_hex = encrypted_val.get("iv").and_then(|v| v.as_str()).unwrap_or("");
-                let salt_hex = encrypted_val.get("salt").and_then(|v| v.as_str()).unwrap_or("");
-                let tag_hex = encrypted_val.get("tag").and_then(|v| v.as_str()).unwrap_or("");
+                let ciphertext_hex = encrypted_val
+                    .get("ciphertext")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let iv_hex = encrypted_val
+                    .get("iv")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let salt_hex = encrypted_val
+                    .get("salt")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let tag_hex = encrypted_val
+                    .get("tag")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
 
                 if !ciphertext_hex.is_empty() {
                     let decrypted = SecurityUtils::decrypt_components(
-                        ciphertext_hex, iv_hex, salt_hex, tag_hex, pass,
+                        ciphertext_hex,
+                        iv_hex,
+                        salt_hex,
+                        tag_hex,
+                        pass,
                     )?;
-                    
+
                     // Targeted Deserialization
                     // Parse full JSON to Value first, then pick only what we need
                     let full_data: Value = serde_json::from_str(&decrypted)?;
-                    
+
                     let mut wallet = DecryptedWallet::default();
-                    wallet.mnemonic = full_data.get("mnemonic").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    wallet.mnemonic = full_data
+                        .get("mnemonic")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
                     wallet.active_chain = chain;
 
                     match chain {
                         ChainType::Evm => {
-                            wallet.evm_private_key = full_data.get("evm_private_key").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                            wallet.evm_address = full_data.get("evm_address").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        },
+                            wallet.evm_private_key = full_data
+                                .get("evm_private_key")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            wallet.evm_address = full_data
+                                .get("evm_address")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                        }
                         ChainType::Solana => {
-                            wallet.sol_private_key = full_data.get("sol_private_key").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                            wallet.sol_address = full_data.get("sol_address").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        },
+                            wallet.sol_private_key = full_data
+                                .get("sol_private_key")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            wallet.sol_address = full_data
+                                .get("sol_address")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                        }
                         ChainType::Sui => {
-                            wallet.sui_private_key = full_data.get("sui_private_key").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                            wallet.sui_address = full_data.get("sui_address").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        },
+                            wallet.sui_private_key = full_data
+                                .get("sui_private_key")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            wallet.sui_address = full_data
+                                .get("sui_address")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                        }
                         ChainType::Aptos => {
-                            wallet.aptos_private_key = full_data.get("aptos_private_key").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                            wallet.aptos_address = full_data.get("aptos_address").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        },
+                            wallet.aptos_private_key = full_data
+                                .get("aptos_private_key")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            wallet.aptos_address = full_data
+                                .get("aptos_address")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                        }
                         ChainType::Tron => {
-                            wallet.tron_private_key = full_data.get("tron_private_key").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                            wallet.tron_address = full_data.get("tron_address").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        },
+                            wallet.tron_private_key = full_data
+                                .get("tron_private_key")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            wallet.tron_address = full_data
+                                .get("tron_address")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                        }
                         ChainType::Ton => {
-                            wallet.ton_private_key = full_data.get("ton_private_key").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                            wallet.ton_address = full_data.get("ton_address").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        },
+                            wallet.ton_private_key = full_data
+                                .get("ton_private_key")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            wallet.ton_address = full_data
+                                .get("ton_address")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                        }
                     }
-                    
+
                     return Ok(wallet);
                 }
             }
         }
 
-        Err(anyhow!("Invalid or unrecognized wallet format in {:?}", path))
+        Err(anyhow!(
+            "Invalid or unrecognized wallet format in {:?}",
+            path
+        ))
     }
 
     // Legacy support
@@ -502,9 +578,18 @@ mod tests {
         w.evm_address = "0xuser".into();
         w.active_chain = ChainType::Evm;
         let debug_str = format!("{:?}", w);
-        assert!(debug_str.contains("***REDACTED***"), "Debug should redact secrets");
-        assert!(!debug_str.contains("super_secret_key"), "Debug should not contain private key");
-        assert!(!debug_str.contains("my_mnemonic_phrase"), "Debug should not contain mnemonic");
+        assert!(
+            debug_str.contains("***REDACTED***"),
+            "Debug should redact secrets"
+        );
+        assert!(
+            !debug_str.contains("super_secret_key"),
+            "Debug should not contain private key"
+        );
+        assert!(
+            !debug_str.contains("my_mnemonic_phrase"),
+            "Debug should not contain mnemonic"
+        );
         assert!(debug_str.contains("0xuser"), "Debug should contain address");
         assert!(debug_str.contains("Evm"), "Debug should contain chain type");
     }
@@ -559,7 +644,11 @@ mod tests {
         // Also put one at top level
         std::fs::write(dir.path().join("top.json"), "{}").unwrap();
         let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
-        assert_eq!(mgr.count(), 1, "Should only find top-level wallet, not subdirectory wallet");
+        assert_eq!(
+            mgr.count(),
+            1,
+            "Should only find top-level wallet, not subdirectory wallet"
+        );
     }
 
     #[test]
@@ -591,7 +680,11 @@ mod tests {
         let result = rt.block_on(mgr.get_wallet(5, Some("pwd")));
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("out of bounds"), "Error should mention 'out of bounds': {}", err);
+        assert!(
+            err.contains("out of bounds"),
+            "Error should mention 'out of bounds': {}",
+            err
+        );
     }
 
     #[test]

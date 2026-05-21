@@ -5,14 +5,14 @@
 
 // Internal modules - not part of public API
 pub(crate) mod address_gen;
-pub(crate) mod gas;
 pub(crate) mod explorer_gas_tracker;
+pub(crate) mod gas;
 pub(crate) mod logger;
 pub mod memory_monitor;
 pub mod memory_optimized_logger;
 pub mod memory_optimizer;
-pub(crate) mod proxy_manager;
 pub mod proxy_health;
+pub(crate) mod proxy_manager;
 pub mod proxy_rate_limiter;
 pub(crate) mod rate_limiter;
 pub(crate) mod retry;
@@ -22,8 +22,10 @@ pub(crate) mod wallet_manager;
 
 // Selective exports - only public utilities
 pub use address_gen::generate_random_address;
+pub use explorer_gas_tracker::{
+    ExplorerGasSnapshot, ExplorerGasTracker, ExplorerGasTrackerPayload,
+};
 pub use gas::GasConfig;
-pub use explorer_gas_tracker::{ExplorerGasSnapshot, ExplorerGasTracker, ExplorerGasTrackerPayload};
 pub use logger::setup_logger;
 pub use proxy_health::ProxyHealthManager;
 pub use proxy_manager::ProxyManager;

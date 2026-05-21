@@ -104,8 +104,8 @@ impl WorkerRunner {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
     use crate::traits::SpammerStats;
+    use async_trait::async_trait;
 
     // Mock spammer for testing WorkerRunner
     struct MockSpammer {
@@ -152,7 +152,10 @@ mod tests {
     #[tokio::test]
     async fn test_run_spammers_single_worker() {
         let spammer = MockSpammer {
-            stats: SpammerStats { success: 10, failed: 2 },
+            stats: SpammerStats {
+                success: 10,
+                failed: 2,
+            },
             delay_ms: 0,
             cancel_on_start: false,
         };
@@ -163,44 +166,53 @@ mod tests {
     #[tokio::test]
     async fn test_run_spammers_multiple_workers() {
         let s1 = MockSpammer {
-            stats: SpammerStats { success: 5, failed: 1 },
+            stats: SpammerStats {
+                success: 5,
+                failed: 1,
+            },
             delay_ms: 0,
             cancel_on_start: false,
         };
         let s2 = MockSpammer {
-            stats: SpammerStats { success: 3, failed: 0 },
+            stats: SpammerStats {
+                success: 3,
+                failed: 0,
+            },
             delay_ms: 0,
             cancel_on_start: false,
         };
         let s3 = MockSpammer {
-            stats: SpammerStats { success: 0, failed: 4 },
+            stats: SpammerStats {
+                success: 0,
+                failed: 4,
+            },
             delay_ms: 0,
             cancel_on_start: false,
         };
-        let result = WorkerRunner::run_spammers(vec![
-            Box::new(s1),
-            Box::new(s2),
-            Box::new(s3),
-        ]).await;
+        let result =
+            WorkerRunner::run_spammers(vec![Box::new(s1), Box::new(s2), Box::new(s3)]).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_run_spammers_with_delays() {
         let s1 = MockSpammer {
-            stats: SpammerStats { success: 1, failed: 0 },
+            stats: SpammerStats {
+                success: 1,
+                failed: 0,
+            },
             delay_ms: 10,
             cancel_on_start: false,
         };
         let s2 = MockSpammer {
-            stats: SpammerStats { success: 2, failed: 0 },
+            stats: SpammerStats {
+                success: 2,
+                failed: 0,
+            },
             delay_ms: 5,
             cancel_on_start: false,
         };
-        let result = WorkerRunner::run_spammers(vec![
-            Box::new(s1),
-            Box::new(s2),
-        ]).await;
+        let result = WorkerRunner::run_spammers(vec![Box::new(s1), Box::new(s2)]).await;
         assert!(result.is_ok());
     }
 

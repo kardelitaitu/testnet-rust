@@ -35,7 +35,10 @@ pub const TEMPO_SYSTEM_TX_SENDER: Address = Address::ZERO;
     arbitrary_cfg(any(test, feature = "arbitrary")),
     serde_cfg(feature = "serde")
 )]
-#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
+#[cfg_attr(
+    all(test, feature = "reth-codec"),
+    reth_codecs::add_arbitrary_tests(compact, rlp)
+)]
 #[expect(clippy::large_enum_variant)]
 pub enum TempoTxEnvelope {
     /// Legacy transaction (type 0x00)

@@ -576,7 +576,7 @@ impl RobustNonceManager {
     pub async fn evict_idle_wallets(&self, max_idle: Duration) -> usize {
         let mut wallets = self.wallets.write().await;
         let before_count = wallets.len();
-        
+
         let mut to_remove = Vec::new();
         for (addr, state) in wallets.iter() {
             let last_accessed = *state.last_accessed.lock().await;
@@ -584,11 +584,11 @@ impl RobustNonceManager {
                 to_remove.push(*addr);
             }
         }
-        
+
         for addr in to_remove {
             wallets.remove(&addr);
         }
-        
+
         before_count - wallets.len()
     }
 

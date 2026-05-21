@@ -362,9 +362,9 @@ mod tests {
         for _ in 0..num_tasks {
             let mgr = mgr.clone();
             let addr = addr1();
-            handles.push(tokio::spawn(async move {
-                mgr.get_and_increment(addr).await
-            }));
+            handles.push(tokio::spawn(
+                async move { mgr.get_and_increment(addr).await },
+            ));
         }
 
         let mut results: Vec<u64> = Vec::with_capacity(num_tasks);
@@ -378,9 +378,18 @@ mod tests {
         let mut sorted = results.clone();
         sorted.sort();
         let expected: Vec<u64> = (start..start + num_tasks as u64).collect();
-        assert_eq!(sorted, expected, "Nonces should be sequential from {} to {}", start, start + num_tasks as u64 - 1);
-        assert_eq!(mgr.peek(addr1()).await, Some(start + num_tasks as u64),
-            "Final cached value should reflect all consumed nonces");
+        assert_eq!(
+            sorted,
+            expected,
+            "Nonces should be sequential from {} to {}",
+            start,
+            start + num_tasks as u64 - 1
+        );
+        assert_eq!(
+            mgr.peek(addr1()).await,
+            Some(start + num_tasks as u64),
+            "Final cached value should reflect all consumed nonces"
+        );
     }
 
     #[tokio::test]
@@ -394,9 +403,9 @@ mod tests {
         for _ in 0..num_tasks {
             let mgr = mgr.clone();
             let addr = addr1();
-            handles.push(tokio::spawn(async move {
-                mgr.get_and_increment(addr).await
-            }));
+            handles.push(tokio::spawn(
+                async move { mgr.get_and_increment(addr).await },
+            ));
         }
 
         let mut results: Vec<u64> = Vec::with_capacity(num_tasks);
@@ -448,9 +457,15 @@ mod tests {
 
         addr1_nonces.sort();
         addr2_nonces.sort();
-        assert_eq!(addr1_nonces, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-            "addr1 should get 0..9 independently");
-        assert_eq!(addr2_nonces, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-            "addr2 should get 0..9 independently");
+        assert_eq!(
+            addr1_nonces,
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            "addr1 should get 0..9 independently"
+        );
+        assert_eq!(
+            addr2_nonces,
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            "addr2 should get 0..9 independently"
+        );
     }
 }

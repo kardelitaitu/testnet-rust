@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use core_logic::WalletManager;
 use core_logic::database::{AsyncDbConfig, DatabaseManager, FallbackStrategy, QueuedTaskResult};
 use core_logic::{
-    setup_logger, init_memory_optimization, perform_memory_cleanup, register_memory_cleanup_hook,
+    init_memory_optimization, perform_memory_cleanup, register_memory_cleanup_hook, setup_logger,
     setup_memory_optimized_logger,
 };
 use dialoguer::{Input, Password, theme::ColorfulTheme};
@@ -77,7 +77,10 @@ async fn main() -> Result<()> {
     if !is_quiet {
         // Phase 4.1: Switch to Memory-Optimized Logger
         if let Err(e) = setup_memory_optimized_logger() {
-            eprintln!("Failed to setup memory-optimized logger: {}. Falling back to standard.", e);
+            eprintln!(
+                "Failed to setup memory-optimized logger: {}. Falling back to standard.",
+                e
+            );
             let _log_guard = setup_logger();
             std::mem::forget(_log_guard);
         }
@@ -470,7 +473,7 @@ async fn run_spammer(
         let config = config.clone();
         let dist = dist.clone();
         let gas_manager = gas_manager.clone();
-        
+
         // Phase 1.2: Pre-format worker identifier
         let worker_id_str = format!("{:03}", worker_id);
 
@@ -483,7 +486,7 @@ async fn run_spammer(
             tokio::time::sleep(Duration::from_millis(initial_sleep)).await;
 
             let mut backoff_ms = 10u64; // Start with 10ms backoff
-            
+
             // Phase 2.1: Task sampling buffer
             let mut task_queue = std::collections::VecDeque::with_capacity(50);
 
@@ -497,7 +500,7 @@ async fn run_spammer(
                         continue;
                     }
                 };
-                
+
                 // Acquire lease on a wallet with exponential backoff
                 let lease = match client_pool.try_acquire_client().await {
                     Some(l) => {
@@ -524,11 +527,16 @@ async fn run_spammer(
                 let task_idx = task_queue.pop_front().unwrap();
                 let task = &tasks[task_idx];
 
-                let ctx = TaskContext::new(client.clone(), config.clone(), Some(db.clone()), gas_manager.clone());
+                let ctx = TaskContext::new(
+                    client.clone(),
+                    config.clone(),
+                    Some(db.clone()),
+                    gas_manager.clone(),
+                );
 
                 // Phase 1.1: Optimize tracing - only create span if debugging or specific conditions met
                 // For high-throughput spamming, dynamic spans are very expensive.
-                
+
                 let start = std::time::Instant::now();
 
                 match tokio::time::timeout(Duration::from_secs(config.task_timeout), task.run(&ctx))
@@ -641,8 +649,7 @@ async fn run_spammer(
                                         Err(_) => {}
                                     }
                                 }
-                            }
-                            else if let Some(manager) = &ctx.client.nonce_manager {
+                            } else if let Some(manager) = &ctx.client.nonce_manager {
                                 match ctx.client.get_pending_nonce(&ctx.config.rpc_url).await {
                                     Ok(fresh_nonce) => {
                                         manager.set(ctx.address(), fresh_nonce).await;
@@ -778,7 +785,12 @@ async fn run_single_task(
         })
         .expect("Task not found");
 
-    let ctx = TaskContext::new(client.clone(), config.clone(), Some(db_manager.clone()), Arc::new(GasManager));
+    let ctx = TaskContext::new(
+        client.clone(),
+        config.clone(),
+        Some(db_manager.clone()),
+        Arc::new(GasManager),
+    );
 
     match task.run(&ctx).await {
         Ok(result) => {

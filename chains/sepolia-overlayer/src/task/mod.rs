@@ -141,10 +141,22 @@ mod tests {
             // Names should start with a 2-digit number followed by underscore
             assert!(name.len() >= 3, "Task name '{}' too short", name);
             let prefix = &name[..2];
-            let num: u32 = prefix.parse().unwrap_or_else(|_| panic!("Task '{}' doesn't start with 2-digit number", name));
-            assert!(num >= 1 && num <= 99, "Task '{}' prefix {} out of range", name, num);
+            let num: u32 = prefix
+                .parse()
+                .unwrap_or_else(|_| panic!("Task '{}' doesn't start with 2-digit number", name));
+            assert!(
+                num >= 1 && num <= 99,
+                "Task '{}' prefix {} out of range",
+                name,
+                num
+            );
             // Third char should be underscore
-            assert_eq!(name.as_bytes()[2], b'_', "Task '{}' missing underscore separator", name);
+            assert_eq!(
+                name.as_bytes()[2],
+                b'_',
+                "Task '{}' missing underscore separator",
+                name
+            );
         }
     }
 
@@ -175,7 +187,12 @@ mod tests {
             // After "XX_" prefix, the name should start with a lowercase letter (camelCase)
             let body = &name[3..];
             let first_body = body.chars().next().unwrap();
-            assert!(first_body.is_ascii_lowercase(), "Task '{}' body '{}' should start with lowercase (camelCase)", name, body);
+            assert!(
+                first_body.is_ascii_lowercase(),
+                "Task '{}' body '{}' should start with lowercase (camelCase)",
+                name,
+                body
+            );
         }
     }
 }

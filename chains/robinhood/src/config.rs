@@ -34,7 +34,6 @@ impl EvmConfig {
             },
         }
     }
-
 }
 
 #[cfg(test)]
@@ -52,7 +51,8 @@ private_key_file = "wallet.json"
 "#;
         let settings = Config::builder()
             .add_source(config::File::from_str(toml, config::FileFormat::Toml))
-            .build().unwrap();
+            .build()
+            .unwrap();
         let cfg: EvmConfig = settings.try_deserialize().unwrap();
         assert_eq!(cfg.rpc_url, "https://rpc.evm.com");
         assert_eq!(cfg.chain_id, 42);
@@ -69,7 +69,8 @@ private_key_file = "wallet.json"
 "#;
         let settings = Config::builder()
             .add_source(config::File::from_str(toml, config::FileFormat::Toml))
-            .build().unwrap();
+            .build()
+            .unwrap();
         let cfg: EvmConfig = settings.try_deserialize().unwrap();
         let spam = cfg.to_spam_config();
         assert_eq!(spam.chain_id, 42);
@@ -83,7 +84,8 @@ private_key_file = "wallet.json"
                 r#"rpc_url = "x""#,
                 config::FileFormat::Toml,
             ))
-            .build().unwrap();
+            .build()
+            .unwrap();
         let result: Result<EvmConfig, _> = settings.try_deserialize();
         let err = result.as_ref().unwrap_err().to_string();
         assert!(
@@ -109,7 +111,8 @@ url = "http://10.0.0.2:8080"
 "#;
         let settings = Config::builder()
             .add_source(config::File::from_str(toml, config::FileFormat::Toml))
-            .build().unwrap();
+            .build()
+            .unwrap();
         let cfg: EvmConfig = settings.try_deserialize().unwrap();
         assert_eq!(cfg.rpc_url, "https://rpc.evm.com");
         assert_eq!(cfg.chain_id, 1);
@@ -133,7 +136,8 @@ private_key_file = ""
 "#;
         let settings = Config::builder()
             .add_source(config::File::from_str(toml, config::FileFormat::Toml))
-            .build().unwrap();
+            .build()
+            .unwrap();
         let cfg: EvmConfig = settings.try_deserialize().unwrap();
         assert_eq!(cfg.rpc_url, "");
         assert_eq!(cfg.chain_id, 0);
@@ -141,4 +145,3 @@ private_key_file = ""
         assert_eq!(cfg.private_key_file, "");
     }
 }
-

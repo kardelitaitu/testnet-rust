@@ -64,10 +64,7 @@ impl SepoliaTask for AaveUsdtFaucetTask {
         let success = receipt.is_some_and(|r| r.status == Some(1.into()));
         Ok(TaskResult {
             success,
-            message: format!(
-                "Minted 10,000 USDT from AAVE faucet (tx: {:?})",
-                tx_hash
-            ),
+            message: format!("Minted 10,000 USDT from AAVE faucet (tx: {:?})", tx_hash),
         })
     }
 }

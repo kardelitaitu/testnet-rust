@@ -66,7 +66,7 @@ impl TempoTask for TimeBombTask {
             chain_id,
             max_priority_fee_per_gas: 1_500_000_000,
             max_fee_per_gas: 200_000_000_000u128, // High gas for priority
-            gas_limit: 1_000_000,                   // Sufficient for minimal deploy
+            gas_limit: 1_000_000,                 // Sufficient for minimal deploy
             calls: vec![Call {
                 to: TxKind::Create, // Deployment
                 value: U256::ZERO,

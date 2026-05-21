@@ -82,9 +82,9 @@ impl Task<TaskContext> for CrossContractCallTask {
             Ok(pending) => {
                 let tx_hash = format!("{:?}", pending.tx_hash());
                 match timeout(Duration::from_secs(60), pending).await {
-                    Ok(Ok(Some(receipt))) if receipt.status == Some(U64::from(1)) => {
-                        receipt.contract_address.context("No contract address in receipt")?
-                    }
+                    Ok(Ok(Some(receipt))) if receipt.status == Some(U64::from(1)) => receipt
+                        .contract_address
+                        .context("No contract address in receipt")?,
                     Ok(Ok(Some(_))) => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -105,7 +105,10 @@ impl Task<TaskContext> for CrossContractCallTask {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
                             success: false,
-                            message: format!("Counter deploy receipt failed (tx: {}): {}", tx_hash, e),
+                            message: format!(
+                                "Counter deploy receipt failed (tx: {}): {}",
+                                tx_hash, e
+                            ),
                             tx_hash: Some(tx_hash),
                         });
                     }

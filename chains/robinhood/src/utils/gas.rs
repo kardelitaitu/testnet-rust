@@ -19,9 +19,7 @@ impl GasManager {
 
     pub fn new(provider: Arc<Provider<Http>>) -> Self {
         Self {
-            config: GasConfig::new()
-                .with_max_fee(100.0) 
-                .with_priority_fee(1.0),
+            config: GasConfig::new().with_max_fee(100.0).with_priority_fee(1.0),
             provider,
         }
     }

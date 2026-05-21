@@ -79,9 +79,11 @@ async fn main() -> Result<()> {
     }
 
     // Load config
-    let mut config = SepoliaConfig::load(&args.config)
-        .context("Failed to load config")?;
-    println!("Config loaded: chain_id={}, symbol={}", config.chain_id, config.symbol);
+    let mut config = SepoliaConfig::load(&args.config).context("Failed to load config")?;
+    println!(
+        "Config loaded: chain_id={}, symbol={}",
+        config.chain_id, config.symbol
+    );
 
     // Load base config if provided
     let (base_rpc_url, base_config) = if let Some(ref base_path) = args.base_config {
@@ -91,8 +93,7 @@ async fn main() -> Result<()> {
                 let _ = dotenv::from_path(&env_path);
             }
         }
-        let cfg = SepoliaConfig::load(base_path)
-            .context("Failed to load base config")?;
+        let cfg = SepoliaConfig::load(base_path).context("Failed to load base config")?;
         (Some(cfg.rpc_url.clone()), Some(cfg))
     } else {
         (None, None)
@@ -120,7 +121,10 @@ async fn main() -> Result<()> {
 
     // Password
     let wallet_password = resolve_password().await?;
-    println!("Password resolved ({} chars)", wallet_password.as_deref().unwrap_or("").len());
+    println!(
+        "Password resolved ({} chars)",
+        wallet_password.as_deref().unwrap_or("").len()
+    );
 
     // Proxies
     let proxy_pool: Arc<RwLock<Vec<core_logic::config::ProxyConfig>>> = if args.no_proxy {
@@ -165,28 +169,21 @@ async fn main() -> Result<()> {
 
     // Gas managers
     let client = reqwest::Client::new();
-    let provider = ethers::providers::Provider::new(
-        ethers::providers::Http::new_with_client(
-            reqwest::Url::parse(&config.rpc_url)?,
-            client,
-        ),
-    );
+    let provider = ethers::providers::Provider::new(ethers::providers::Http::new_with_client(
+        reqwest::Url::parse(&config.rpc_url)?,
+        client,
+    ));
     let gas_manager = Arc::new(GasManager::new(Arc::new(provider), args.min_gwei));
 
     let base_gas_manager = base_config.as_ref().map(|_| {
-        let base_provider = ethers::providers::Provider::new(
-            ethers::providers::Http::new(
-                reqwest::Url::parse(base_rpc_url.as_deref().unwrap()).expect("Invalid base RPC URL"),
-            ),
-        );
+        let base_provider = ethers::providers::Provider::new(ethers::providers::Http::new(
+            reqwest::Url::parse(base_rpc_url.as_deref().unwrap()).expect("Invalid base RPC URL"),
+        ));
         Arc::new(GasManager::new(Arc::new(base_provider), args.min_gwei))
     });
 
     // Build per-task limits (default = 1 for tasks not in config)
-    let task_limits: HashMap<String, u32> = config
-        .task_limits
-        .clone()
-        .unwrap_or_default();
+    let task_limits: HashMap<String, u32> = config.task_limits.clone().unwrap_or_default();
     if !task_limits.is_empty() {
         println!("Task limits configured: {:?}", task_limits);
     }
@@ -236,7 +233,8 @@ async fn main() -> Result<()> {
 /// Format the error message shown when WALLET_PASSWORD env var is not set.
 fn format_password_error_msg() -> String {
     "WALLET_PASSWORD environment variable not set.\n\
-     Set it before running:\n  $env:WALLET_PASSWORD=\"your_password\"\n  cargo run ...".to_string()
+     Set it before running:\n  $env:WALLET_PASSWORD=\"your_password\"\n  cargo run ..."
+        .to_string()
 }
 
 /// Resolve the wallet password from env var.
@@ -263,7 +261,10 @@ mod tests {
     #[test]
     fn test_format_password_error_msg_contains_keyword() {
         let msg = format_password_error_msg();
-        assert!(msg.contains("WALLET_PASSWORD"), "Error should mention WALLET_PASSWORD");
+        assert!(
+            msg.contains("WALLET_PASSWORD"),
+            "Error should mention WALLET_PASSWORD"
+        );
     }
 
     #[test]
@@ -299,8 +300,15 @@ mod tests {
     async fn test_resolve_password_without_manager_arg() {
         let _ = unsafe { std::env::remove_var("WALLET_PASSWORD") };
         let result = resolve_password().await;
-        assert!(result.is_err(), "Should error when WALLET_PASSWORD is not set");
+        assert!(
+            result.is_err(),
+            "Should error when WALLET_PASSWORD is not set"
+        );
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("WALLET_PASSWORD"), "Error should mention WALLET_PASSWORD: {}", err);
+        assert!(
+            err.contains("WALLET_PASSWORD"),
+            "Error should mention WALLET_PASSWORD: {}",
+            err
+        );
     }
 }

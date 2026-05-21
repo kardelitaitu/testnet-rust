@@ -41,7 +41,6 @@ impl XeneaConfig {
             },
         }
     }
-
 }
 
 #[cfg(test)]
@@ -60,7 +59,8 @@ tps = 10
 "#;
         let settings = Config::builder()
             .add_source(config::File::from_str(toml, config::FileFormat::Toml))
-            .build().unwrap();
+            .build()
+            .unwrap();
         let cfg: XeneaConfig = settings.try_deserialize().unwrap();
         assert_eq!(cfg.rpc_url, "https://rpc.xenea.com");
         assert_eq!(cfg.chain_id, 777);
@@ -77,7 +77,8 @@ tps = 10
 "#;
         let settings = Config::builder()
             .add_source(config::File::from_str(toml, config::FileFormat::Toml))
-            .build().unwrap();
+            .build()
+            .unwrap();
         let cfg: XeneaConfig = settings.try_deserialize().unwrap();
         let spam = cfg.to_spam_config();
         assert_eq!(spam.chain_id, 777);
@@ -98,7 +99,8 @@ password = "pass1"
 "#;
         let settings = Config::builder()
             .add_source(config::File::from_str(toml, config::FileFormat::Toml))
-            .build().unwrap();
+            .build()
+            .unwrap();
         let cfg: XeneaConfig = settings.try_deserialize().unwrap();
         assert!(cfg.proxies.is_some());
         let proxies = cfg.proxies.unwrap();
@@ -118,7 +120,8 @@ private_key_file = "wallet.json"
 "#;
         let settings = Config::builder()
             .add_source(config::File::from_str(toml, config::FileFormat::Toml))
-            .build().unwrap();
+            .build()
+            .unwrap();
         let cfg: XeneaConfig = settings.try_deserialize().unwrap();
         assert_eq!(cfg.private_key_file.as_deref(), Some("wallet.json"));
     }
@@ -135,9 +138,13 @@ create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 "#;
         let settings = Config::builder()
             .add_source(config::File::from_str(toml, config::FileFormat::Toml))
-            .build().unwrap();
+            .build()
+            .unwrap();
         let cfg: XeneaConfig = settings.try_deserialize().unwrap();
-        assert_eq!(cfg.create2_factory.as_deref(), Some("0x4e59b44847b379578588920cA78FbF26c0B4956C"));
+        assert_eq!(
+            cfg.create2_factory.as_deref(),
+            Some("0x4e59b44847b379578588920cA78FbF26c0B4956C")
+        );
     }
 
     #[test]
@@ -145,9 +152,9 @@ create2_factory = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
         let toml = r#"rpc_url = "https://x.com""#;
         let settings = Config::builder()
             .add_source(config::File::from_str(toml, config::FileFormat::Toml))
-            .build().unwrap();
+            .build()
+            .unwrap();
         let result: Result<XeneaConfig, _> = settings.try_deserialize();
         assert!(result.is_err());
     }
 }
-

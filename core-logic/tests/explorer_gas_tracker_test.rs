@@ -19,8 +19,8 @@ fn test_payload_builder_new() {
 
 #[test]
 fn test_payload_builder_with_row_label() {
-    let payload = ExplorerGasTrackerPayload::new("https://explorer.example.com")
-        .with_row_label("Fast");
+    let payload =
+        ExplorerGasTrackerPayload::new("https://explorer.example.com").with_row_label("Fast");
     assert_eq!(payload.row_label, "Fast");
 }
 

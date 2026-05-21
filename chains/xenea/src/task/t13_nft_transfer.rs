@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use ethers::abi::Token;
 use ethers::prelude::*;
 use rand::rngs::OsRng;
-use rand::{Rng, seq::SliceRandom};
+use rand::{seq::SliceRandom, Rng};
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -41,9 +41,15 @@ impl Task<TaskContext> for NftTransferTask {
         let nft_address = if let Some(db) = &ctx.db {
             match db.get_all_assets_by_type("ERC721").await {
                 Ok(contracts) if !contracts.is_empty() => {
-                    let addr_str = contracts.choose(&mut rng).context("Failed to pick contract")?;
+                    let addr_str = contracts
+                        .choose(&mut rng)
+                        .context("Failed to pick contract")?;
                     debug!("Using existing NFT: {}", addr_str);
-                    Some(addr_str.parse::<Address>().context("Invalid address in DB")?)
+                    Some(
+                        addr_str
+                            .parse::<Address>()
+                            .context("Invalid address in DB")?,
+                    )
                 }
                 _ => None,
             }
@@ -56,17 +62,20 @@ impl Task<TaskContext> for NftTransferTask {
         let deploy_gas = crate::utils::gas::GasManager::LIMIT_DEPLOY * gas_price;
         let mint_gas = U256::from(600_000u64) * gas_price;
         let transfer_gas = crate::utils::gas::GasManager::LIMIT_SEND_MEME * gas_price;
-        let estimated_gas = if nft_address.is_some() { 
-            mint_gas + transfer_gas 
-        } else { 
-            deploy_gas + mint_gas + transfer_gas 
+        let estimated_gas = if nft_address.is_some() {
+            mint_gas + transfer_gas
+        } else {
+            deploy_gas + mint_gas + transfer_gas
         };
 
         let balance = provider.get_balance(address, None).await?;
         if balance < estimated_gas {
             return Ok(TaskResult {
                 success: false,
-                message: format!("Insufficient TXENE for gas: need {} Wei, have {} Wei", estimated_gas, balance),
+                message: format!(
+                    "Insufficient TXENE for gas: need {} Wei, have {} Wei",
+                    estimated_gas, balance
+                ),
                 tx_hash: None,
             });
         }
@@ -83,8 +92,10 @@ impl Task<TaskContext> for NftTransferTask {
         let nft_address = match nft_address {
             Some(addr) => addr,
             None => {
-                let mnemonic_content = std::fs::read_to_string(mnemonic_path)
-                    .with_context(|| format!("Failed to read mnemonic file from {}", mnemonic_path))?;
+                let mnemonic_content =
+                    std::fs::read_to_string(mnemonic_path).with_context(|| {
+                        format!("Failed to read mnemonic file from {}", mnemonic_path)
+                    })?;
                 let words: Vec<&str> = mnemonic_content
                     .lines()
                     .map(|line| line.trim())
@@ -96,10 +107,10 @@ impl Task<TaskContext> for NftTransferTask {
                     None => String::new(),
                     Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
                 };
-let nft_name = format!("{} Transfer NFT", capitalized_word);
-        let nft_symbol = format!("{}TNFT", capitalized_word.chars().next().unwrap_or('T'));
-        let nft_symbol_for_abi = nft_symbol.clone();
-        let nft_symbol_for_db = nft_symbol.clone();
+                let nft_name = format!("{} Transfer NFT", capitalized_word);
+                let nft_symbol = format!("{}TNFT", capitalized_word.chars().next().unwrap_or('T'));
+                let nft_symbol_for_abi = nft_symbol.clone();
+                let nft_symbol_for_db = nft_symbol.clone();
 
                 let bytecode_path = "chains/xenea/contracts/TestNFT_bytecode.txt";
                 let bytecode_hex = std::fs::read_to_string(bytecode_path)
@@ -109,7 +120,10 @@ let nft_name = format!("{} Transfer NFT", capitalized_word);
                 let constructor = abi.constructor().context("ABI missing constructor")?;
                 let encoded_args = constructor.encode_input(
                     bytecode_raw,
-                    &[Token::String(nft_name.clone()), Token::String(nft_symbol_for_abi)],
+                    &[
+                        Token::String(nft_name.clone()),
+                        Token::String(nft_symbol_for_abi),
+                    ],
                 )?;
 
                 let deploy_nonce = nonce_manager.next().await?;
@@ -126,15 +140,19 @@ let nft_name = format!("{} Transfer NFT", capitalized_word);
                         let tx_hash = format!("{:?}", pending.tx_hash());
                         match pending.await {
                             Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
-                                let addr = receipt.contract_address.context("No contract address in receipt")?;
+                                let addr = receipt
+                                    .contract_address
+                                    .context("No contract address in receipt")?;
                                 if let Some(db) = &ctx.db {
-                                    let _ = db.log_asset_creation(
-                                        &format!("{:?}", address),
-                                        &format!("{:?}", addr),
-                                        "ERC721",
-                                        &nft_name,
-                                        &nft_symbol_for_db,
-                                    ).await;
+                                    let _ = db
+                                        .log_asset_creation(
+                                            &format!("{:?}", address),
+                                            &format!("{:?}", addr),
+                                            "ERC721",
+                                            &nft_name,
+                                            &nft_symbol_for_db,
+                                        )
+                                        .await;
                                 }
                                 addr
                             }

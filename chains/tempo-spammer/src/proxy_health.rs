@@ -256,7 +256,11 @@ mod banlist_tests {
         // With 0-minute ban, the ban may already be expired
         bl.cleanup_expired().await;
         let banned = bl.get_banned_indices().await;
-        assert!(banned.is_empty(), "0-min bans should be cleaned up: {:?}", banned);
+        assert!(
+            banned.is_empty(),
+            "0-min bans should be cleaned up: {:?}",
+            banned
+        );
     }
 
     #[tokio::test]
@@ -287,8 +291,12 @@ mod banlist_tests {
         for i in 0..num_tasks {
             assert!(bl.is_banned(i).await, "Proxy {} should be banned", i);
         }
-        assert_eq!(bl.get_banned_indices().await.len(), num_tasks,
-            "All {} proxy indices should appear in banned list", num_tasks);
+        assert_eq!(
+            bl.get_banned_indices().await.len(),
+            num_tasks,
+            "All {} proxy indices should appear in banned list",
+            num_tasks
+        );
     }
 
     #[tokio::test]
@@ -310,8 +318,11 @@ mod banlist_tests {
 
         // Should be banned, and the banned list should contain only one entry
         assert!(bl.is_banned(5).await);
-        assert_eq!(bl.get_banned_indices().await.len(), 1,
-            "Multiple bans on same index should only create one entry");
+        assert_eq!(
+            bl.get_banned_indices().await.len(),
+            1,
+            "Multiple bans on same index should only create one entry"
+        );
     }
 
     #[tokio::test]
@@ -340,7 +351,10 @@ mod banlist_tests {
         }
 
         // Verify reads + writes were safe
-        assert!(bl.is_banned(5).await, "Index 5 should be banned after writes");
+        assert!(
+            bl.is_banned(5).await,
+            "Index 5 should be banned after writes"
+        );
         assert!(!bl.is_banned(50).await, "Index 50 should never be banned");
     }
 
@@ -364,7 +378,11 @@ mod banlist_tests {
 
         // After ban+unban on each, none should be banned
         for i in 0..5 {
-            assert!(!bl.is_banned(i).await, "Index {} should have been unbanned", i);
+            assert!(
+                !bl.is_banned(i).await,
+                "Index {} should have been unbanned",
+                i
+            );
         }
     }
 }

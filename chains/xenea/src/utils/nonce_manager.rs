@@ -70,7 +70,9 @@ mod tests {
     #[tokio::test]
     async fn test_new_initial_state_none() {
         let provider = dummy_provider();
-        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let mgr = SimpleNonceManager::new(provider, addr);
         let guard = mgr.current_nonce.lock().await;
         assert!(guard.is_none());
@@ -79,7 +81,9 @@ mod tests {
     #[tokio::test]
     async fn test_clone_preserves_state() {
         let provider = dummy_provider();
-        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let mgr = SimpleNonceManager::new(provider.clone(), addr);
         let cloned = mgr.clone();
         let guard = cloned.current_nonce.lock().await;
@@ -89,7 +93,9 @@ mod tests {
     #[tokio::test]
     async fn test_next_returns_cached_nonce() {
         let provider = dummy_provider();
-        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let mgr = SimpleNonceManager::new(provider, addr);
         // Pre-populate the cache (simulates having done an initial fetch)
         {
@@ -108,7 +114,9 @@ mod tests {
     #[tokio::test]
     async fn test_next_from_zero_uses_cache() {
         let provider = dummy_provider();
-        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let mgr = SimpleNonceManager::new(provider, addr);
         {
             let mut guard = mgr.current_nonce.lock().await;
@@ -122,7 +130,9 @@ mod tests {
     #[tokio::test]
     async fn test_next_after_reset_to_lower_value() {
         let provider = dummy_provider();
-        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let mgr = SimpleNonceManager::new(provider, addr);
         {
             let mut guard = mgr.current_nonce.lock().await;
@@ -142,7 +152,9 @@ mod tests {
     #[tokio::test]
     async fn test_cache_set_to_none_fetches_from_rpc() {
         let provider = dummy_provider();
-        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let mgr = SimpleNonceManager::new(provider, addr);
         {
             let mut guard = mgr.current_nonce.lock().await;
@@ -155,13 +167,18 @@ mod tests {
             *guard = None;
         }
         let result = mgr.next().await;
-        assert!(result.is_err(), "Should fail because dummy RPC can't be reached");
+        assert!(
+            result.is_err(),
+            "Should fail because dummy RPC can't be reached"
+        );
     }
 
     #[tokio::test]
     async fn test_clone_inherits_cache_value() {
         let provider = dummy_provider();
-        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let mgr = SimpleNonceManager::new(provider, addr);
         {
             let mut guard = mgr.current_nonce.lock().await;
@@ -177,7 +194,9 @@ mod tests {
     #[tokio::test]
     async fn test_clone_increments_independently() {
         let provider = dummy_provider();
-        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let mgr = SimpleNonceManager::new(provider, addr);
         {
             let mut guard = mgr.current_nonce.lock().await;
@@ -191,7 +210,9 @@ mod tests {
     #[tokio::test]
     async fn test_next_handles_u256_max() {
         let provider = dummy_provider();
-        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let addr: H160 = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
+            .parse()
+            .unwrap();
         let mgr = SimpleNonceManager::new(provider, addr);
         {
             let mut guard = mgr.current_nonce.lock().await;

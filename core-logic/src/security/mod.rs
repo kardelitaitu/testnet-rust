@@ -59,41 +59,37 @@ mod tests {
         let result = SecurityUtils::decrypt_file("/nonexistent", "password");
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("decrypt_components"), "Error should mention decrypt_components: {}", msg);
+        assert!(
+            msg.contains("decrypt_components"),
+            "Error should mention decrypt_components: {}",
+            msg
+        );
     }
 
     #[test]
     fn test_decrypt_components_invalid_ciphertext_hex() {
-        let result = SecurityUtils::decrypt_components(
-            "not-hex", "00", "00", "00", "password",
-        );
+        let result = SecurityUtils::decrypt_components("not-hex", "00", "00", "00", "password");
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("ciphertext"));
     }
 
     #[test]
     fn test_decrypt_components_invalid_iv_hex() {
-        let result = SecurityUtils::decrypt_components(
-            "00", "not-hex", "00", "00", "password",
-        );
+        let result = SecurityUtils::decrypt_components("00", "not-hex", "00", "00", "password");
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("IV"));
     }
 
     #[test]
     fn test_decrypt_components_invalid_salt_hex() {
-        let result = SecurityUtils::decrypt_components(
-            "00", "00", "not-hex", "00", "password",
-        );
+        let result = SecurityUtils::decrypt_components("00", "00", "not-hex", "00", "password");
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("salt"));
     }
 
     #[test]
     fn test_decrypt_components_invalid_tag_hex() {
-        let result = SecurityUtils::decrypt_components(
-            "00", "00", "00", "not-hex", "password",
-        );
+        let result = SecurityUtils::decrypt_components("00", "00", "00", "not-hex", "password");
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("tag"));
     }
@@ -101,18 +97,14 @@ mod tests {
     #[test]
     fn test_decrypt_components_invalid_hex_odd_length() {
         // Odd-length hex strings are invalid
-        let result = SecurityUtils::decrypt_components(
-            "abc", "00", "00", "00", "password",
-        );
+        let result = SecurityUtils::decrypt_components("abc", "00", "00", "00", "password");
         assert!(result.is_err(), "Odd-length hex should fail");
     }
 
     #[test]
     fn test_decrypt_components_invalid_hex_char() {
         // Hex with invalid character 'z'
-        let result = SecurityUtils::decrypt_components(
-            "0z", "00", "00", "00", "password",
-        );
+        let result = SecurityUtils::decrypt_components("0z", "00", "00", "00", "password");
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("ciphertext"));
     }
@@ -121,9 +113,7 @@ mod tests {
     fn test_decrypt_components_short_iv_reaches_aes() {
         // Valid hex with proper 12-byte IV (24 hex chars) — will fail at decryption
         let iv_12 = "00".repeat(12); // 12 zero bytes = 24 hex chars
-        let result = SecurityUtils::decrypt_components(
-            "00", &iv_12, "00", "00", "password",
-        );
+        let result = SecurityUtils::decrypt_components("00", &iv_12, "00", "00", "password");
         assert!(result.is_err());
     }
 }

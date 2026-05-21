@@ -67,25 +67,28 @@ impl TempoTask for BurnStableTask {
             tracing::info!("No stablecoins found for burning. Creating one now...");
             let create_task = CreateStableTask::new();
             let create_result = create_task.run(ctx).await?;
-            
+
             if !create_result.success {
                 return Ok(TaskResult {
                     success: false,
-                    message: format!("Failed to create stablecoin for burning: {}", create_result.message),
+                    message: format!(
+                        "Failed to create stablecoin for burning: {}",
+                        create_result.message
+                    ),
                     tx_hash: create_result.tx_hash,
                 });
             }
-            
+
             // Re-query DB
             if let Some(db) = &ctx.db {
                 match db.get_assets_by_type(&wallet_addr_str, "stablecoin").await {
                     Ok(addresses) => created_token_addresses = addresses,
-                    Err(_) => {},
+                    Err(_) => {}
                 }
             }
-            
+
             if created_token_addresses.is_empty() {
-                 return Ok(TaskResult {
+                return Ok(TaskResult {
                     success: false,
                     message: "Created stablecoin but DB query still returns empty.".to_string(),
                     tx_hash: create_result.tx_hash,
@@ -203,7 +206,7 @@ impl TempoTask for BurnStableTask {
             //         tx_hash: None,
             //     });
             // }
-            
+
             // Assume mint succeeded or we have enough balance, proceed to burn
             // This is a spammer, we don't need perfect reliability
         }
@@ -226,7 +229,7 @@ impl TempoTask for BurnStableTask {
         // Send burn with retry logic using standard provider (no robust nonce manager needed for simple spam)
         let mut attempt = 0;
         let max_retries = 3;
-        
+
         loop {
             // Get fresh nonce
             let nonce = match client.get_pending_nonce(&ctx.config.rpc_url).await {
@@ -234,13 +237,17 @@ impl TempoTask for BurnStableTask {
                 Err(_) => {
                     attempt += 1;
                     if attempt >= max_retries {
-                         return Ok(TaskResult { success: false, message: "Failed to get nonce".into(), tx_hash: None });
+                        return Ok(TaskResult {
+                            success: false,
+                            message: "Failed to get nonce".into(),
+                            tx_hash: None,
+                        });
                     }
                     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     continue;
                 }
             };
-            
+
             let tx = TransactionRequest::default()
                 .to(token_addr)
                 .input(TransactionInput::from(burn_calldata.clone()))
@@ -264,13 +271,15 @@ impl TempoTask for BurnStableTask {
                 }
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
-                    if (err_str.contains("nonce too low") || err_str.contains("already known")) && attempt < max_retries {
+                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
+                        && attempt < max_retries
+                    {
                         client.reset_nonce_cache().await;
                         attempt += 1;
                         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                         continue;
                     }
-                    
+
                     return Ok(TaskResult {
                         success: false,
                         message: format!("Burn failed: {:?}", e),

@@ -26,7 +26,10 @@ async fn get_tplus_balance(provider: &Provider<Http>, wallet: Address) -> Result
         serde_json::from_str::<ethers::abi::Abi>(REDEEM_ABI)?,
         Arc::new(provider.clone()),
     );
-    Ok(contract.method::<_, U256>("balanceOf", wallet)?.call().await?)
+    Ok(contract
+        .method::<_, U256>("balanceOf", wallet)?
+        .call()
+        .await?)
 }
 
 pub struct RedeemUsdtPlusTask;
@@ -87,13 +90,13 @@ impl SepoliaTask for RedeemUsdtPlusTask {
         );
 
         let redeem_call = usdt_plus_contract
-            .method::<((Address, Address, Address, U256, U256),), H256>(
-                "redeem",
-                (order,),
-            )?
+            .method::<((Address, Address, Address, U256, U256),), H256>("redeem", (order,))?
             .gas(250_000)
             .gas_price(max_fee);
-        let redeem_tx = redeem_call.send().await.context("Failed to send redeem tx")?;
+        let redeem_tx = redeem_call
+            .send()
+            .await
+            .context("Failed to send redeem tx")?;
 
         let tx_hash = redeem_tx.tx_hash();
 
@@ -123,4 +126,3 @@ mod tests {
         assert_eq!(task.name(), "04_redeemUsdtPlus");
     }
 }
-

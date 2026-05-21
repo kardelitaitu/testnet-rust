@@ -53,7 +53,11 @@ mod tests {
         ];
         let mut seen = std::collections::HashSet::new();
         for task in &tasks {
-            assert!(seen.insert(task.name()), "Duplicate task name: {}", task.name());
+            assert!(
+                seen.insert(task.name()),
+                "Duplicate task name: {}",
+                task.name()
+            );
         }
     }
 
@@ -67,9 +71,16 @@ mod tests {
             let name = task.name();
             assert!(name.len() >= 3, "Task '{}' too short", name);
             // First two chars should be a 2-digit number
-            let _: u32 = name[..2].parse().expect("Task name should start with 2-digit number");
+            let _: u32 = name[..2]
+                .parse()
+                .expect("Task name should start with 2-digit number");
             // Third char should be underscore
-            assert_eq!(name.as_bytes()[2], b'_', "Task '{}' missing separator", name);
+            assert_eq!(
+                name.as_bytes()[2],
+                b'_',
+                "Task '{}' missing separator",
+                name
+            );
         }
     }
 }

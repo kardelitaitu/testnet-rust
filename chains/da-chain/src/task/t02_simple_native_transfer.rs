@@ -37,7 +37,10 @@ async fn try_cancel_pending_tx(
     max_fee: U256,
     priority_fee: U256,
 ) -> Result<()> {
-    println!("[INFO] Sending cancellation tx for pending nonce {}...", nonce);
+    println!(
+        "[INFO] Sending cancellation tx for pending nonce {}...",
+        nonce
+    );
     let middleware = SignerMiddleware::new(ctx.provider.clone(), ctx.wallet.clone());
     let cancel_tx = Eip1559TransactionRequest::new()
         .to(wallet_address)
@@ -63,9 +66,7 @@ async fn try_cancel_pending_tx(
             println!("[DEBUG] Cancellation receipt block: {:?}", r.block_number);
         }
         None => {
-            println!(
-                "[WARNING] No receipt returned for cancellation tx after waiting"
-            );
+            println!("[WARNING] No receipt returned for cancellation tx after waiting");
         }
     }
 
@@ -136,10 +137,7 @@ impl DaChainTask for SimpleNativeTransferTask {
                 .await?;
             let refreshed_pending_nonce = ctx
                 .provider
-                .get_transaction_count(
-                    wallet_address,
-                    Some(BlockId::Number(BlockNumber::Pending)),
-                )
+                .get_transaction_count(wallet_address, Some(BlockId::Number(BlockNumber::Pending)))
                 .await?;
             println!(
                 "[DEBUG] Refreshed confirmed nonce: {}",

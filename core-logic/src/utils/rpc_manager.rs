@@ -341,9 +341,15 @@ mod tests {
         assert!(mgr.get_endpoint().is_healthy());
         mgr.record_failure("http://rpc.com");
         mgr.record_failure("http://rpc.com");
-        assert!(mgr.get_endpoint().is_healthy(), "2 failures should still be healthy");
+        assert!(
+            mgr.get_endpoint().is_healthy(),
+            "2 failures should still be healthy"
+        );
         mgr.record_failure("http://rpc.com");
-        assert!(!mgr.get_endpoint().is_healthy(), "3 failures should mark unhealthy");
+        assert!(
+            !mgr.get_endpoint().is_healthy(),
+            "3 failures should mark unhealthy"
+        );
     }
 
     #[test]
@@ -377,7 +383,11 @@ mod tests {
 
     #[test]
     fn test_healthy_count_all_healthy_returns_count() {
-        let urls = vec!["http://a.com".into(), "http://b.com".into(), "http://c.com".into()];
+        let urls = vec![
+            "http://a.com".into(),
+            "http://b.com".into(),
+            "http://c.com".into(),
+        ];
         let mgr = RpcManager::new(1, &urls);
         assert_eq!(mgr.healthy_count(), 3);
     }

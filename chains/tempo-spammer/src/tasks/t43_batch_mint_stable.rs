@@ -101,12 +101,15 @@ impl TempoTask for BatchMintStableTask {
 
         // Check if token is PathUSD (System Token)
         if token_addr == Address::from_str(PATHUSD_ADDRESS)? {
-            tracing::warn!("Cannot mint system token PathUSD via mint(). Skipping/Using Faucet instead.");
+            tracing::warn!(
+                "Cannot mint system token PathUSD via mint(). Skipping/Using Faucet instead."
+            );
             // We could try to use faucet logic here, but the task is "Batch Mint".
             // Let's just return early with success = true (skipped) to avoid failing the runner.
-             return Ok(TaskResult {
+            return Ok(TaskResult {
                 success: true,
-                message: "Skipped batch mint for system token PathUSD (cannot grant roles)".to_string(),
+                message: "Skipped batch mint for system token PathUSD (cannot grant roles)"
+                    .to_string(),
                 tx_hash: None,
             });
         }
@@ -200,7 +203,7 @@ impl TempoTask for BatchMintStableTask {
                         role: FixedBytes::from(MINTER_ROLE),
                         account: address,
                     };
-                    
+
                     let tx_minter = TransactionRequest::default()
                         .to(token_addr)
                         .input(grant_minter.abi_encode().into())
@@ -209,23 +212,22 @@ impl TempoTask for BatchMintStableTask {
                         .gas_limit(2_000_000); // Increased gas limit
 
                     match client.provider.send_transaction(tx_minter).await {
-                         Ok(pending) => {
+                        Ok(pending) => {
                             if let Ok(receipt) = pending.get_receipt().await {
                                 if receipt.status() {
                                     tracing::debug!("  -> MINTER_ROLE granted.");
                                     grant_success = true;
                                 } else {
-                                     tracing::warn!("  -> MINTER_ROLE grant tx failed (status 0).");
+                                    tracing::warn!("  -> MINTER_ROLE grant tx failed (status 0).");
                                 }
                             }
-                         },
-                         Err(e) => {
-                             tracing::warn!("  -> MINTER_ROLE grant failed: {}", e);
-                         }
+                        }
+                        Err(e) => {
+                            tracing::warn!("  -> MINTER_ROLE grant failed: {}", e);
+                        }
                     }
                 }
             }
-
 
             if !grant_success {
                 tracing::warn!("  -> Failed to grant roles. Skipping task gracefully.");

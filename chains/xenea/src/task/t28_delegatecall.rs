@@ -71,9 +71,9 @@ impl Task<TaskContext> for DelegatecallTask {
             Ok(pending) => {
                 let tx_hash = format!("{:?}", pending.tx_hash());
                 match timeout(Duration::from_secs(60), pending).await {
-                    Ok(Ok(Some(receipt))) if receipt.status == Some(U64::from(1)) => {
-                        receipt.contract_address.context("No contract address in receipt")?
-                    }
+                    Ok(Ok(Some(receipt))) if receipt.status == Some(U64::from(1)) => receipt
+                        .contract_address
+                        .context("No contract address in receipt")?,
                     Ok(Ok(Some(_))) => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -94,7 +94,10 @@ impl Task<TaskContext> for DelegatecallTask {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
                             success: false,
-                            message: format!("Counter deploy receipt failed (tx: {}): {}", tx_hash, e),
+                            message: format!(
+                                "Counter deploy receipt failed (tx: {}): {}",
+                                tx_hash, e
+                            ),
                             tx_hash: Some(tx_hash),
                         });
                     }
@@ -137,14 +140,16 @@ impl Task<TaskContext> for DelegatecallTask {
         let pending_increment = client.send_transaction(increment_tx, None).await;
 
         match pending_increment {
-            Ok(pending) => Ok(TaskResult {
-                success: true,
-                message: format!(
+            Ok(pending) => {
+                Ok(TaskResult {
+                    success: true,
+                    message: format!(
                     "Counter deployed at {:?}, initial count: {}, increment submitted (tx: {:?})",
                     contract_address, initial_value, pending.tx_hash()
                 ),
-                tx_hash: Some(format!("{:?}", pending.tx_hash())),
-            }),
+                    tx_hash: Some(format!("{:?}", pending.tx_hash())),
+                })
+            }
             Err(e) => {
                 debug!("Counter increment submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;

@@ -78,7 +78,9 @@ impl Task<TaskContext> for GasPriceZeroTask {
                     success: true,
                     message: format!(
                         "Gas price test: sent {} TXENE to {:?} (tx: {:?})",
-                        amount_eth, recipient, pending.tx_hash()
+                        amount_eth,
+                        recipient,
+                        pending.tx_hash()
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })

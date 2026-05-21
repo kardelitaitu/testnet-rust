@@ -237,9 +237,7 @@ mod tests {
     fn test_get_max_fee_with_custom_config() {
         let provider = Arc::new(Provider::<Http>::try_from("http://localhost:9999").unwrap());
         let mut mgr = GasManager::new(provider, 0.0);
-        let custom = GasConfig::new()
-            .with_max_fee(10.0)
-            .with_priority_fee(0.5);
+        let custom = GasConfig::new().with_max_fee(10.0).with_priority_fee(0.5);
         mgr = mgr.with_config(custom);
         // base_fee=5 gwei → max=5+0.5=5.5 → capped at 10 → 5.5
         let base_fee = U256::from(5_000_000_000u128);

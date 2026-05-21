@@ -320,8 +320,8 @@ mod tests {
             backoff_multiplier: 1.5,
             jitter: false,
         };
-        assert_eq!(calculate_delay(&config, 0), 50);  // 50 * 1.5^0 = 50
-        assert_eq!(calculate_delay(&config, 1), 75);  // 50 * 1.5^1 = 75
+        assert_eq!(calculate_delay(&config, 0), 50); // 50 * 1.5^0 = 50
+        assert_eq!(calculate_delay(&config, 1), 75); // 50 * 1.5^1 = 75
         assert_eq!(calculate_delay(&config, 2), 112); // 50 * 1.5^2 = 112.5 → truncates to 112
         assert_eq!(calculate_delay(&config, 3), 168); // 50 * 1.5^3 = 168.75 → 168
         assert_eq!(calculate_delay(&config, 4), 253); // 50 * 1.5^4 = 253.125 → 253
@@ -427,28 +427,48 @@ mod tests {
 mod nonce_retry_tests {
     use super::*;
 
-    async fn ok_operation() -> Result<i32, String> { Ok(42) }
+    async fn ok_operation() -> Result<i32, String> {
+        Ok(42)
+    }
     async fn noop_reset() {}
 
-    async fn nonce_error_op() -> Result<i32, String> { Err("nonce too low".to_string()) }
+    async fn nonce_error_op() -> Result<i32, String> {
+        Err("nonce too low".to_string())
+    }
     async fn tracked_reset(called: std::sync::Arc<std::sync::atomic::AtomicBool>) {
         called.store(true, std::sync::atomic::Ordering::SeqCst);
     }
 
-    async fn funds_error_op() -> Result<i32, String> { Err("insufficient funds".to_string()) }
+    async fn funds_error_op() -> Result<i32, String> {
+        Err("insufficient funds".to_string())
+    }
 
-    async fn always_fail() -> Result<i32, String> { Err("persistent error".to_string()) }
+    async fn always_fail() -> Result<i32, String> {
+        Err("persistent error".to_string())
+    }
 
     #[tokio::test]
     async fn test_with_retry_succeeds_first_try() {
-        let config = RetryConfig { max_retries: 3, initial_delay_ms: 1, max_delay_ms: 10, backoff_multiplier: 1.0, jitter: false };
+        let config = RetryConfig {
+            max_retries: 3,
+            initial_delay_ms: 1,
+            max_delay_ms: 10,
+            backoff_multiplier: 1.0,
+            jitter: false,
+        };
         let result = with_retry(config, || ok_operation()).await;
         assert_eq!(result.unwrap(), 42);
     }
 
     #[tokio::test]
     async fn test_with_retry_all_failures() {
-        let config = RetryConfig { max_retries: 2, initial_delay_ms: 1, max_delay_ms: 10, backoff_multiplier: 1.0, jitter: false };
+        let config = RetryConfig {
+            max_retries: 2,
+            initial_delay_ms: 1,
+            max_delay_ms: 10,
+            backoff_multiplier: 1.0,
+            jitter: false,
+        };
         let result = with_retry(config, || always_fail()).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("persistent error"));
@@ -465,14 +485,22 @@ mod nonce_retry_tests {
     async fn test_with_retry_succeeds_after_one_retry() {
         let attempts = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let a = attempts.clone();
-        async fn retry_once(a: std::sync::Arc<std::sync::atomic::AtomicU32>) -> Result<i32, String> {
+        async fn retry_once(
+            a: std::sync::Arc<std::sync::atomic::AtomicU32>,
+        ) -> Result<i32, String> {
             if a.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
                 Err("first fail".to_string())
             } else {
                 Ok(99)
             }
         }
-        let config = RetryConfig { max_retries: 2, initial_delay_ms: 1, max_delay_ms: 10, backoff_multiplier: 1.0, jitter: false };
+        let config = RetryConfig {
+            max_retries: 2,
+            initial_delay_ms: 1,
+            max_delay_ms: 10,
+            backoff_multiplier: 1.0,
+            jitter: false,
+        };
         let result = with_retry(config, || retry_once(a.clone())).await;
         assert_eq!(result.unwrap(), 99);
     }
@@ -487,7 +515,8 @@ mod nonce_retry_tests {
                 let r = r.clone();
                 async move { tracked_reset(r).await }
             },
-        ).await;
+        )
+        .await;
         assert_eq!(result.unwrap(), 42);
         assert!(!reset_called.load(std::sync::atomic::Ordering::SeqCst));
     }
@@ -502,7 +531,8 @@ mod nonce_retry_tests {
                 let r = r.clone();
                 async move { tracked_reset(r).await }
             },
-        ).await;
+        )
+        .await;
         assert!(result.is_err());
         assert!(reset_called.load(std::sync::atomic::Ordering::SeqCst));
     }
@@ -517,7 +547,8 @@ mod nonce_retry_tests {
                 let r = r.clone();
                 async move { tracked_reset(r).await }
             },
-        ).await;
+        )
+        .await;
         assert!(result.is_err());
         assert!(!reset_called.load(std::sync::atomic::Ordering::SeqCst));
     }
@@ -526,23 +557,23 @@ mod nonce_retry_tests {
     async fn test_nonce_retry_succeeds_after_retry() {
         let attempts = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let a = attempts.clone();
-        async fn retry_op(attempts: std::sync::Arc<std::sync::atomic::AtomicU32>) -> Result<i32, String> {
+        async fn retry_op(
+            attempts: std::sync::Arc<std::sync::atomic::AtomicU32>,
+        ) -> Result<i32, String> {
             let prev = attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            if prev < 2 { Err("nonce too low".to_string()) } else { Ok(100) }
+            if prev < 2 {
+                Err("nonce too low".to_string())
+            } else {
+                Ok(100)
+            }
         }
-        let result = with_nonce_retry(
-            || retry_op(a.clone()),
-            || noop_reset(),
-        ).await;
+        let result = with_nonce_retry(|| retry_op(a.clone()), || noop_reset()).await;
         assert_eq!(result.unwrap(), 100);
     }
 
     #[tokio::test]
     async fn test_nonce_retry_returns_last_error_on_exhaustion() {
-        let result = with_nonce_retry(
-            || nonce_error_op(),
-            || noop_reset(),
-        ).await;
+        let result = with_nonce_retry(|| nonce_error_op(), || noop_reset()).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("nonce too low"));
     }

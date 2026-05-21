@@ -5,24 +5,15 @@ use dialoguer::{theme::ColorfulTheme, Select};
 use ethers::prelude::*;
 use sepolia_overlayer::config::SepoliaConfig;
 use sepolia_overlayer::task::{
-    t01_check_balance::SepoliaCheckBalanceTask,
-    t02_mint_usdt_plus::MintUsdtPlusTask,
-    t03_mint_usdc_plus::MintUsdcPlusTask,
-    t04_redeem_usdt_plus::RedeemUsdtPlusTask,
-    t05_redeem_usdc_plus::RedeemUsdcPlusTask,
-    t06_stake_usdt_plus::StakeUsdtPlusTask,
-    t07_stake_usdc_plus::StakeUsdcPlusTask,
-    t08_unstake_tplus::UnstakeTplusTask,
-    t09_unstake_cplus::UnstakeCplusTask,
-    t10_aave_usdt_faucet::AaveUsdtFaucetTask,
-    t11_aave_usdc_faucet::AaveUsdcFaucetTask,
-    t12_bridge_tplus::BridgeTplusTask,
-    t13_bridge_cplus::BridgeCplusTask,
-    t14_send_random_usdt_plus::SendRandomUsdtPlusTask,
-    t15_send_random_usdc_plus::SendRandomUsdcPlusTask,
-    t16_bridge_back_tplus::BridgeBackTplusTask,
-    t17_bridge_back_cplus::BridgeBackCplusTask,
-    SepoliaTask, TaskContext,
+    t01_check_balance::SepoliaCheckBalanceTask, t02_mint_usdt_plus::MintUsdtPlusTask,
+    t03_mint_usdc_plus::MintUsdcPlusTask, t04_redeem_usdt_plus::RedeemUsdtPlusTask,
+    t05_redeem_usdc_plus::RedeemUsdcPlusTask, t06_stake_usdt_plus::StakeUsdtPlusTask,
+    t07_stake_usdc_plus::StakeUsdcPlusTask, t08_unstake_tplus::UnstakeTplusTask,
+    t09_unstake_cplus::UnstakeCplusTask, t10_aave_usdt_faucet::AaveUsdtFaucetTask,
+    t11_aave_usdc_faucet::AaveUsdcFaucetTask, t12_bridge_tplus::BridgeTplusTask,
+    t13_bridge_cplus::BridgeCplusTask, t14_send_random_usdt_plus::SendRandomUsdtPlusTask,
+    t15_send_random_usdc_plus::SendRandomUsdcPlusTask, t16_bridge_back_tplus::BridgeBackTplusTask,
+    t17_bridge_back_cplus::BridgeBackCplusTask, SepoliaTask, TaskContext,
 };
 use std::env;
 use std::path::Path;

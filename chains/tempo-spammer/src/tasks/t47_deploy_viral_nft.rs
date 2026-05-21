@@ -85,13 +85,18 @@ impl TempoTask for DeployViralNftTask {
 
                     // Handle rate limiting specifically
                     if err_str.contains("rate limited") || err_str.contains("429") {
-                         if attempt >= max_retries {
-                             return Err(e).context("Rate limit exceeded after max retries");
-                         }
-                         let backoff = 2u64.pow(attempt as u32) * 100; // 200, 400, 800ms
-                         tracing::warn!("Rate limited on deploy, backing off {}ms (attempt {}/{})", backoff, attempt, max_retries);
-                         tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
-                         continue;
+                        if attempt >= max_retries {
+                            return Err(e).context("Rate limit exceeded after max retries");
+                        }
+                        let backoff = 2u64.pow(attempt as u32) * 100; // 200, 400, 800ms
+                        tracing::warn!(
+                            "Rate limited on deploy, backing off {}ms (attempt {}/{})",
+                            backoff,
+                            attempt,
+                            max_retries
+                        );
+                        tokio::time::sleep(std::time::Duration::from_millis(backoff)).await;
+                        continue;
                     }
 
                     if (err_str.contains("nonce too low") || err_str.contains("already known"))
@@ -102,7 +107,7 @@ impl TempoTask for DeployViralNftTask {
                         );
                         client.reset_nonce_cache().await;
                         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-                        
+
                         // Rebuild with fresh nonce
                         let fresh_nonce = client.get_pending_nonce(&ctx.config.rpc_url).await?;
                         deploy_tx.nonce = Some(fresh_nonce); // Update nonce in existing tx

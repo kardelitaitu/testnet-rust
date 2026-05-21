@@ -221,11 +221,7 @@ mod tests {
     #[test]
     fn test_format_status_message_first_run() {
         let start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
-        let notifier = TelegramNotifier::new_for_test(
-            make_config(),
-            "203.0.113.42".into(),
-            start,
-        );
+        let notifier = TelegramNotifier::new_for_test(make_config(), "203.0.113.42".into(), start);
         let msg = notifier.format_status_message(true);
         assert!(msg.contains("VPS + tempo-spammer started"));
         assert!(msg.contains("203.0.113.42"));
@@ -236,11 +232,7 @@ mod tests {
     #[test]
     fn test_format_status_message_periodic() {
         let start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
-        let notifier = TelegramNotifier::new_for_test(
-            make_config(),
-            "10.0.0.1".into(),
-            start,
-        );
+        let notifier = TelegramNotifier::new_for_test(make_config(), "10.0.0.1".into(), start);
         let msg = notifier.format_status_message(false);
         assert!(msg.contains("tempo-spammer is running"));
         assert!(msg.contains("10.0.0.1"));
@@ -250,11 +242,7 @@ mod tests {
     #[test]
     fn test_format_status_message_unknown_ip() {
         let start = Utc.with_ymd_and_hms(2026, 6, 15, 12, 30, 0).unwrap();
-        let notifier = TelegramNotifier::new_for_test(
-            make_config(),
-            "Unknown".into(),
-            start,
-        );
+        let notifier = TelegramNotifier::new_for_test(make_config(), "Unknown".into(), start);
         let msg = notifier.format_status_message(true);
         assert!(msg.contains("Unknown"));
     }

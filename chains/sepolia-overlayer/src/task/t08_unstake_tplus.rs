@@ -23,7 +23,10 @@ async fn get_sovl_balance(provider: &Provider<Http>, wallet: Address) -> Result<
         serde_json::from_str::<ethers::abi::Abi>(REDEEM_ABI)?,
         Arc::new(provider.clone()),
     );
-    Ok(contract.method::<_, U256>("balanceOf", wallet)?.call().await?)
+    Ok(contract
+        .method::<_, U256>("balanceOf", wallet)?
+        .call()
+        .await?)
 }
 
 pub struct UnstakeTplusTask;
@@ -76,7 +79,10 @@ impl SepoliaTask for UnstakeTplusTask {
             )?
             .gas(120_000)
             .gas_price(max_fee);
-        let redeem_tx = redeem_call.send().await.context("Failed to send redeem tx")?;
+        let redeem_tx = redeem_call
+            .send()
+            .await
+            .context("Failed to send redeem tx")?;
 
         let tx_hash = redeem_tx.tx_hash();
 
@@ -106,4 +112,3 @@ mod tests {
         assert_eq!(task.name(), "08_unstakeTplus");
     }
 }
-

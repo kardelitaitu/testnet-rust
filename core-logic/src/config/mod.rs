@@ -40,7 +40,10 @@ mod tests {
             chain_id: 1,
             target_tps: 10,
             duration_seconds: Some(3600),
-            wallet_source: WalletSource::File { path: "wallets.json".into(), encrypted: true },
+            wallet_source: WalletSource::File {
+                path: "wallets.json".into(),
+                encrypted: true,
+            },
         };
         assert_eq!(cfg.rpc_url, "https://rpc.example.com");
         assert_eq!(cfg.chain_id, 1);
@@ -55,14 +58,19 @@ mod tests {
             chain_id: 137,
             target_tps: 5,
             duration_seconds: None,
-            wallet_source: WalletSource::Env { key: "PRIVATE_KEY".into() },
+            wallet_source: WalletSource::Env {
+                key: "PRIVATE_KEY".into(),
+            },
         };
         assert!(cfg.duration_seconds.is_none());
     }
 
     #[test]
     fn test_wallet_source_file_variant() {
-        let src = WalletSource::File { path: "/tmp/keys.json".into(), encrypted: false };
+        let src = WalletSource::File {
+            path: "/tmp/keys.json".into(),
+            encrypted: false,
+        };
         match src {
             WalletSource::File { path, encrypted } => {
                 assert_eq!(path, "/tmp/keys.json");
@@ -74,7 +82,9 @@ mod tests {
 
     #[test]
     fn test_wallet_source_env_variant() {
-        let src = WalletSource::Env { key: "MY_KEY".into() };
+        let src = WalletSource::Env {
+            key: "MY_KEY".into(),
+        };
         match src {
             WalletSource::Env { key } => assert_eq!(key, "MY_KEY"),
             _ => panic!("Expected Env variant"),
@@ -123,7 +133,10 @@ mod tests {
             chain_id: 42,
             target_tps: 25,
             duration_seconds: Some(1800),
-            wallet_source: WalletSource::File { path: "keys.json".into(), encrypted: true },
+            wallet_source: WalletSource::File {
+                path: "keys.json".into(),
+                encrypted: true,
+            },
         };
         let json = serde_json::to_string(&cfg).unwrap();
         let deserialized: SpamConfig = serde_json::from_str(&json).unwrap();
@@ -168,7 +181,10 @@ wallet_source = { Env = { key = "PRIVATE_KEY" } }
 
     #[test]
     fn test_wallet_source_json_roundtrip() {
-        let src = WalletSource::File { path: "/tmp/wallet.json".into(), encrypted: false };
+        let src = WalletSource::File {
+            path: "/tmp/wallet.json".into(),
+            encrypted: false,
+        };
         let json = serde_json::to_string(&src).unwrap();
         let deserialized: WalletSource = serde_json::from_str(&json).unwrap();
         match deserialized {

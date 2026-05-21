@@ -75,8 +75,10 @@ impl Task<TaskContext> for NonceRepairTask {
                     );
                     gas_price *= U256::from(2u64);
                     if attempt >= 6 {
-                        return Err(e)
-                            .context(format!("Repair submission failed for nonce {}", target_nonce));
+                        return Err(e).context(format!(
+                            "Repair submission failed for nonce {}",
+                            target_nonce
+                        ));
                     }
                     continue;
                 }
@@ -133,7 +135,8 @@ impl Task<TaskContext> for NonceRepairTask {
                     }
                 }
                 Ok(Err(e)) => {
-                    return Err(e).context(format!("Repair receipt failed for nonce {}", target_nonce));
+                    return Err(e)
+                        .context(format!("Repair receipt failed for nonce {}", target_nonce));
                 }
             }
         }

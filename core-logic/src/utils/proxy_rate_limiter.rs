@@ -45,7 +45,8 @@ impl ProxyRateLimiter {
         // Check rate limit
         if limit.request_count >= self.max_requests_per_second {
             // Calculate how long to wait
-            let wait_time = Duration::from_secs(1).saturating_sub(now.duration_since(limit.window_start));
+            let wait_time =
+                Duration::from_secs(1).saturating_sub(now.duration_since(limit.window_start));
             debug!(
                 "Proxy {} rate limited, wait {}ms",
                 proxy_url,
@@ -152,7 +153,11 @@ mod tests {
         let stats = limiter.get_stats("http://proxy:8080").await;
         assert!(stats.is_some());
         let s = stats.unwrap();
-        assert!(s.contains("/10 req/s"), "stats should show TPS: got '{}'", s);
+        assert!(
+            s.contains("/10 req/s"),
+            "stats should show TPS: got '{}'",
+            s
+        );
     }
 
     #[tokio::test]
@@ -189,7 +194,11 @@ mod tests {
         let stats = limiter.get_stats(proxy).await;
         assert!(stats.is_some());
         let s = stats.unwrap();
-        assert!(s.starts_with("2/2"), "expected full window (2/2), got {}", s);
+        assert!(
+            s.starts_with("2/2"),
+            "expected full window (2/2), got {}",
+            s
+        );
 
         // A subsequent acquire still succeeds because the window has
         // advanced past 1s during the internal sleeps
@@ -252,7 +261,10 @@ mod tests {
             limiter.wait_until_available(proxy),
         )
         .await;
-        assert!(result.is_ok(), "wait_until_available should complete within 100ms");
+        assert!(
+            result.is_ok(),
+            "wait_until_available should complete within 100ms"
+        );
     }
 
     #[tokio::test]

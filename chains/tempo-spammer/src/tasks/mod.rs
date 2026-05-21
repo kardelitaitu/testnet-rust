@@ -529,7 +529,11 @@ mod share_tests {
     fn test_generate_random_shares_sum_matches_total() {
         let shares = generate_random_shares(5, 1000);
         let sum: u64 = shares.iter().sum();
-        assert_eq!(sum, 1000, "shares should sum to total: {:?} sums to {}", shares, sum);
+        assert_eq!(
+            sum, 1000,
+            "shares should sum to total: {:?} sums to {}",
+            shares, sum
+        );
     }
 
     #[test]
@@ -554,9 +558,18 @@ mod share_tests {
         let sum: u64 = shares.iter().sum();
         // Each bucket is at least 1, so sum >= count = 10. But total is 5.
         // The function adds 1 to zero buckets, so sum should be >= 10.
-        assert!(sum >= 10, "with 10 buckets and total 5, sum should be >= 10, got {}", sum);
+        assert!(
+            sum >= 10,
+            "with 10 buckets and total 5, sum should be >= 10, got {}",
+            sum
+        );
         for (i, &s) in shares.iter().enumerate() {
-            assert!(s > 0, "share[{}] should be positive even when count > total, got {}", i, s);
+            assert!(
+                s > 0,
+                "share[{}] should be positive even when count > total, got {}",
+                i,
+                s
+            );
         }
     }
 

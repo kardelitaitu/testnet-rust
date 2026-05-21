@@ -1,17 +1,17 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use core_logic::WalletManager;
 use core_logic::database::DatabaseManager;
-use dialoguer::{Password, theme::ColorfulTheme};
+use core_logic::WalletManager;
+use dialoguer::{theme::ColorfulTheme, Password};
 use dotenv::dotenv;
 use ethers::prelude::*;
 use rand::Rng;
-use std::env;
-use std::sync::Arc;
 use robinhood_spammer::config::EvmConfig;
-use robinhood_spammer::task::{TaskContext, RobinhoodTask};
+use robinhood_spammer::task::{RobinhoodTask, TaskContext};
 use robinhood_spammer::utils::gas::GasManager;
 use robinhood_spammer::utils::load_proxies;
+use std::env;
+use std::sync::Arc;
 use tracing;
 use tracing_subscriber;
 
@@ -37,7 +37,7 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv().ok();
-    
+
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .with_target(false)
@@ -62,7 +62,10 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Err(_) = wallet_manager.get_wallet(args.wallet, wallet_password.as_deref()).await {
+    if let Err(_) = wallet_manager
+        .get_wallet(args.wallet, wallet_password.as_deref())
+        .await
+    {
         let input = Password::with_theme(&ColorfulTheme::default())
             .with_prompt("Enter wallet password")
             .interact()?;
@@ -70,19 +73,27 @@ async fn main() -> Result<()> {
     }
 
     let proxies = load_proxies("proxies.txt").unwrap_or_default();
-    
+
     let (_proxy_idx, proxy_conf) = if proxies.is_empty() {
         (None, None)
     } else if let Some(idx) = args.proxy {
-        if idx == 0 { (None, None) }
-        else { (Some(idx - 1), Some(&proxies[(idx - 1) % proxies.len()])) }
+        if idx == 0 {
+            (None, None)
+        } else {
+            (Some(idx - 1), Some(&proxies[(idx - 1) % proxies.len()]))
+        }
     } else {
         let r_idx = rand::thread_rng().gen_range(0..proxies.len());
         (Some(r_idx), Some(&proxies[r_idx]))
     };
 
-    let decrypted = wallet_manager.get_wallet(args.wallet, wallet_password.as_deref()).await?;
-    let wallet: LocalWallet = decrypted.evm_private_key.parse::<LocalWallet>()?.with_chain_id(config.chain_id);
+    let decrypted = wallet_manager
+        .get_wallet(args.wallet, wallet_password.as_deref())
+        .await?;
+    let wallet: LocalWallet = decrypted
+        .evm_private_key
+        .parse::<LocalWallet>()?
+        .with_chain_id(config.chain_id);
 
     let mut client_builder = reqwest::Client::builder();
     if let Some(p) = proxy_conf {
@@ -107,11 +118,16 @@ async fn main() -> Result<()> {
         Box::new(robinhood_spammer::task::t02_simple_eth_transfer::SimpleEthTransferTask),
     ];
 
-    let task = tasks.iter().find(|t| t.name().to_lowercase().contains(&args.task.to_lowercase()))
+    let task = tasks
+        .iter()
+        .find(|t| t.name().to_lowercase().contains(&args.task.to_lowercase()))
         .context("Task not found")?;
 
     let db = if !args.no_db {
-        DatabaseManager::new("robinhood.db").await.ok().map(Arc::new)
+        DatabaseManager::new("robinhood.db")
+            .await
+            .ok()
+            .map(Arc::new)
     } else {
         None
     };
@@ -129,8 +145,14 @@ async fn main() -> Result<()> {
     let start = std::time::Instant::now();
     match task.run(ctx).await {
         Ok(res) => {
-            println!("{} Result: {}", if res.success { "✅" } else { "❌" }, res.message);
-            if let Some(h) = res.tx_hash { println!("Tx: {}", h); }
+            println!(
+                "{} Result: {}",
+                if res.success { "✅" } else { "❌" },
+                res.message
+            );
+            if let Some(h) = res.tx_hash {
+                println!("Tx: {}", h);
+            }
         }
         Err(e) => println!("❌ Error: {:?}", e),
     }

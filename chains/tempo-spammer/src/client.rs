@@ -137,7 +137,8 @@ impl TempoClient {
         let chain_id = signer.chain_id().unwrap_or(42431);
 
         // Create a provider specifically for THIS wallet but using SHARED transport if available
-        let provider: Arc<dyn Provider + Send + Sync> = if let Some(rpc_client) = shared_rpc_client {
+        let provider: Arc<dyn Provider + Send + Sync> = if let Some(rpc_client) = shared_rpc_client
+        {
             // Memory Efficient Path: Use shared RpcClient but unique Wallet layer
             Arc::new(
                 ProviderBuilder::new()
@@ -192,7 +193,8 @@ impl TempoClient {
 
         let chain_id = signer.chain_id().unwrap_or(42431);
 
-        let provider: Arc<dyn Provider + Send + Sync> = if let Some(rpc_client) = shared_rpc_client {
+        let provider: Arc<dyn Provider + Send + Sync> = if let Some(rpc_client) = shared_rpc_client
+        {
             Arc::new(
                 ProviderBuilder::new()
                     .wallet(signer.clone())
@@ -217,7 +219,7 @@ impl TempoClient {
             }
 
             let reqwest_client = client_builder
-                .timeout(std::time::Duration::from_secs(10)) 
+                .timeout(std::time::Duration::from_secs(10))
                 .connect_timeout(std::time::Duration::from_secs(5))
                 .pool_idle_timeout(std::time::Duration::from_secs(30))
                 .pool_max_idle_per_host(5)

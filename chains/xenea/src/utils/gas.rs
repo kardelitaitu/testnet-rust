@@ -73,7 +73,9 @@ impl GasManager {
         // Actually, user wants "very low" fees, so we should arguably clamp priority too if it exceeds our config
         // But usually priority < max.
         // Let's ensure priority isn't > max_fee (logic error)
-        if est_prio > est_max { est_prio = est_max; }
+        if est_prio > est_max {
+            est_prio = est_max;
+        }
 
         // Ensure we at least pay the configured priority if the oracle is too low?
         // No, user said "smart", implying dynamic. If network is cheap, pay cheap.
@@ -157,17 +159,26 @@ mod tests {
 
     #[test]
     fn test_parse_units_gwei() {
-        assert_eq!(parse_units(1.0, "gwei").unwrap(), U256::from(1_000_000_000u64));
+        assert_eq!(
+            parse_units(1.0, "gwei").unwrap(),
+            U256::from(1_000_000_000u64)
+        );
     }
 
     #[test]
     fn test_parse_units_ether() {
-        assert_eq!(parse_units(1.0, "ether").unwrap(), U256::from(10u128.pow(18)));
+        assert_eq!(
+            parse_units(1.0, "ether").unwrap(),
+            U256::from(10u128.pow(18))
+        );
     }
 
     #[test]
     fn test_parse_units_fractional() {
-        assert_eq!(parse_units(0.5, "gwei").unwrap(), U256::from(500_000_000u64));
+        assert_eq!(
+            parse_units(0.5, "gwei").unwrap(),
+            U256::from(500_000_000u64)
+        );
     }
 
     #[test]

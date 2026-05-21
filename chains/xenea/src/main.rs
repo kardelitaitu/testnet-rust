@@ -65,7 +65,13 @@ async fn main() -> Result<()> {
         let mut password = env::var("WALLET_PASSWORD").ok();
 
         // Validate password or prompt
-        if password.is_none() || manager.as_ref().get_wallet(0, password.as_deref()).await.is_err() {
+        if password.is_none()
+            || manager
+                .as_ref()
+                .get_wallet(0, password.as_deref())
+                .await
+                .is_err()
+        {
             if password.is_none() {
                 error!("WALLET_PASSWORD environment variable is not set.");
             } else {
@@ -105,7 +111,7 @@ async fn main() -> Result<()> {
     };
 
     // Load proxies unless explicitly disabled
-    let proxy_pool: Arc<tokio::sync::RwLock<Vec<core_logic::config::ProxyConfig>>> = 
+    let proxy_pool: Arc<tokio::sync::RwLock<Vec<core_logic::config::ProxyConfig>>> =
         if args.no_proxy {
             info!("Proxy loading disabled by --no-proxy");
             Arc::new(tokio::sync::RwLock::new(Vec::new()))

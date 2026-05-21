@@ -264,7 +264,11 @@ mod tests {
 
     #[test]
     fn test_healthy_count_mixed() {
-        let urls = vec!["http://good.com".into(), "http://bad.com".into(), "http://ok.com".into()];
+        let urls = vec![
+            "http://good.com".into(),
+            "http://bad.com".into(),
+            "http://ok.com".into(),
+        ];
         let mgr = RpcManager::new(1, &urls).unwrap();
         mgr.record_failure("http://bad.com");
         mgr.record_failure("http://bad.com");
@@ -295,12 +299,20 @@ mod tests {
 
     #[test]
     fn test_get_best_endpoint_picks_lowest_latency_healthy() {
-        let urls = vec!["http://slow.com".into(), "http://fast.com".into(), "http://medium.com".into()];
+        let urls = vec![
+            "http://slow.com".into(),
+            "http://fast.com".into(),
+            "http://medium.com".into(),
+        ];
         let mgr = RpcManager::new(1, &urls).unwrap();
         // Simulate latencies: slow=500, fast=50, medium=200
-        mgr.endpoints[0].last_latency_ms.store(500, Ordering::SeqCst);
+        mgr.endpoints[0]
+            .last_latency_ms
+            .store(500, Ordering::SeqCst);
         mgr.endpoints[1].last_latency_ms.store(50, Ordering::SeqCst);
-        mgr.endpoints[2].last_latency_ms.store(200, Ordering::SeqCst);
+        mgr.endpoints[2]
+            .last_latency_ms
+            .store(200, Ordering::SeqCst);
         let best = mgr.get_best_endpoint().unwrap();
         assert_eq!(best.url, "http://fast.com");
     }
@@ -311,7 +323,9 @@ mod tests {
         let mgr = RpcManager::new(1, &urls).unwrap();
         mgr.endpoints[0].last_latency_ms.store(10, Ordering::SeqCst);
         mgr.endpoints[0].healthy.store(false, Ordering::SeqCst);
-        mgr.endpoints[1].last_latency_ms.store(300, Ordering::SeqCst);
+        mgr.endpoints[1]
+            .last_latency_ms
+            .store(300, Ordering::SeqCst);
         let best = mgr.get_best_endpoint().unwrap();
         assert_eq!(best.url, "http://slow.com");
     }
@@ -319,7 +333,9 @@ mod tests {
     #[test]
     fn test_get_best_endpoint_with_single_healthy() {
         let mgr = RpcManager::new(1, &["http://only.com".into()]).unwrap();
-        mgr.endpoints[0].last_latency_ms.store(100, Ordering::SeqCst);
+        mgr.endpoints[0]
+            .last_latency_ms
+            .store(100, Ordering::SeqCst);
         let best = mgr.get_best_endpoint().unwrap();
         assert_eq!(best.url, "http://only.com");
     }
@@ -340,7 +356,11 @@ mod tests {
 
     #[test]
     fn test_healthy_count_all_healthy_returns_count() {
-        let urls = vec!["http://a.com".into(), "http://b.com".into(), "http://c.com".into()];
+        let urls = vec![
+            "http://a.com".into(),
+            "http://b.com".into(),
+            "http://c.com".into(),
+        ];
         let mgr = RpcManager::new(1, &urls).unwrap();
         assert_eq!(mgr.healthy_count(), 3);
     }
