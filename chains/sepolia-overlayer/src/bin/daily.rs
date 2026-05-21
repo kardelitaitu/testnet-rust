@@ -208,47 +208,13 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Resolve the wallet password from env var or interactive prompt.
-async fn resolve_password(manager: &Arc<core_logic::WalletManager>) -> Result<Option<String>> {
-    if manager.count() == 0 {
-        return Ok(None);
+/// Resolve the wallet password from env var.
+async fn resolve_password(_manager: &Arc<core_logic::WalletManager>) -> Result<Option<String>> {
+    match env::var("WALLET_PASSWORD") {
+        Ok(pw) => Ok(Some(pw)),
+        Err(_) => anyhow::bail!(
+            "WALLET_PASSWORD environment variable not set.\n\
+             Set it before running:\n  $env:WALLET_PASSWORD=\"your_password\"\n  cargo run ..."
+        ),
     }
-
-    let mut password = env::var("WALLET_PASSWORD").ok();
-
-    if password.is_none()
-        || manager
-            .as_ref()
-            .get_wallet(0, password.as_deref())
-            .await
-            .is_err()
-    {
-        if password.is_none() {
-            info!("WALLET_PASSWORD not set.");
-        } else {
-            info!("Wallet decryption failed with provided password.");
-        }
-
-        match dialoguer::Password::with_theme(&dialoguer::theme::ColorfulTheme::default())
-            .with_prompt("Enter wallet password")
-            .interact()
-        {
-            Ok(input) => {
-                password = Some(input);
-                if let Err(e) = manager.as_ref().get_wallet(0, password.as_deref()).await {
-                    anyhow::bail!("Password validation failed: {}", e);
-                }
-                info!("Password validated.");
-            }
-            Err(_) => {
-                anyhow::bail!(
-                    "Cannot prompt for password. Set WALLET_PASSWORD env var."
-                );
-            }
-        }
-    } else {
-        info!("Password validated via WALLET_PASSWORD env var.");
-    }
-
-    Ok(password)
 }

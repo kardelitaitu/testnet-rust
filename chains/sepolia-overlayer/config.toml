@@ -27,20 +27,24 @@ max_delay_ms = 15000
 # To see all 17 task names: chains/sepolia-overlayer/src/task/
 #
 # [task_limits]
-# 01_checkBalance = 100
-# 02_mintUsdtPlus = 10
-# 03_mintUsdcPlus = 10
-# 04_redeemUsdtPlus = 5
-# 05_redeemUsdcPlus = 5
-# 06_stakeUsdtPlus = 10
-# 07_stakeUsdcPlus = 10
-# 08_unstakeTplus = 5
-# 09_unstakeCplus = 5
-# 10_aaveUsdtFaucet = 5
-# 11_aaveUsdcFaucet = 5
-# 12_bridgeTplus = 3
-# 13_bridgeCplus = 3
-# 14_sendRandomUsdtPlus = 10
-# 15_sendRandomUsdcPlus = 10
-# 16_bridgeBackTplus = 3
-# 17_bridgeBackCplus = 3
+01_checkBalance = 20
+02_mintUsdtPlus = 10
+03_mintUsdcPlus = 10
+04_redeemUsdtPlus = 5
+05_redeemUsdcPlus = 5
+06_stakeUsdtPlus = 5
+07_stakeUsdcPlus = 5
+08_unstakeTplus = 3
+09_unstakeCplus = 3
+10_aaveUsdtFaucet = 5
+11_aaveUsdcFaucet = 5
+12_bridgeTplus = 1
+13_bridgeCplus = 1
+14_sendRandomUsdtPlus = 1
+15_sendRandomUsdcPlus = 1
+16_bridgeBackTplus = 1
+17_bridgeBackCplus = 1
+
+
+# Command to Run
+# cargo run -p sepolia-overlayer --bin sepolia-daily -- --config chains/sepolia-overlayer/config.toml --base-config chains/sepolia-overlayer/config-base.toml
