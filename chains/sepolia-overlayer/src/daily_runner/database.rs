@@ -6,10 +6,10 @@ use tracing::{debug, info};
 
 /// Lightweight database for tracking daily task completions.
 ///
-/// **Schema**: each successful task execution creates a row with `success=1`.
-/// Multiple rows per (wallet_address, task, date) are allowed, so a task with
-/// `limit=5` can succeed 5 times. Failed attempts create rows with
-/// `success=0` and are never counted toward completion.
+/// **Schema**: each (wallet_address, task_name, date) pair is a single row with
+/// `count_success` and `count_failed` columns. The `PRIMARY KEY` enforces
+/// uniqueness at the database level — a task can never exceed its daily limit
+/// even if a bug tries to insert duplicate completions.
 ///
 /// **Daily reset**: all queries filter by `date = YYYY-MM-DD`, so when
 /// UTC midnight passes all counters reset automatically.
@@ -46,10 +46,10 @@ impl DailyDb {
     }
 
     pub(crate) async fn init_schema(&self) -> Result<()> {
-        // Migration v2→v3: `wallet_address` replaces `wallet_idx`.
-        // Detect old schema (has `wallet_idx`) and recreate.
+        // Migration v3→v4: `id PK + multiple rows` → `PK(wallet, task, date) + count columns`.
+        // Detect old schema (has `id` column) and recreate.
         let has_old_schema: bool = sqlx::query_scalar::<_, i32>(
-            "SELECT COUNT(*) FROM pragma_table_info('daily_task_completions') WHERE name = 'wallet_idx'",
+            "SELECT COUNT(*) FROM pragma_table_info('daily_task_completions') WHERE name IN ('wallet_idx', 'id')",
         )
         .fetch_one(&self.pool)
         .await
@@ -57,7 +57,7 @@ impl DailyDb {
             > 0;
 
         if has_old_schema {
-            info!("Migrating daily_task_completions schema (wallet_idx → wallet_address)");
+            info!("Migrating daily_task_completions schema (id PK → composite PK + count columns)");
             sqlx::query("DROP TABLE IF EXISTS daily_task_completions")
                 .execute(&self.pool)
                 .await
@@ -66,27 +66,19 @@ impl DailyDb {
 
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS daily_task_completions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 wallet_address TEXT NOT NULL,
                 task_name TEXT NOT NULL,
                 date TEXT NOT NULL,
+                count_success INTEGER NOT NULL DEFAULT 0,
+                count_failed INTEGER NOT NULL DEFAULT 0,
                 completed_at INTEGER NOT NULL,
-                success INTEGER NOT NULL DEFAULT 0,
-                message TEXT DEFAULT ''
+                message TEXT DEFAULT '',
+                PRIMARY KEY (wallet_address, task_name, date)
             );",
         )
         .execute(&self.pool)
         .await
         .context("Failed to create daily_task_completions table")?;
-
-        // Index for fast lookups by wallet + date
-        sqlx::query(
-            "CREATE INDEX IF NOT EXISTS idx_daily_lookup
-             ON daily_task_completions(wallet_address, date, task_name, success)",
-        )
-        .execute(&self.pool)
-        .await
-        .ok();
 
         info!("Daily database schema initialized");
         Ok(())
@@ -98,17 +90,16 @@ impl DailyDb {
 
     /// Return per-task completion **counts** for a wallet today.
     ///
-    /// Only rows with `success = 1` are counted. Failed tasks are excluded.
+    /// Reads the `count_success` column from the single row per (wallet, task, date).
     pub async fn get_completed_counts(
         &self,
         wallet_address: &str,
         date: &str,
     ) -> Result<HashMap<String, usize>> {
         let rows = sqlx::query_as::<_, (String, i64)>(
-            "SELECT task_name, COUNT(*) as cnt
+            "SELECT task_name, count_success
              FROM daily_task_completions
-             WHERE wallet_address = ? AND date = ? AND success = 1
-             GROUP BY task_name",
+             WHERE wallet_address = ? AND date = ? AND count_success > 0",
         )
         .bind(wallet_address)
         .bind(date)
@@ -123,8 +114,8 @@ impl DailyDb {
     /// Useful for logging / progress display only — does NOT consider per-task limits.
     pub async fn get_total_completed(&self, wallet_address: &str, date: &str) -> Result<usize> {
         let row = sqlx::query_as::<_, (i64,)>(
-            "SELECT COUNT(*) FROM daily_task_completions
-             WHERE wallet_address = ? AND date = ? AND success = 1",
+            "SELECT COALESCE(SUM(count_success), 0) FROM daily_task_completions
+             WHERE wallet_address = ? AND date = ?",
         )
         .bind(wallet_address)
         .bind(date)
@@ -142,10 +133,9 @@ impl DailyDb {
         date: &str,
     ) -> Result<HashMap<String, HashMap<String, usize>>> {
         let rows = sqlx::query_as::<_, (String, String, i64)>(
-            "SELECT wallet_address, task_name, COUNT(*) as cnt
+            "SELECT wallet_address, task_name, count_success
              FROM daily_task_completions
-             WHERE date = ? AND success = 1
-             GROUP BY wallet_address, task_name",
+             WHERE date = ? AND count_success > 0",
         )
         .bind(date)
         .fetch_all(&self.pool)
@@ -166,9 +156,9 @@ impl DailyDb {
 
     /// Record a task execution outcome for a wallet today.
     ///
-    /// Inserts a **new row** each time (no UNIQUE constraint on
-    /// wallet+task+date), so the same task can be completed multiple
-    /// times per day. Only rows with `success=1` count toward limits.
+    /// Uses `ON CONFLICT` UPSERT — the PRIMARY KEY (wallet, task, date) prevents
+    /// duplicate rows. On success, `count_success` is incremented; on failure,
+    /// `count_failed` is incremented.
     pub async fn record_task_completion(
         &self,
         wallet_address: &str,
@@ -179,24 +169,53 @@ impl DailyDb {
     ) -> Result<()> {
         let timestamp = chrono::Utc::now().timestamp();
 
-        sqlx::query(
-            "INSERT INTO daily_task_completions
-             (wallet_address, task_name, date, completed_at, success, message)
-             VALUES (?, ?, ?, ?, ?, ?)",
-        )
-        .bind(wallet_address)
-        .bind(task_name)
-        .bind(date)
-        .bind(timestamp)
-        .bind(if success { 1i32 } else { 0i32 })
-        .bind(message)
-        .execute(&self.pool)
-        .await
-        .with_context(|| {
-            format!(
-                "Failed to record task completion for wallet {wallet_address} / {task_name}"
+        if success {
+            sqlx::query(
+                "INSERT INTO daily_task_completions
+                 (wallet_address, task_name, date, completed_at, count_success, message)
+                 VALUES (?, ?, ?, ?, 1, ?)
+                 ON CONFLICT(wallet_address, task_name, date)
+                 DO UPDATE SET
+                     count_success = count_success + 1,
+                     completed_at = excluded.completed_at,
+                     message = excluded.message",
             )
-        })?;
+            .bind(wallet_address)
+            .bind(task_name)
+            .bind(date)
+            .bind(timestamp)
+            .bind(message)
+            .execute(&self.pool)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to record task completion for wallet {wallet_address} / {task_name}"
+                )
+            })?;
+        } else {
+            sqlx::query(
+                "INSERT INTO daily_task_completions
+                 (wallet_address, task_name, date, completed_at, count_failed, message)
+                 VALUES (?, ?, ?, ?, 1, ?)
+                 ON CONFLICT(wallet_address, task_name, date)
+                 DO UPDATE SET
+                     count_failed = count_failed + 1,
+                     completed_at = excluded.completed_at,
+                     message = excluded.message",
+            )
+            .bind(wallet_address)
+            .bind(task_name)
+            .bind(date)
+            .bind(timestamp)
+            .bind(message)
+            .execute(&self.pool)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to record task failure for wallet {wallet_address} / {task_name}"
+                )
+            })?;
+        }
 
         Ok(())
     }
@@ -497,7 +516,7 @@ mod tests {
             1
         );
 
-        // Verify we can insert multiple rows for same wallet+task+date (new schema feature)
+        // Verify UPSERT correctly increments count_success
         db.record_task_completion("0xalice", "01_checkBalance", &today, true, "second")
             .await
             .unwrap();
@@ -505,8 +524,36 @@ mod tests {
         assert_eq!(
             multi.get("01_checkBalance").copied().unwrap_or(0),
             2,
-            "New schema should allow multiple completions per task per day"
+            "UPSERT should increment count_success on second completion"
         );
+    }
+
+    #[tokio::test]
+    async fn test_duplicate_insert_does_not_overflow_limit() {
+        let db = test_db().await;
+        let date = today();
+
+        // Insert the same wallet+task+date 100 times - PK prevents duplicates,
+        // UPSERT just increments count_success. No overflow, no extra rows.
+        for _ in 0..100 {
+            db.record_task_completion("0xalice", "01_checkBalance", &date, true, "dup")
+                .await
+                .unwrap();
+        }
+
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
+        assert_eq!(
+            counts.get("01_checkBalance").copied().unwrap_or(0),
+            100,
+            "count_success should increment to 100, not overflow or create extra rows"
+        );
+
+        // Only 1 task in the result set (not 100 rows)
+        assert_eq!(counts.len(), 1, "Should be exactly 1 unique task");
+
+        // Verify total matches
+        let total = db.get_total_completed("0xalice", &date).await.unwrap();
+        assert_eq!(total, 100, "Total should reflect 100 completions");
     }
 
     #[tokio::test]
@@ -717,28 +764,20 @@ mod tests {
     async fn test_concurrent_records_same_timestamp() {
         let db = test_db().await;
         let date = today();
-        let fixed_ts = 999999999i64; // Arbitrary fixed second-level timestamp
 
-        // Insert 5 records with the exact same timestamp using raw SQL
+        // Record 5 completions with identical wallet+task+date
+        // PK prevents duplicates; UPSERT increments count_success each time
         for _ in 0..5 {
-            sqlx::query(
-                "INSERT INTO daily_task_completions (wallet_address, task_name, date, completed_at, success, message)
-                 VALUES (?, ?, ?, ?, 1, 'same_ts')",
-            )
-            .bind("0xalice")
-            .bind("01_checkBalance")
-            .bind(&date)
-            .bind(fixed_ts)
-            .execute(&db.pool)
-            .await
-            .unwrap();
+            db.record_task_completion("0xalice", "01_checkBalance", &date, true, "same_ts")
+                .await
+                .unwrap();
         }
 
         let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
         assert_eq!(
             counts.get("01_checkBalance").copied().unwrap_or(0),
             5,
-            "Should count 5 completions even with identical timestamps"
+            "Should count 5 completions via UPSERT count_success increment"
         );
     }
 

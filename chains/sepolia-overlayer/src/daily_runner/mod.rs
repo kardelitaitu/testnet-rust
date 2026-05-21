@@ -33,7 +33,7 @@ use crate::task::{
 use crate::utils::gas::GasManager;
 
 use anyhow::Result;
-use chrono::Timelike;
+use chrono::{Local, Timelike};
 use database::DailyDb;
 use ethers::signers::Signer;
 use rand::Rng;
@@ -148,13 +148,13 @@ pub struct DailyRunStats {
 
 enum TaskOutcome {
     /// Task succeeded → recorded in DB (counts toward daily limit).
-    Success { task_name: String, message: String },
+    Success { task_name: String, message: String, proxy_id: String },
     /// Task failed → NOT counted toward daily limit, stays in pool.
-    Retry { task_name: String, message: String },
+    Retry { task_name: String, message: String, proxy_id: String },
     /// Task exceeded the runner timeout → not recorded, will be retried.
-    Timeout { task_name: String, message: String },
+    Timeout { task_name: String, message: String, proxy_id: String },
     /// Wallet has no remaining capacity for any task today.
-    WalletComplete { wallet_idx: usize },
+    WalletComplete { wallet_idx: usize, wallet_address: String, task_name: String, proxy_id: String },
 }
 
 // -----------------------------------------------------------------------
@@ -462,6 +462,7 @@ impl DailyRunner {
                         Err(_) => TaskOutcome::Timeout {
                             task_name: "unknown".into(),
                             message: format!("Task exceeded {}s timeout", task_timeout_secs),
+                            proxy_id: "---".into(),
                         },
                     })
                 }
@@ -476,38 +477,46 @@ impl DailyRunner {
 
             // Track stats
             match outcome {
-                TaskOutcome::Success { task_name, message } => {
+                TaskOutcome::Success { task_name, message, proxy_id } => {
                     stats.total_attempts += 1;
                     stats.successful += 1;
                     info!(
                         target: "task_result",
-                        "[Daily WK:{}][WL:{}] OK  [{}] {}",
-                        worker_id, wallet_idx, task_name, message
+                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} {} {}",
+                        Local::now().format("%H:%M:%S"),
+                        worker_id, wallet_idx, proxy_id,
+                        "OK", task_name, message,
                     );
                 }
-                TaskOutcome::Retry { task_name, message } => {
+                TaskOutcome::Retry { task_name, message, proxy_id } => {
                     stats.total_attempts += 1;
                     stats.failed += 1;
                     info!(
                         target: "task_result",
-                        "[Daily WK:{}][WL:{}] RETRY [{}] {}",
-                        worker_id, wallet_idx, task_name, message
+                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} {} {}",
+                        Local::now().format("%H:%M:%S"),
+                        worker_id, wallet_idx, proxy_id,
+                        "RETRY", task_name, message,
                     );
                 }
-                TaskOutcome::Timeout { task_name, message } => {
+                TaskOutcome::Timeout { task_name, message, proxy_id } => {
                     stats.total_attempts += 1;
                     stats.failed += 1;
-                    warn!(
+                    error!(
                         target: "task_result",
-                        "[Daily WK:{}][WL:{}] TIMEOUT [{}] {}",
-                        worker_id, wallet_idx, task_name, message
+                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} {} {}",
+                        Local::now().format("%H:%M:%S"),
+                        worker_id, wallet_idx, proxy_id,
+                        "TIMEOUT", task_name, message,
                     );
                 }
-                TaskOutcome::WalletComplete { wallet_idx } => {
+                TaskOutcome::WalletComplete { wallet_idx, wallet_address, task_name, proxy_id } => {
                     info!(
                         target: "task_result",
-                        "[Daily WK:{}][WL:{}] All tasks at daily capacity",
-                        worker_id, wallet_idx
+                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{}] Daily tasks done - Address : {}",
+                        Local::now().format("%H:%M:%S"),
+                        worker_id, wallet_idx, proxy_id,
+                        "LIMIT", task_name, wallet_address,
                     );
                 }
             }
@@ -536,15 +545,24 @@ impl DailyRunner {
                 return TaskOutcome::Retry {
                     task_name: "unknown".into(),
                     message: format!("DB error: {}", e),
+                    proxy_id: "---".into(),
                 };
             }
         };
+
+        // Select proxy first — so LIMIT logs show real P:xxx
+        let (proxy_config, proxy_id) = self.select_proxy().await;
 
         // Compute pending tasks based on limits
         let pending: Vec<&str> = get_remaining_tasks(&task_counts, &self.task_limits);
 
         if pending.is_empty() {
-            return TaskOutcome::WalletComplete { wallet_idx };
+            return TaskOutcome::WalletComplete {
+                wallet_idx,
+                wallet_address: wallet_addr.to_string(),
+                task_name: ALL_TASK_NAMES[0].to_string(),
+                proxy_id,
+            };
         }
 
         // Pick random pending task
@@ -557,12 +575,10 @@ impl DailyRunner {
                 return TaskOutcome::Retry {
                     task_name: task_name.to_string(),
                     message: "Task implementation not found".into(),
+                    proxy_id: proxy_id.clone(),
                 };
             }
         };
-
-        // Select proxy
-        let (proxy_config, _proxy_id) = self.select_proxy().await;
 
         // Rate-limit proxy
         if let Some(ref proxy) = proxy_config {
@@ -607,6 +623,7 @@ impl DailyRunner {
                         return TaskOutcome::Retry {
                             task_name: task_name.to_string(),
                             message: format!("wallet parse error: {}", e),
+                            proxy_id: proxy_id.clone(),
                         };
                     }
                 }
@@ -615,6 +632,7 @@ impl DailyRunner {
                 return TaskOutcome::Retry {
                     task_name: task_name.to_string(),
                     message: format!("wallet decrypt error: {}", e),
+                    proxy_id: proxy_id.clone(),
                 };
             }
         };
@@ -675,11 +693,13 @@ impl DailyRunner {
                     TaskOutcome::Success {
                         task_name: task_name.to_string(),
                         message: result.message,
+                        proxy_id: proxy_id.clone(),
                     }
                 } else {
                     TaskOutcome::Retry {
                         task_name: task_name.to_string(),
                         message: result.message,
+                        proxy_id: proxy_id.clone(),
                     }
                 }
             }
@@ -703,6 +723,7 @@ impl DailyRunner {
                 TaskOutcome::Retry {
                     task_name: task_name.to_string(),
                     message: format!("{}", e),
+                    proxy_id: proxy_id.clone(),
                 }
             }
         }
@@ -1295,6 +1316,159 @@ mod tests {
         let pending = get_remaining_tasks(&counts, &limits);
         assert!(pending.contains(&"01_checkBalance")); // still has 3 more
         assert_eq!(pending.len(), 17);
+    }
+
+    // ------------------------------------------------------------------
+    // Proper logic test: asymmetric task limits enforced end-to-end
+    // ------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_daily_runner_enforces_asymmetric_task_limits() {
+        let db = setup_test_db().await;
+        let date = today_utc();
+        let wallet = "0xwallet";
+
+        // Configure asymmetric limits:
+        //   checkBalance = 5, mintUsdtPlus = 3, mintUsdcPlus = 2, rest = 1 (default)
+        let mut limits = HashMap::new();
+        limits.insert("01_checkBalance".into(), 5u32);
+        limits.insert("02_mintUsdtPlus".into(), 3u32);
+        limits.insert("03_mintUsdcPlus".into(), 2u32);
+
+        // ---- Phase 1: Fill checkBalance to its limit of 5 ----
+        for i in 0..5 {
+            db.record_task_completion(wallet, "01_checkBalance", &date, true, "ok")
+                .await
+                .unwrap();
+
+            let counts = db.get_completed_counts(wallet, &date).await.unwrap();
+            assert_eq!(
+                counts.get("01_checkBalance").copied().unwrap_or(0),
+                i + 1,
+                "checkBalance iteration {}",
+                i
+            );
+
+            let pending = get_remaining_tasks(&counts, &limits);
+            if i < 4 {
+                // Still has room up to limit=5
+                assert!(
+                    pending.contains(&"01_checkBalance"),
+                    "checkBalance should still be pending at iter {}",
+                    i
+                );
+            } else {
+                // At exact limit — excluded
+                assert!(
+                    !pending.contains(&"01_checkBalance"),
+                    "checkBalance should be exhausted at iter 4"
+                );
+            }
+        }
+
+        // Verify: checkBalance exhausted, other tasks still pending
+        let counts = db.get_completed_counts(wallet, &date).await.unwrap();
+        assert!(
+            !get_remaining_tasks(&counts, &limits).contains(&"01_checkBalance"),
+            "checkBalance should be excluded after 5 completions"
+        );
+        assert!(
+            wallet_has_remaining(&counts, &limits),
+            "Other tasks should still be pending"
+        );
+
+        // ---- Phase 2: Fill mintUsdtPlus to its limit of 3 ----
+        for i in 0..3 {
+            db.record_task_completion(wallet, "02_mintUsdtPlus", &date, true, "ok")
+                .await
+                .unwrap();
+
+            let counts = db.get_completed_counts(wallet, &date).await.unwrap();
+            assert_eq!(
+                counts.get("02_mintUsdtPlus").copied().unwrap_or(0),
+                i + 1,
+                "mintUsdtPlus iteration {}",
+                i
+            );
+
+            if i < 2 {
+                assert!(get_remaining_tasks(&counts, &limits).contains(&"02_mintUsdtPlus"));
+            } else {
+                assert!(!get_remaining_tasks(&counts, &limits).contains(&"02_mintUsdtPlus"));
+            }
+        }
+
+        // ---- Phase 3: Fill mintUsdcPlus to its limit of 2 ----
+        for i in 0..2 {
+            db.record_task_completion(wallet, "03_mintUsdcPlus", &date, true, "ok")
+                .await
+                .unwrap();
+
+            let counts = db.get_completed_counts(wallet, &date).await.unwrap();
+            assert_eq!(
+                counts.get("03_mintUsdcPlus").copied().unwrap_or(0),
+                i + 1,
+                "mintUsdcPlus iteration {}",
+                i
+            );
+
+            if i < 1 {
+                assert!(get_remaining_tasks(&counts, &limits).contains(&"03_mintUsdcPlus"));
+            } else {
+                assert!(!get_remaining_tasks(&counts, &limits).contains(&"03_mintUsdcPlus"));
+            }
+        }
+
+        // ---- Phase 4: Complete all remaining tasks (14 x limit=1) ----
+        let remaining_tasks: Vec<&&str> = ALL_TASK_NAMES
+            .iter()
+            .filter(|t| **t != "01_checkBalance" && **t != "02_mintUsdtPlus" && **t != "03_mintUsdcPlus")
+            .collect();
+        assert_eq!(remaining_tasks.len(), 14, "14 remaining tasks expected");
+
+        for task in &remaining_tasks {
+            db.record_task_completion(wallet, task, &date, true, "ok")
+                .await
+                .unwrap();
+        }
+
+        // ---- Final: wallet should be fully exhausted ----
+        let counts = db.get_completed_counts(wallet, &date).await.unwrap();
+        assert!(
+            !wallet_has_remaining(&counts, &limits),
+            "Wallet should have no remaining capacity"
+        );
+        assert!(
+            get_remaining_tasks(&counts, &limits).is_empty(),
+            "All tasks should be exhausted"
+        );
+
+        // ---- Verify each task's exact completion count ----
+        for task in ALL_TASK_NAMES {
+            let expected = if *task == "01_checkBalance" {
+                5
+            } else if *task == "02_mintUsdtPlus" {
+                3
+            } else if *task == "03_mintUsdcPlus" {
+                2
+            } else {
+                1
+            };
+            assert_eq!(
+                counts.get(*task).copied().unwrap_or(0),
+                expected,
+                "{} should have {} completions",
+                task,
+                expected
+            );
+        }
+
+        // ---- Verify total completions ----
+        let total = db.get_total_completed(wallet, &date).await.unwrap();
+        assert_eq!(
+            total, 24,
+            "Total completions = 5 + 3 + 2 + (14 x 1) = 24"
+        );
     }
 
     #[tokio::test]
