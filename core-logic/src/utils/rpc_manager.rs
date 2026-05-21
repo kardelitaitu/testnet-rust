@@ -265,7 +265,155 @@ mod tests {
     fn test_rpc_endpoint_health_tracking() {
         let ep = RpcEndpoint::new("https://eth.rpc".into(), 1);
         assert!(ep.is_healthy());
-        // Health is managed externally via RpcManager
-        // Verify the default state
+    }
+
+    // ---- RpcManager ----
+
+    #[test]
+    fn test_rpc_manager_new_with_multiple_urls() {
+        let urls = vec!["https://rpc1.com".into(), "https://rpc2.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        assert_eq!(mgr.endpoints_count(), 2);
+        assert_eq!(mgr.chain_id(), 1);
+        assert_eq!(mgr.urls(), vec!["https://rpc1.com", "https://rpc2.com"]);
+        assert_eq!(mgr.healthy_count(), 2);
+    }
+
+    #[test]
+    fn test_rpc_manager_get_endpoint_round_robin() {
+        let urls = vec!["https://rpc1.com".into(), "https://rpc2.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        assert_eq!(mgr.get_endpoint().url, "https://rpc1.com");
+        assert_eq!(mgr.get_endpoint().url, "https://rpc2.com");
+        assert_eq!(mgr.get_endpoint().url, "https://rpc1.com");
+    }
+
+    #[test]
+    fn test_get_fastest_picks_lowest_latency_healthy() {
+        let urls = vec!["http://slow.com".into(), "http://fast.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        mgr.record_latency("http://slow.com", 500);
+        mgr.record_latency("http://fast.com", 50);
+        let fastest = mgr.get_fastest().unwrap();
+        assert_eq!(fastest.url, "http://fast.com");
+    }
+
+    #[test]
+    fn test_get_fastest_skips_unhealthy() {
+        let urls = vec!["http://fast-but-dead.com".into(), "http://slow.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        mgr.record_latency("http://fast-but-dead.com", 10);
+        mgr.record_latency("http://slow.com", 500);
+        // Mark fast one as unhealthy via 3 failures
+        mgr.record_failure("http://fast-but-dead.com");
+        mgr.record_failure("http://fast-but-dead.com");
+        mgr.record_failure("http://fast-but-dead.com");
+        let fastest = mgr.get_fastest().unwrap();
+        assert_eq!(fastest.url, "http://slow.com");
+    }
+
+    #[test]
+    fn test_get_most_reliable_picks_lowest_failures() {
+        let urls = vec!["http://a.com".into(), "http://b.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        mgr.record_failure("http://a.com");
+        mgr.record_failure("http://a.com");
+        let reliable = mgr.get_most_reliable().unwrap();
+        assert_eq!(reliable.url, "http://b.com");
+    }
+
+    #[test]
+    fn test_get_fastest_returns_none_when_all_unhealthy() {
+        let urls = vec!["http://dead1.com".into(), "http://dead2.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        for _ in 0..3 {
+            mgr.record_failure("http://dead1.com");
+            mgr.record_failure("http://dead2.com");
+        }
+        assert!(mgr.get_fastest().is_none());
+        assert!(mgr.get_most_reliable().is_none());
+    }
+
+    #[test]
+    fn test_record_failure_threshold_marks_unhealthy() {
+        let urls = vec!["http://rpc.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        assert!(mgr.get_endpoint().is_healthy());
+        mgr.record_failure("http://rpc.com");
+        mgr.record_failure("http://rpc.com");
+        assert!(mgr.get_endpoint().is_healthy(), "2 failures should still be healthy");
+        mgr.record_failure("http://rpc.com");
+        assert!(!mgr.get_endpoint().is_healthy(), "3 failures should mark unhealthy");
+    }
+
+    #[test]
+    fn test_record_success_resets_failure_count() {
+        let urls = vec!["http://rpc.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        mgr.record_failure("http://rpc.com");
+        mgr.record_failure("http://rpc.com");
+        mgr.record_failure("http://rpc.com");
+        assert!(!mgr.get_endpoint().is_healthy());
+        mgr.record_success("http://rpc.com");
+        assert!(mgr.get_endpoint().is_healthy());
+        assert_eq!(mgr.get_endpoint().failures(), 0);
+    }
+
+    #[test]
+    fn test_record_success_unknown_url_no_panic() {
+        let urls = vec!["http://rpc.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        mgr.record_success("http://unknown.com");
+        assert_eq!(mgr.healthy_count(), 1);
+    }
+
+    #[test]
+    fn test_record_failure_unknown_url_no_panic() {
+        let urls = vec!["http://rpc.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        mgr.record_failure("http://unknown.com");
+        assert_eq!(mgr.healthy_count(), 1);
+    }
+
+    #[test]
+    fn test_healthy_count_all_healthy_returns_count() {
+        let urls = vec!["http://a.com".into(), "http://b.com".into(), "http://c.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        assert_eq!(mgr.healthy_count(), 3);
+    }
+
+    #[test]
+    fn test_healthy_count_mixed_health() {
+        let urls = vec!["http://a.com".into(), "http://b.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        for _ in 0..3 {
+            mgr.record_failure("http://a.com");
+        }
+        assert_eq!(mgr.healthy_count(), 1);
+    }
+
+    #[test]
+    fn test_record_latency_updates_endpoint() {
+        let urls = vec!["http://rpc.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        mgr.record_latency("http://rpc.com", 200);
+        assert_eq!(mgr.get_endpoint().latency_ms(), 200);
+    }
+
+    #[test]
+    fn test_health_status_returns_snapshot() {
+        let urls = vec!["http://a.com".into(), "http://b.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        mgr.record_failure("http://a.com");
+        mgr.record_failure("http://a.com");
+        mgr.record_failure("http://a.com");
+        let statuses = mgr.health_status();
+        assert_eq!(statuses.len(), 2);
+        let a = statuses.iter().find(|s| s.url == "http://a.com").unwrap();
+        assert!(!a.healthy);
+        assert_eq!(a.failure_count, 3);
+        let b = statuses.iter().find(|s| s.url == "http://b.com").unwrap();
+        assert!(b.healthy);
+        assert_eq!(b.failure_count, 0);
     }
 }

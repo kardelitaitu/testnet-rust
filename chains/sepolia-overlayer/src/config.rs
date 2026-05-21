@@ -27,6 +27,9 @@ pub struct SepoliaConfig {
     /// Per-task daily limits. Example: {"01_checkBalance" = 100, "10_aaveUsdtFaucet" = 5}
     #[serde(default)]
     pub task_limits: Option<TaskLimits>,
+    /// Timeout for one daily task attempt, in seconds.
+    #[serde(default)]
+    pub task_timeout_secs: Option<u64>,
 }
 
 impl SepoliaConfig {
@@ -215,5 +218,234 @@ tps = 10
             }
             _ => panic!("Expected File wallet source"),
         }
+    }
+
+    #[test]
+    fn test_sepolia_config_with_task_limits() {
+        let toml = r#"
+rpc_url = "https://rpc.com"
+chain_id = 1
+explorer = "https://explorer.com"
+symbol = "ETH"
+tps = 10
+
+[task_limits]
+01_checkbalance = 20
+02_mintusdtplus = 10
+03_mintusdcplus = 5
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        let limits = cfg.task_limits.expect("task_limits should be Some");
+        assert_eq!(limits.len(), 3);
+        assert_eq!(limits.get("01_checkbalance"), Some(&20));
+        assert_eq!(limits.get("02_mintusdtplus"), Some(&10));
+        assert_eq!(limits.get("03_mintusdcplus"), Some(&5));
+    }
+
+    #[test]
+    fn test_sepolia_config_task_limits_empty() {
+        let toml = r#"
+rpc_url = "https://rpc.com"
+chain_id = 1
+explorer = "https://explorer.com"
+symbol = "ETH"
+tps = 10
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        assert!(cfg.task_limits.is_none(), "task_limits should be None when no [task_limits] section");
+    }
+
+    #[test]
+    fn test_sepolia_config_task_limits_keys_lowercased() {
+        // The `config` crate lowercases all HashMap keys automatically.
+        // Keys like "01_checkBalance" become "01_checkbalance" in the HashMap.
+        let toml = r#"
+rpc_url = "https://rpc.com"
+chain_id = 1
+explorer = "https://explorer.com"
+symbol = "ETH"
+tps = 10
+
+[task_limits]
+01_checkBalance = 20
+02_MintUsdtPlus = 10
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        let limits = cfg.task_limits.expect("task_limits should be Some");
+        // Lowercased keys should exist
+        assert_eq!(limits.get("01_checkbalance"), Some(&20), "lowercased key '01_checkbalance' should exist");
+        assert_eq!(limits.get("02_mintusdtplus"), Some(&10), "lowercased key '02_mintusdtplus' should exist");
+        // CamelCase keys should NOT exist
+        assert!(limits.get("01_checkBalance").is_none(), "camelCase key '01_checkBalance' should NOT exist");
+        assert!(limits.get("02_MintUsdtPlus").is_none(), "camelCase key '02_MintUsdtPlus' should NOT exist");
+    }
+
+    #[test]
+    fn test_sepolia_config_task_limits_roundtrip() {
+        let toml = r#"
+rpc_url = "https://rpc.com"
+chain_id = 1
+explorer = "https://explorer.com"
+symbol = "ETH"
+tps = 10
+
+[task_limits]
+01_checkbalance = 20
+02_mintusdtplus = 10
+03_mintusdcplus = 10
+04_redeemusdtplus = 5
+05_redeemusdcplus = 5
+06_stakeusdtplus = 5
+07_stakeusdcplus = 5
+08_unstaketplus = 3
+09_unstakecplus = 3
+10_aaveusdtfaucet = 5
+11_aaveusdcfaucet = 5
+12_bridgetplus = 1
+13_bridgecplus = 1
+14_sendrandomusdtplus = 1
+15_sendrandomusdcplus = 1
+16_bridgebacktplus = 1
+17_bridgebackcplus = 1
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        let limits = cfg.task_limits.expect("task_limits should be Some");
+        assert_eq!(limits.len(), 17, "all 17 task limits should be present");
+        assert_eq!(limits.get("01_checkbalance"), Some(&20));
+        assert_eq!(limits.get("02_mintusdtplus"), Some(&10));
+        assert_eq!(limits.get("03_mintusdcplus"), Some(&10));
+        assert_eq!(limits.get("04_redeemusdtplus"), Some(&5));
+        assert_eq!(limits.get("05_redeemusdcplus"), Some(&5));
+        assert_eq!(limits.get("06_stakeusdtplus"), Some(&5));
+        assert_eq!(limits.get("07_stakeusdcplus"), Some(&5));
+        assert_eq!(limits.get("08_unstaketplus"), Some(&3));
+        assert_eq!(limits.get("09_unstakecplus"), Some(&3));
+        assert_eq!(limits.get("10_aaveusdtfaucet"), Some(&5));
+        assert_eq!(limits.get("11_aaveusdcfaucet"), Some(&5));
+        assert_eq!(limits.get("12_bridgetplus"), Some(&1));
+        assert_eq!(limits.get("13_bridgecplus"), Some(&1));
+        assert_eq!(limits.get("14_sendrandomusdtplus"), Some(&1));
+        assert_eq!(limits.get("15_sendrandomusdcplus"), Some(&1));
+        assert_eq!(limits.get("16_bridgebacktplus"), Some(&1));
+        assert_eq!(limits.get("17_bridgebackcplus"), Some(&1));
+    }
+
+    #[test]
+    fn test_sepolia_config_with_proxies_and_task_limits() {
+        let toml = r#"
+rpc_url = "https://rpc.com"
+chain_id = 1
+explorer = "https://explorer.com"
+symbol = "ETH"
+tps = 10
+
+[[proxies]]
+url = "http://10.0.0.1:3128"
+username = "user1"
+password = "pass1"
+
+[[proxies]]
+url = "http://10.0.0.2:8080"
+
+[task_limits]
+01_checkbalance = 20
+02_mintusdtplus = 10
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        // Verify proxies
+        assert!(cfg.proxies.is_some());
+        let proxies = cfg.proxies.unwrap();
+        assert_eq!(proxies.len(), 2);
+        assert_eq!(proxies[0].url, "http://10.0.0.1:3128");
+        assert_eq!(proxies[1].url, "http://10.0.0.2:8080");
+        // Verify task_limits
+        let limits = cfg.task_limits.expect("task_limits should be Some");
+        assert_eq!(limits.len(), 2);
+        assert_eq!(limits.get("01_checkbalance"), Some(&20));
+        assert_eq!(limits.get("02_mintusdtplus"), Some(&10));
+    }
+
+    #[test]
+    fn test_sepolia_config_to_spam_config_with_wallet_dir() {
+        let toml = r#"
+rpc_url = "https://sepolia-rpc.example.com"
+chain_id = 11155111
+explorer = "https://sepolia.etherscan.io"
+symbol = "ETH"
+tps = 15
+wallet_dir = "chains/sepolia-overlayer/wallets-json-sepolia-overlayer"
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        let spam = cfg.to_spam_config();
+        assert_eq!(spam.rpc_url, "https://sepolia-rpc.example.com");
+        assert_eq!(spam.chain_id, 11155111);
+        assert_eq!(spam.target_tps, 15);
+        // WalletSource should use private_key_file path (empty default when unset)
+        match spam.wallet_source {
+            core_logic::config::WalletSource::File { path, encrypted } => {
+                assert_eq!(path, "", "private_key_file not set, should default to empty string");
+                assert!(encrypted);
+            }
+            _ => panic!("Expected File wallet source"),
+        }
+    }
+
+    #[test]
+    fn test_sepolia_config_with_task_timeout() {
+        let toml = r#"
+rpc_url = "https://sepolia-rpc.example.com"
+chain_id = 11155111
+explorer = "https://sepolia.etherscan.io"
+symbol = "ETH"
+tps = 10
+task_timeout_secs = 300
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        assert_eq!(cfg.task_timeout_secs, Some(300));
+    }
+
+    #[test]
+    fn test_sepolia_config_task_timeout_defaults_to_none() {
+        let toml = r#"
+rpc_url = "https://sepolia-rpc.example.com"
+chain_id = 11155111
+explorer = "https://sepolia.etherscan.io"
+symbol = "ETH"
+tps = 10
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        assert_eq!(cfg.task_timeout_secs, None);
     }
 }

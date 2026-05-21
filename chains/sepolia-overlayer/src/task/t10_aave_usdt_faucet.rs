@@ -71,3 +71,15 @@ impl SepoliaTask for AaveUsdtFaucetTask {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_name_is_correct() {
+        let task = AaveUsdtFaucetTask;
+        // If this assertion ever changes, the daily_runner ALL_TASK_NAMES must be updated too
+        assert_eq!(task.name(), "10_aaveUsdtFaucet");
+    }
+}

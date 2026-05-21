@@ -1,4 +1,5 @@
 use super::{SepoliaTask, TaskContext, TaskResult};
+use crate::utils::calc::calc_pct_rounded;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::middleware::SignerMiddleware;
@@ -45,12 +46,10 @@ impl SepoliaTask for UnstakeCplusTask {
 
         // --- 2. Calculate 2% of sOverl... balance, round to 2 decimal places ---
         // sOverl... has 18 decimals; rounding to 2dp means rounding to 10^16 units
-        let pct_raw = sovl_balance.as_u128() * 2 / 100;
-        let two_dp_unit: u128 = 10_000_000_000_000_000; // 10^16 = 0.01 shares
-        let rounding_2dp = two_dp_unit / 2;               // half of 10^16
-        let mut shares_amount = ((pct_raw + rounding_2dp) / two_dp_unit) * two_dp_unit;
-        if shares_amount < two_dp_unit {
-            shares_amount = two_dp_unit; // minimum 0.01 shares
+        const DP2_UNIT: u128 = 10_000_000_000_000_000; // 10^16 = 0.01 shares
+        let mut shares_amount = calc_pct_rounded(sovl_balance.as_u128(), 2, 100, 16);
+        if shares_amount < DP2_UNIT {
+            shares_amount = DP2_UNIT; // minimum 0.01 shares
         }
         let shares_display = shares_amount as f64 / 1e18;
 
@@ -94,3 +93,15 @@ impl SepoliaTask for UnstakeCplusTask {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_name_is_correct() {
+        let task = UnstakeCplusTask;
+        assert_eq!(task.name(), "09_unstakeCplus");
+    }
+}
+

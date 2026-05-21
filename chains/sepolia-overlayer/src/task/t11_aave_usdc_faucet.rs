@@ -71,3 +71,14 @@ impl SepoliaTask for AaveUsdcFaucetTask {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_name_is_correct() {
+        let task = AaveUsdcFaucetTask;
+        assert_eq!(task.name(), "11_aaveUsdcFaucet");
+    }
+}

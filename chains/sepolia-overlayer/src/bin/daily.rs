@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::{Context, Result};
 use clap::Parser;
 use sepolia_overlayer::config::SepoliaConfig;
-use sepolia_overlayer::daily_runner::{all_tasks, DailyRunner};
+use sepolia_overlayer::daily_runner::{all_tasks, DailyRunStats, DailyRunner};
 use sepolia_overlayer::utils::gas::GasManager;
 
 use std::env;
@@ -56,6 +56,10 @@ struct Args {
     /// Path to the daily database file
     #[arg(long, default_value = "sepolia-overlayer-daily.db")]
     db_path: String,
+
+    /// Timeout for one daily task attempt, in seconds
+    #[arg(long)]
+    task_timeout_secs: Option<u64>,
 }
 
 #[tokio::main]
@@ -75,7 +79,7 @@ async fn main() -> Result<()> {
     }
 
     // Load config
-    let config = SepoliaConfig::load(&args.config)
+    let mut config = SepoliaConfig::load(&args.config)
         .context("Failed to load config")?;
     println!("Config loaded: chain_id={}, symbol={}", config.chain_id, config.symbol);
 
@@ -94,6 +98,13 @@ async fn main() -> Result<()> {
         (None, None)
     };
 
+    let task_timeout_secs = args
+        .task_timeout_secs
+        .or(config.task_timeout_secs)
+        .unwrap_or(120)
+        .max(1);
+    config.task_timeout_secs = Some(task_timeout_secs);
+
     // Wallet manager
     let manager = if let Some(ref dir) = config.wallet_dir {
         Arc::new(core_logic::WalletManager::with_wallet_dir(dir)?)
@@ -108,7 +119,7 @@ async fn main() -> Result<()> {
     }
 
     // Password
-    let wallet_password = resolve_password(&manager).await?;
+    let wallet_password = resolve_password().await?;
     println!("Password resolved ({} chars)", wallet_password.as_deref().unwrap_or("").len());
 
     // Proxies
@@ -137,6 +148,20 @@ async fn main() -> Result<()> {
         .min(total_wallets)
         .max(1);
     println!("Workers: {}", worker_count);
+    println!("Task timeout: {}s", task_timeout_secs);
+
+    // Resolve wallet addresses by decrypting each wallet once
+    eprintln!("[Daily] Decrypting {} wallets for address resolution (this may take a while in debug mode)...", total_wallets);
+    let mut wallet_addresses: Vec<String> = Vec::with_capacity(total_wallets);
+    for idx in 0..total_wallets {
+        if idx % 25 == 0 {
+            eprintln!("[Daily] Wallet {}/{}...", idx, total_wallets);
+        }
+        match manager.get_wallet(idx, wallet_password.as_deref()).await {
+            Ok(w) => wallet_addresses.push(w.address().to_string()),
+            Err(_) => anyhow::bail!("Failed to decrypt wallet {} to get address", idx),
+        }
+    }
 
     // Gas managers
     let client = reqwest::Client::new();
@@ -173,6 +198,7 @@ async fn main() -> Result<()> {
         wallet_manager: manager,
         wallet_password,
         total_wallets,
+        wallet_addresses,
         worker_count,
         tasks: all_tasks(),
         task_limits,
@@ -198,24 +224,83 @@ async fn main() -> Result<()> {
         cancel_clone.cancel();
     });
 
+    eprintln!("[Daily] Calling runner.run()...");
     let stats = runner.run(cancel).await?;
 
     println!("=== Daily Runner Finished ===");
-    println!(
-        "Attempts: {}, Success: {}, Failed: {}",
-        stats.total_attempts, stats.successful, stats.failed
-    );
+    println!("{}", format_daily_stats_summary(&stats));
 
     Ok(())
 }
 
+/// Format the error message shown when WALLET_PASSWORD env var is not set.
+fn format_password_error_msg() -> String {
+    "WALLET_PASSWORD environment variable not set.\n\
+     Set it before running:\n  $env:WALLET_PASSWORD=\"your_password\"\n  cargo run ...".to_string()
+}
+
 /// Resolve the wallet password from env var.
-async fn resolve_password(_manager: &Arc<core_logic::WalletManager>) -> Result<Option<String>> {
+async fn resolve_password() -> Result<Option<String>> {
     match env::var("WALLET_PASSWORD") {
         Ok(pw) => Ok(Some(pw)),
-        Err(_) => anyhow::bail!(
-            "WALLET_PASSWORD environment variable not set.\n\
-             Set it before running:\n  $env:WALLET_PASSWORD=\"your_password\"\n  cargo run ..."
-        ),
+        Err(_) => anyhow::bail!("{}", format_password_error_msg()),
+    }
+}
+
+/// Format the daily run summary for display.
+fn format_daily_stats_summary(stats: &DailyRunStats) -> String {
+    format!(
+        "Attempts: {}, Success: {}, Failed: {}",
+        stats.total_attempts, stats.successful, stats.failed
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sepolia_overlayer::daily_runner::DailyRunStats;
+
+    #[test]
+    fn test_format_password_error_msg_contains_keyword() {
+        let msg = format_password_error_msg();
+        assert!(msg.contains("WALLET_PASSWORD"), "Error should mention WALLET_PASSWORD");
+    }
+
+    #[test]
+    fn test_format_daily_stats_summary_all_zeros() {
+        let stats = DailyRunStats::default();
+        let result = format_daily_stats_summary(&stats);
+        assert_eq!(result, "Attempts: 0, Success: 0, Failed: 0");
+    }
+
+    #[test]
+    fn test_format_daily_stats_summary_mixed_values() {
+        let stats = DailyRunStats {
+            total_attempts: 10,
+            successful: 7,
+            failed: 3,
+        };
+        let result = format_daily_stats_summary(&stats);
+        assert_eq!(result, "Attempts: 10, Success: 7, Failed: 3");
+    }
+
+    #[test]
+    fn test_format_daily_stats_summary_large_numbers() {
+        let stats = DailyRunStats {
+            total_attempts: 999999,
+            successful: 888888,
+            failed: 111111,
+        };
+        let result = format_daily_stats_summary(&stats);
+        assert_eq!(result, "Attempts: 999999, Success: 888888, Failed: 111111");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_password_without_manager_arg() {
+        let _ = unsafe { std::env::remove_var("WALLET_PASSWORD") };
+        let result = resolve_password().await;
+        assert!(result.is_err(), "Should error when WALLET_PASSWORD is not set");
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("WALLET_PASSWORD"), "Error should mention WALLET_PASSWORD: {}", err);
     }
 }

@@ -219,4 +219,57 @@ mod tests {
         assert!(json.contains("tasks"));
         assert!(json.contains("performance"));
     }
+
+    #[tokio::test]
+    async fn test_snapshot_zero_records_safe() {
+        let metrics = MetricsCollector::default();
+        let snap = metrics.snapshot();
+        assert_eq!(snap.tasks.total, 0);
+        assert_eq!(snap.tasks.success_rate, 0.0);
+        assert_eq!(snap.performance.avg_task_duration_ms, 0.0);
+        assert_eq!(snap.performance.min_task_duration_ms, 0);
+        assert_eq!(snap.performance.max_task_duration_ms, 0);
+        assert_eq!(snap.rpc.avg_latency_ms, 0.0);
+        assert_eq!(snap.rpc.min_latency_ms, 0);
+        assert_eq!(snap.rpc.max_latency_ms, 0);
+    }
+
+    #[tokio::test]
+    async fn test_record_rpc_latency_updates_metrics() {
+        let metrics = MetricsCollector::default();
+        metrics.record_rpc_latency(Duration::from_millis(50));
+        metrics.record_rpc_latency(Duration::from_millis(150));
+        metrics.record_rpc_latency(Duration::from_millis(100));
+
+        let snap = metrics.snapshot();
+        assert_eq!(snap.rpc.total_calls, 3);
+        assert!((snap.rpc.avg_latency_ms - 100.0).abs() < 0.1);
+        assert_eq!(snap.rpc.min_latency_ms, 50);
+        assert_eq!(snap.rpc.max_latency_ms, 150);
+    }
+
+    #[tokio::test]
+    async fn test_snapshot_single_task_min_equals_max() {
+        let metrics = MetricsCollector::default();
+        metrics.record_task("single", Duration::from_millis(75), true);
+
+        let snap = metrics.snapshot();
+        assert_eq!(snap.tasks.total, 1);
+        assert_eq!(snap.performance.min_task_duration_ms, 75);
+        assert_eq!(snap.performance.max_task_duration_ms, 75);
+        assert!((snap.performance.avg_task_duration_ms - 75.0).abs() < 0.01);
+        assert_eq!(snap.tasks.success_rate, 100.0);
+    }
+
+    #[test]
+    fn test_compact_json_structure() {
+        let metrics = MetricsCollector::default();
+        metrics.record_task("compact", Duration::from_millis(10), false);
+        let json = metrics.to_compact_json();
+        assert!(json.contains("\"total\":1"));
+        assert!(json.contains("\"success\":0"));
+        assert!(json.contains("\"failed\":1"));
+        // Compact JSON should be a single line (no pretty-print)
+        assert!(!json.contains("  "), "Compact JSON should not have indentation");
+    }
 }

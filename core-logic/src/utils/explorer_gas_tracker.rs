@@ -322,4 +322,20 @@ mod tests {
         assert!(tracker.payload.proxies.is_empty());
         assert_eq!(tracker.payload.request_timeout.as_secs(), 60);
     }
+
+    #[test]
+    fn test_build_client_rejects_invalid_proxy_url() {
+        let payload = ExplorerGasTrackerPayload::new("https://example.com/gas")
+            .with_proxies(vec![ProxyConfig {
+                url: ":::invalid:::".into(),
+                username: None,
+                password: None,
+            }]);
+        let err = ExplorerGasTracker::new(payload).unwrap_err();
+        assert!(
+            err.to_string().contains("Invalid proxy URL"),
+            "Expected error containing 'Invalid proxy URL', got: {}",
+            err
+        );
+    }
 }

@@ -191,30 +191,19 @@ impl WalletManager {
         })
     }
 
-    /// Create a new WalletManager that scans a specific directory for wallet files.
-    /// This is useful for chains that require a dedicated wallet folder.
+    /// Create a new WalletManager that scans a specific directory recursively for wallet files.
+    /// This is useful for chains that require a dedicated wallet folder with subdirectories.
     pub fn with_wallet_dir<P: AsRef<Path>>(dir: P) -> Result<Self> {
         let dir_path = dir.as_ref().to_path_buf();
         let mut sources = Vec::new();
 
         if dir_path.exists() && dir_path.is_dir() {
-            println!("[WalletManager] Scanning wallets in {:?}", dir_path);
-            let mut entries: Vec<PathBuf> = fs::read_dir(&dir_path)?
-                .filter_map(|res| res.ok())
-                .map(|e| e.path())
-                .filter(|p| p.extension().is_some_and(|ext| ext == "json"))
-                .collect();
-
-            entries.sort();
+            Self::collect_wallet_files(&dir_path, &mut sources);
             println!(
-                "[WalletManager] Found {} wallet files in {:?}",
-                entries.len(),
+                "[WalletManager] Found {} wallet files in {:?} (recursive)",
+                sources.len(),
                 dir_path
             );
-
-            for entry in entries {
-                sources.push(WalletSource::JsonFile(entry));
-            }
         } else {
             println!(
                 "[WalletManager] Directory {:?} not found or not a directory. No wallets loaded.",
@@ -226,6 +215,24 @@ impl WalletManager {
             sources,
             cache: Mutex::new(HashMap::new()),
         })
+    }
+
+    /// Recursively collect all `.json` wallet files from a directory tree.
+    fn collect_wallet_files(dir: &Path, sources: &mut Vec<WalletSource>) {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            let mut entries: Vec<_> = entries
+                .filter_map(|res| res.ok())
+                .collect();
+            entries.sort_by_key(|e| e.path());
+            for entry in entries {
+                let path = entry.path();
+                if path.is_dir() {
+                    Self::collect_wallet_files(&path, sources);
+                } else if path.extension().is_some_and(|ext| ext == "json") {
+                    sources.push(WalletSource::JsonFile(path));
+                }
+            }
+        }
     }
 
     /// Returns the number of available wallets
@@ -515,10 +522,95 @@ mod tests {
         use ChainType::*;
         let all = vec![Evm, Solana, Sui, Aptos, Tron, Ton];
         assert_eq!(all.len(), 6);
-        // All should be unique
         let mut set = std::collections::HashSet::new();
         for c in &all {
             assert!(set.insert(c), "Duplicate ChainType variant: {:?}", c);
         }
+    }
+
+    // ---- WalletManager ----
+
+    fn create_temp_wallet_dir() -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        let wallet_path = dir.path().join("wallet-001.json");
+        std::fs::write(&wallet_path, "{\"dummy\": true}").unwrap();
+        (dir, wallet_path)
+    }
+
+    #[test]
+    fn test_with_wallet_dir_finds_json_files() {
+        let (_dir, wallet_path) = create_temp_wallet_dir();
+        let parent = wallet_path.parent().unwrap();
+        let mgr = WalletManager::with_wallet_dir(parent).unwrap();
+        assert_eq!(mgr.count(), 1);
+    }
+
+    #[test]
+    fn test_with_wallet_dir_nonexistent_returns_empty() {
+        let mgr = WalletManager::with_wallet_dir("/nonexistent/path/xyz").unwrap();
+        assert_eq!(mgr.count(), 0);
+    }
+
+    #[test]
+    fn test_with_wallet_dir_scans_subdirectories() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        let sub = dir.path().join("subdir");
+        std::fs::create_dir(&sub).unwrap();
+        std::fs::write(sub.join("wallet.json"), "{}").unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+        assert_eq!(mgr.count(), 1, "Should find wallet in subdirectory");
+    }
+
+    #[test]
+    fn test_count_after_construction() {
+        let (_dir, wallet_path) = create_temp_wallet_dir();
+        let mgr = WalletManager::with_wallet_dir(wallet_path.parent().unwrap()).unwrap();
+        assert_eq!(mgr.count(), 1);
+    }
+
+    #[test]
+    fn test_list_wallets_returns_filenames() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        std::fs::write(dir.path().join("alpha.json"), "{}").unwrap();
+        std::fs::write(dir.path().join("beta.json"), "{}").unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+        let names = mgr.list_wallets();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"alpha.json".to_string()));
+        assert!(names.contains(&"beta.json".to_string()));
+    }
+
+    #[test]
+    fn test_get_wallet_out_of_bounds_returns_error() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        std::fs::write(dir.path().join("wallet.json"), "{}").unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+        assert_eq!(mgr.count(), 1);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(mgr.get_wallet(5, Some("pwd")));
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("out of bounds"), "Error should mention 'out of bounds': {}", err);
+    }
+
+    #[test]
+    fn test_clear_cache_does_not_panic() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        std::fs::write(dir.path().join("wallet.json"), "{}").unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(mgr.clear_cache());
+        // Cache was empty, should not panic
+        assert_eq!(mgr.count(), 1);
+    }
+
+    #[test]
+    fn test_with_wallet_dir_ignores_non_json_files() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        std::fs::write(dir.path().join("wallet.json"), "{}").unwrap();
+        std::fs::write(dir.path().join("notes.txt"), "not a wallet").unwrap();
+        std::fs::write(dir.path().join("data.csv"), "a,b,c").unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+        assert_eq!(mgr.count(), 1, "Only .json files should be counted");
     }
 }

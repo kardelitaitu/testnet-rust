@@ -7,12 +7,16 @@ use tracing::{debug, info};
 /// Lightweight database for tracking daily task completions.
 ///
 /// **Schema**: each successful task execution creates a row with `success=1`.
-/// Multiple rows per (wallet, task, date) are allowed, so a task with
+/// Multiple rows per (wallet_address, task, date) are allowed, so a task with
 /// `limit=5` can succeed 5 times. Failed attempts create rows with
 /// `success=0` and are never counted toward completion.
 ///
 /// **Daily reset**: all queries filter by `date = YYYY-MM-DD`, so when
 /// UTC midnight passes all counters reset automatically.
+///
+/// **Wallet identity**: wallets are identified by their EVM address string
+/// (`0x...`), not by an opaque index. Addresses are resolved at startup
+/// by decrypting each wallet once.
 #[derive(Debug, Clone)]
 pub struct DailyDb {
     pub(crate) pool: SqlitePool,
@@ -42,19 +46,18 @@ impl DailyDb {
     }
 
     pub(crate) async fn init_schema(&self) -> Result<()> {
-        // Migration: drop old schema that used composite PRIMARY KEY
-        // (wallet_idx, task_name, date) which prevented multiple runs
-        // per task per day. New schema uses auto-increment PK.
+        // Migration v2→v3: `wallet_address` replaces `wallet_idx`.
+        // Detect old schema (has `wallet_idx`) and recreate.
         let has_old_schema: bool = sqlx::query_scalar::<_, i32>(
-            "SELECT COUNT(*) FROM pragma_table_info('daily_task_completions') WHERE name = 'id'",
+            "SELECT COUNT(*) FROM pragma_table_info('daily_task_completions') WHERE name = 'wallet_idx'",
         )
         .fetch_one(&self.pool)
         .await
         .unwrap_or(0)
-            == 0;
+            > 0;
 
         if has_old_schema {
-            info!("Migrating daily_task_completions schema (old → new)");
+            info!("Migrating daily_task_completions schema (wallet_idx → wallet_address)");
             sqlx::query("DROP TABLE IF EXISTS daily_task_completions")
                 .execute(&self.pool)
                 .await
@@ -64,7 +67,7 @@ impl DailyDb {
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS daily_task_completions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                wallet_idx INTEGER NOT NULL,
+                wallet_address TEXT NOT NULL,
                 task_name TEXT NOT NULL,
                 date TEXT NOT NULL,
                 completed_at INTEGER NOT NULL,
@@ -79,7 +82,7 @@ impl DailyDb {
         // Index for fast lookups by wallet + date
         sqlx::query(
             "CREATE INDEX IF NOT EXISTS idx_daily_lookup
-             ON daily_task_completions(wallet_idx, date, task_name, success)",
+             ON daily_task_completions(wallet_address, date, task_name, success)",
         )
         .execute(&self.pool)
         .await
@@ -98,16 +101,16 @@ impl DailyDb {
     /// Only rows with `success = 1` are counted. Failed tasks are excluded.
     pub async fn get_completed_counts(
         &self,
-        wallet_idx: usize,
+        wallet_address: &str,
         date: &str,
     ) -> Result<HashMap<String, usize>> {
         let rows = sqlx::query_as::<_, (String, i64)>(
             "SELECT task_name, COUNT(*) as cnt
              FROM daily_task_completions
-             WHERE wallet_idx = ? AND date = ? AND success = 1
+             WHERE wallet_address = ? AND date = ? AND success = 1
              GROUP BY task_name",
         )
-        .bind(wallet_idx as i64)
+        .bind(wallet_address)
         .bind(date)
         .fetch_all(&self.pool)
         .await
@@ -118,12 +121,12 @@ impl DailyDb {
 
     /// Return the total number of **successful** completions for a wallet today.
     /// Useful for logging / progress display only — does NOT consider per-task limits.
-    pub async fn get_total_completed(&self, wallet_idx: usize, date: &str) -> Result<usize> {
+    pub async fn get_total_completed(&self, wallet_address: &str, date: &str) -> Result<usize> {
         let row = sqlx::query_as::<_, (i64,)>(
             "SELECT COUNT(*) FROM daily_task_completions
-             WHERE wallet_idx = ? AND date = ? AND success = 1",
+             WHERE wallet_address = ? AND date = ? AND success = 1",
         )
-        .bind(wallet_idx as i64)
+        .bind(wallet_address)
         .bind(date)
         .fetch_one(&self.pool)
         .await
@@ -137,22 +140,22 @@ impl DailyDb {
     pub async fn get_all_completed_counts(
         &self,
         date: &str,
-    ) -> Result<HashMap<usize, HashMap<String, usize>>> {
-        let rows = sqlx::query_as::<_, (i64, String, i64)>(
-            "SELECT wallet_idx, task_name, COUNT(*) as cnt
+    ) -> Result<HashMap<String, HashMap<String, usize>>> {
+        let rows = sqlx::query_as::<_, (String, String, i64)>(
+            "SELECT wallet_address, task_name, COUNT(*) as cnt
              FROM daily_task_completions
              WHERE date = ? AND success = 1
-             GROUP BY wallet_idx, task_name",
+             GROUP BY wallet_address, task_name",
         )
         .bind(date)
         .fetch_all(&self.pool)
         .await
         .context("Failed to query all completion counts")?;
 
-        let mut result: HashMap<usize, HashMap<String, usize>> = HashMap::new();
-        for (wallet_idx, task_name, cnt) in rows {
+        let mut result: HashMap<String, HashMap<String, usize>> = HashMap::new();
+        for (wallet_address, task_name, cnt) in rows {
             result
-                .entry(wallet_idx as usize)
+                .entry(wallet_address)
                 .or_default()
                 .insert(task_name, cnt as usize);
         }
@@ -168,7 +171,7 @@ impl DailyDb {
     /// times per day. Only rows with `success=1` count toward limits.
     pub async fn record_task_completion(
         &self,
-        wallet_idx: usize,
+        wallet_address: &str,
         task_name: &str,
         date: &str,
         success: bool,
@@ -178,10 +181,10 @@ impl DailyDb {
 
         sqlx::query(
             "INSERT INTO daily_task_completions
-             (wallet_idx, task_name, date, completed_at, success, message)
+             (wallet_address, task_name, date, completed_at, success, message)
              VALUES (?, ?, ?, ?, ?, ?)",
         )
-        .bind(wallet_idx as i64)
+        .bind(wallet_address)
         .bind(task_name)
         .bind(date)
         .bind(timestamp)
@@ -191,7 +194,7 @@ impl DailyDb {
         .await
         .with_context(|| {
             format!(
-                "Failed to record task completion for wallet {wallet_idx} / {task_name}"
+                "Failed to record task completion for wallet {wallet_address} / {task_name}"
             )
         })?;
 
@@ -239,7 +242,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_db_returns_empty_counts() {
         let db = test_db().await;
-        let counts = db.get_completed_counts(0, &today()).await.unwrap();
+        let counts = db.get_completed_counts("0xalice", &today()).await.unwrap();
         assert!(counts.is_empty(), "Empty DB should return empty counts");
     }
 
@@ -248,11 +251,11 @@ mod tests {
         let db = test_db().await;
         let date = today();
 
-        db.record_task_completion(0, "01_checkBalance", &date, true, "ok")
+        db.record_task_completion("0xalice", "01_checkBalance", &date, true, "ok")
             .await
             .unwrap();
 
-        let counts = db.get_completed_counts(0, &date).await.unwrap();
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
         assert_eq!(counts.len(), 1);
         assert_eq!(counts.get("01_checkBalance").copied().unwrap_or(0), 1);
     }
@@ -264,12 +267,12 @@ mod tests {
 
         // Run the same task 5 times successfully
         for _ in 0..5 {
-            db.record_task_completion(0, "01_checkBalance", &date, true, "ok")
+            db.record_task_completion("0xalice", "01_checkBalance", &date, true, "ok")
                 .await
                 .unwrap();
         }
 
-        let counts = db.get_completed_counts(0, &date).await.unwrap();
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
         assert_eq!(counts.get("01_checkBalance").copied().unwrap_or(0), 5);
     }
 
@@ -279,17 +282,17 @@ mod tests {
         let date = today();
 
         for _ in 0..3 {
-            db.record_task_completion(0, "01_checkBalance", &date, true, "ok")
+            db.record_task_completion("0xalice", "01_checkBalance", &date, true, "ok")
                 .await
                 .unwrap();
         }
         for _ in 0..2 {
-            db.record_task_completion(0, "02_mintUsdtPlus", &date, true, "ok")
+            db.record_task_completion("0xalice", "02_mintUsdtPlus", &date, true, "ok")
                 .await
                 .unwrap();
         }
 
-        let counts = db.get_completed_counts(0, &date).await.unwrap();
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
         assert_eq!(counts.len(), 2);
         assert_eq!(counts.get("01_checkBalance").copied().unwrap_or(0), 3);
         assert_eq!(counts.get("02_mintUsdtPlus").copied().unwrap_or(0), 2);
@@ -301,14 +304,14 @@ mod tests {
         let date = today();
 
         // One failed attempt
-        db.record_task_completion(0, "01_checkBalance", &date, false, "error")
+        db.record_task_completion("0xalice", "01_checkBalance", &date, false, "error")
             .await
             .unwrap();
 
-        let counts = db.get_completed_counts(0, &date).await.unwrap();
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
         assert!(counts.is_empty(), "Failed task should not be counted");
 
-        let total = db.get_total_completed(0, &date).await.unwrap();
+        let total = db.get_total_completed("0xalice", &date).await.unwrap();
         assert_eq!(total, 0, "Failed task should not increase total");
     }
 
@@ -319,22 +322,22 @@ mod tests {
 
         // 2 failures then 3 successes
         for _ in 0..2 {
-            db.record_task_completion(0, "01_checkBalance", &date, false, "fail")
+            db.record_task_completion("0xalice", "01_checkBalance", &date, false, "fail")
                 .await
                 .unwrap();
         }
         for _ in 0..3 {
-            db.record_task_completion(0, "01_checkBalance", &date, true, "ok")
+            db.record_task_completion("0xalice", "01_checkBalance", &date, true, "ok")
                 .await
                 .unwrap();
         }
 
         // Counts only include successes
-        let counts = db.get_completed_counts(0, &date).await.unwrap();
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
         assert_eq!(counts.get("01_checkBalance").copied().unwrap_or(0), 3);
 
         // Total also only successes
-        let total = db.get_total_completed(0, &date).await.unwrap();
+        let total = db.get_total_completed("0xalice", &date).await.unwrap();
         assert_eq!(total, 3);
     }
 
@@ -345,35 +348,35 @@ mod tests {
 
         // Wallet 0: 3x checkBalance, 2x mintUsdtPlus
         for _ in 0..3 {
-            db.record_task_completion(0, "01_checkBalance", &date, true, "ok")
+            db.record_task_completion("0xalice", "01_checkBalance", &date, true, "ok")
                 .await
                 .unwrap();
         }
         for _ in 0..2 {
-            db.record_task_completion(0, "02_mintUsdtPlus", &date, true, "ok")
+            db.record_task_completion("0xalice", "02_mintUsdtPlus", &date, true, "ok")
                 .await
                 .unwrap();
         }
         // Wallet 1: 1x checkBalance
-        db.record_task_completion(1, "01_checkBalance", &date, true, "ok")
+        db.record_task_completion("0xbob", "01_checkBalance", &date, true, "ok")
             .await
             .unwrap();
 
         let all = db.get_all_completed_counts(&date).await.unwrap();
         assert_eq!(all.len(), 2, "2 wallets have data");
 
-        let w0 = all.get(&0).unwrap();
+        let w0 = all.get("0xalice").unwrap();
         assert_eq!(w0.get("01_checkBalance").copied().unwrap_or(0), 3);
         assert_eq!(w0.get("02_mintUsdtPlus").copied().unwrap_or(0), 2);
 
-        let w1 = all.get(&1).unwrap();
+        let w1 = all.get("0xbob").unwrap();
         assert_eq!(w1.get("01_checkBalance").copied().unwrap_or(0), 1);
     }
 
     #[tokio::test]
     async fn test_get_total_completed_zero_for_new_wallet() {
         let db = test_db().await;
-        let total = db.get_total_completed(99, &today()).await.unwrap();
+        let total = db.get_total_completed("0xunknown", &today()).await.unwrap();
         assert_eq!(total, 0);
     }
 
@@ -385,17 +388,17 @@ mod tests {
 
         // 3 successes yesterday
         for _ in 0..3 {
-            db.record_task_completion(0, "01_checkBalance", &yesterday, true, "ok")
+            db.record_task_completion("0xalice", "01_checkBalance", &yesterday, true, "ok")
                 .await
                 .unwrap();
         }
 
         // Today should be empty
-        let counts_today = db.get_completed_counts(0, &today).await.unwrap();
+        let counts_today = db.get_completed_counts("0xalice", &today).await.unwrap();
         assert!(counts_today.is_empty(), "Yesterday's data should not appear today");
 
         // Yesterday should have the data
-        let counts_yesterday = db.get_completed_counts(0, &yesterday).await.unwrap();
+        let counts_yesterday = db.get_completed_counts("0xalice", &yesterday).await.unwrap();
         assert_eq!(counts_yesterday.get("01_checkBalance").copied().unwrap_or(0), 3);
     }
 
@@ -404,18 +407,18 @@ mod tests {
         let db = test_db().await;
         let date = today();
 
-        db.record_task_completion(0, "taskA", &date, true, "ok")
+        db.record_task_completion("0xalice", "taskA", &date, true, "ok")
             .await
             .unwrap();
-        db.record_task_completion(1, "taskB", &date, true, "ok")
+        db.record_task_completion("0xbob", "taskB", &date, true, "ok")
             .await
             .unwrap();
 
-        let w0 = db.get_completed_counts(0, &date).await.unwrap();
+        let w0 = db.get_completed_counts("0xalice", &date).await.unwrap();
         assert!(w0.contains_key("taskA"));
         assert!(!w0.contains_key("taskB"));
 
-        let w1 = db.get_completed_counts(1, &date).await.unwrap();
+        let w1 = db.get_completed_counts("0xbob", &date).await.unwrap();
         assert!(!w1.contains_key("taskA"));
         assert!(w1.contains_key("taskB"));
     }
@@ -431,7 +434,7 @@ mod tests {
         // Calling init_schema twice should not error
         db.init_schema().await.expect("Second init_schema call should succeed");
         // And queries should still work
-        let counts = db.get_completed_counts(0, &today()).await.unwrap();
+        let counts = db.get_completed_counts("0xalice", &today()).await.unwrap();
         assert!(counts.is_empty());
     }
 
@@ -475,7 +478,7 @@ mod tests {
         db.init_schema().await.expect("Migration should succeed");
 
         // Old data should be gone (DROP TABLE during migration)
-        let counts = db.get_completed_counts(0, "2025-01-01").await.unwrap();
+        let counts = db.get_completed_counts("0xalice", "2025-01-01").await.unwrap();
         assert!(
             counts.is_empty(),
             "Old data should be dropped during migration"
@@ -483,22 +486,22 @@ mod tests {
 
         // New schema should work for writes
         let today = today();
-        db.record_task_completion(0, "01_checkBalance", &today, true, "migrated")
+        db.record_task_completion("0xalice", "01_checkBalance", &today, true, "migrated")
             .await
             .unwrap();
 
         // Read back under new schema
-        let new_counts = db.get_completed_counts(0, &today).await.unwrap();
+        let new_counts = db.get_completed_counts("0xalice", &today).await.unwrap();
         assert_eq!(
             new_counts.get("01_checkBalance").copied().unwrap_or(0),
             1
         );
 
         // Verify we can insert multiple rows for same wallet+task+date (new schema feature)
-        db.record_task_completion(0, "01_checkBalance", &today, true, "second")
+        db.record_task_completion("0xalice", "01_checkBalance", &today, true, "second")
             .await
             .unwrap();
-        let multi = db.get_completed_counts(0, &today).await.unwrap();
+        let multi = db.get_completed_counts("0xalice", &today).await.unwrap();
         assert_eq!(
             multi.get("01_checkBalance").copied().unwrap_or(0),
             2,
@@ -524,11 +527,11 @@ mod tests {
         let date = today();
         let special_msg = "error: timeout (123ms) | status: 500 :: unicode: 你好 🎉 \"quote\"";
 
-        db.record_task_completion(0, "01_checkBalance", &date, false, special_msg)
+        db.record_task_completion("0xalice", "01_checkBalance", &date, false, special_msg)
             .await
             .unwrap();
 
-        let counts = db.get_completed_counts(0, &date).await.unwrap();
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
         assert!(counts.is_empty(), "Failed task should not count");
     }
 
@@ -543,7 +546,7 @@ mod tests {
         // Write
         {
             let db = DailyDb::new(path_str).await.unwrap();
-            db.record_task_completion(0, "01_checkBalance", &today(), true, "persist")
+            db.record_task_completion("0xalice", "01_checkBalance", &today(), true, "persist")
                 .await
                 .unwrap();
             db.close().await;
@@ -552,11 +555,272 @@ mod tests {
         // Read
         {
             let db = DailyDb::new(path_str).await.unwrap();
-            let counts = db.get_completed_counts(0, &today()).await.unwrap();
+            let counts = db.get_completed_counts("0xalice", &today()).await.unwrap();
             assert_eq!(counts.get("01_checkBalance").copied().unwrap_or(0), 1);
             db.close().await;
         }
 
         let _ = std::fs::remove_file(&db_path);
+    }
+
+    #[tokio::test]
+    async fn test_get_total_completed_with_mixed_results() {
+        let db = test_db().await;
+        let date = today();
+
+        for _ in 0..3 {
+            db.record_task_completion("0xalice", "01_checkBalance", &date, true, "ok")
+                .await
+                .unwrap();
+        }
+        for _ in 0..2 {
+            db.record_task_completion("0xalice", "01_checkBalance", &date, false, "fail")
+                .await
+                .unwrap();
+        }
+        db.record_task_completion("0xalice", "02_mintUsdtPlus", &date, true, "ok")
+            .await
+            .unwrap();
+
+        let total = db.get_total_completed("0xalice", &date).await.unwrap();
+        assert_eq!(total, 4);
+
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
+        assert_eq!(counts.len(), 2);
+        assert_eq!(counts.get("01_checkBalance").copied().unwrap_or(0), 3);
+        assert_eq!(counts.get("02_mintUsdtPlus").copied().unwrap_or(0), 1);
+    }
+
+    #[tokio::test]
+    async fn test_empty_wallet_address_accepted() {
+        let db = test_db().await;
+        let date = today();
+
+        db.record_task_completion("", "01_checkBalance", &date, true, "empty addr")
+            .await
+            .unwrap();
+
+        let counts = db.get_completed_counts("", &date).await.unwrap();
+        assert_eq!(counts.get("01_checkBalance").copied().unwrap_or(0), 1);
+    }
+
+    #[tokio::test]
+    async fn test_long_task_name_does_not_truncate() {
+        let db = test_db().await;
+        let date = today();
+        let long_name = format!("99_{}_longTaskName", "x".repeat(100));
+
+        db.record_task_completion("0xalice", &long_name, &date, true, "long name test")
+            .await
+            .unwrap();
+
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
+        assert_eq!(counts.get(&long_name).copied().unwrap_or(0), 1);
+    }
+
+    #[tokio::test]
+    async fn test_record_task_completion_with_empty_message() {
+        let db = test_db().await;
+        let date = today();
+
+        db.record_task_completion("0xalice", "01_checkBalance", &date, true, "")
+            .await
+            .unwrap();
+
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
+        assert_eq!(counts.get("01_checkBalance").copied().unwrap_or(0), 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_all_completed_counts_respects_success_only() {
+        let db = test_db().await;
+        let date = today();
+
+        db.record_task_completion("0xalice", "taskA", &date, true, "ok")
+            .await
+            .unwrap();
+        db.record_task_completion("0xalice", "taskA", &date, true, "ok")
+            .await
+            .unwrap();
+        db.record_task_completion("0xalice", "taskA", &date, false, "fail")
+            .await
+            .unwrap();
+        db.record_task_completion("0xbob", "taskB", &date, true, "ok")
+            .await
+            .unwrap();
+
+        let all = db.get_all_completed_counts(&date).await.unwrap();
+        assert_eq!(all.len(), 2);
+
+        let alice = all.get("0xalice").unwrap();
+        assert_eq!(alice.get("taskA").copied().unwrap_or(0), 2);
+
+        let bob = all.get("0xbob").unwrap();
+        assert_eq!(bob.get("taskB").copied().unwrap_or(0), 1);
+    }
+
+    // ---- batch ----
+
+    #[tokio::test]
+    async fn test_large_number_of_wallets_queries() {
+        let db = test_db().await;
+        let date = today();
+
+        // Insert records for 100 different wallets, each with 1 completed task
+        for i in 0..100 {
+            let wallet = format!("0xwallet_{:04}", i);
+            db.record_task_completion(&wallet, "taskA", &date, true, "ok")
+                .await
+                .unwrap();
+        }
+
+        let all = db.get_all_completed_counts(&date).await.unwrap();
+        assert_eq!(all.len(), 100, "Should have 100 wallets with data");
+
+        for i in 0..100 {
+            let wallet = format!("0xwallet_{:04}", i);
+            let tasks = all.get(&wallet).unwrap();
+            assert_eq!(
+                tasks.get("taskA").copied().unwrap_or(0),
+                1,
+                "Wallet {wallet} should have 1 completion"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_very_long_wallet_address() {
+        let db = test_db().await;
+        let date = today();
+
+        // Build a wallet address of 1000+ characters
+        let long_addr = "0xabcd1234".repeat(110);
+        assert!(
+            long_addr.len() > 1000,
+            "Address should be > 1000 chars, got {}",
+            long_addr.len()
+        );
+
+        db.record_task_completion(&long_addr, "01_checkBalance", &date, true, "long addr test")
+            .await
+            .unwrap();
+
+        let counts = db.get_completed_counts(&long_addr, &date).await.unwrap();
+        assert_eq!(
+            counts.get("01_checkBalance").copied().unwrap_or(0),
+            1,
+            "Long wallet address should work"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_records_same_timestamp() {
+        let db = test_db().await;
+        let date = today();
+        let fixed_ts = 999999999i64; // Arbitrary fixed second-level timestamp
+
+        // Insert 5 records with the exact same timestamp using raw SQL
+        for _ in 0..5 {
+            sqlx::query(
+                "INSERT INTO daily_task_completions (wallet_address, task_name, date, completed_at, success, message)
+                 VALUES (?, ?, ?, ?, 1, 'same_ts')",
+            )
+            .bind("0xalice")
+            .bind("01_checkBalance")
+            .bind(&date)
+            .bind(fixed_ts)
+            .execute(&db.pool)
+            .await
+            .unwrap();
+        }
+
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
+        assert_eq!(
+            counts.get("01_checkBalance").copied().unwrap_or(0),
+            5,
+            "Should count 5 completions even with identical timestamps"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_completed_counts_no_records_at_all() {
+        let db = test_db().await;
+        let date = today();
+
+        // Insert records for some wallets so the DB has data
+        db.record_task_completion("0xalice", "taskA", &date, true, "ok")
+            .await
+            .unwrap();
+        db.record_task_completion("0xbob", "taskB", &date, false, "fail")
+            .await
+            .unwrap();
+
+        // Query a wallet that has ZERO records of any kind (not even failures)
+        let counts = db.get_completed_counts("0xcharlie", &date).await.unwrap();
+        assert!(
+            counts.is_empty(),
+            "Should return empty HashMap for wallet with no records"
+        );
+
+        let total = db.get_total_completed("0xcharlie", &date).await.unwrap();
+        assert_eq!(total, 0, "Total should be 0 for wallet with no records");
+    }
+
+    #[tokio::test]
+    async fn test_file_db_create_open_reopen() {
+        let dir = std::env::temp_dir();
+        let db_path = dir.join(format!("test_reopen_db_{}.db", std::process::id()));
+        let path_str = db_path.to_str().unwrap();
+
+        let _ = std::fs::remove_file(&db_path);
+
+        // Create, insert (2 wallets), close
+        {
+            let db = DailyDb::new(path_str).await.unwrap();
+            db.record_task_completion("0xalice", "taskA", &today(), true, "open1")
+                .await
+                .unwrap();
+            db.record_task_completion("0xbob", "taskB", &today(), true, "open1")
+                .await
+                .unwrap();
+            db.close().await;
+        }
+
+        // Reopen same file, read back, verify data persisted
+        {
+            let db = DailyDb::new(path_str).await.unwrap();
+            let all = db.get_all_completed_counts(&today()).await.unwrap();
+            assert_eq!(all.len(), 2, "Both wallets should persist across reopen");
+            let alice = all.get("0xalice").unwrap();
+            assert_eq!(alice.get("taskA").copied().unwrap_or(0), 1);
+            let bob = all.get("0xbob").unwrap();
+            assert_eq!(bob.get("taskB").copied().unwrap_or(0), 1);
+            db.close().await;
+        }
+
+        let _ = std::fs::remove_file(&db_path);
+    }
+
+    #[tokio::test]
+    async fn test_init_schema_twice_idempotent() {
+        let db = test_db().await;
+        let date = today();
+
+        // test_db() already called init_schema once; call it a second time
+        db.init_schema()
+            .await
+            .expect("Second init_schema call should succeed");
+
+        // Insert a record and query to verify DB still works after second init
+        db.record_task_completion("0xalice", "01_checkBalance", &date, true, "idempotent")
+            .await
+            .unwrap();
+
+        let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
+        assert_eq!(
+            counts.get("01_checkBalance").copied().unwrap_or(0),
+            1,
+            "Queries should still work after second init_schema"
+        );
     }
 }

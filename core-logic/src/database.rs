@@ -120,6 +120,151 @@ mod tests {
         assert_eq!(DatabaseManager::DEFAULT_MAX_CONNECTIONS, 20);
         assert_eq!(DatabaseManager::DEFAULT_TIMEOUT_MS, 30000);
     }
+
+    fn setup_temp_db() -> (DatabaseManager, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("core_db_test_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let path_str = db_path.to_str().unwrap().to_string();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let db = rt.block_on(DatabaseManager::new(&path_str)).unwrap();
+        (db, db_path)
+    }
+
+    fn cleanup_temp_db(db: DatabaseManager, path: std::path::PathBuf) {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(db.shutdown()).ok();
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_log_and_count_transaction() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_tx_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        db.log_task_result("WK001", "0xalice", "check_balance", true, "ok", 100)
+            .await
+            .unwrap();
+
+        let count = db.get_transaction_count("0xalice").await.unwrap();
+        assert_eq!(count, 1);
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_get_success_count_mixed() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_sc_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        db.log_task_result("WK001", "0xalice", "mint", true, "ok", 100).await.unwrap();
+        db.log_task_result("WK001", "0xalice", "burn", false, "fail", 50).await.unwrap();
+        db.log_task_result("WK001", "0xalice", "mint", true, "ok", 75).await.unwrap();
+
+        let total = db.get_transaction_count("0xalice").await.unwrap();
+        assert_eq!(total, 3);
+        let success = db.get_success_count("0xalice").await.unwrap();
+        assert_eq!(success, 2);
+        let failed = total - success;
+        assert_eq!(failed, 1);
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_has_task_succeeded() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_hts_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        db.log_task_result("WK001", "0xalice", "mint", true, "ok", 100).await.unwrap();
+        db.log_task_result("WK001", "0xalice", "burn", false, "fail", 50).await.unwrap();
+
+        assert!(db.has_task_succeeded("0xalice", "mint").await.unwrap());
+        assert!(!db.has_task_succeeded("0xalice", "burn").await.unwrap());
+        assert!(!db.has_task_succeeded("0xbob", "mint").await.unwrap());
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_empty_db_returns_zero() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_ed_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        assert_eq!(db.get_transaction_count("0xnonexistent").await.unwrap(), 0);
+        assert_eq!(db.get_success_count("0xnonexistent").await.unwrap(), 0);
+        assert!(!db.has_task_succeeded("0xnonexistent", "any").await.unwrap());
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_batch_log_empty_returns_zero() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_bl_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        let count = db.batch_log_task_results(&[]).await.unwrap();
+        assert_eq!(count, 0);
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_log_counter_contract_roundtrip() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_lc_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        db.log_counter_contract_creation("0xalice", "0xcontract1", 11155111).await.unwrap();
+        db.log_counter_contract_creation("0xalice", "0xcontract2", 11155111).await.unwrap();
+
+        let contracts = db.get_deployed_counter_contracts("0xalice", 11155111).await.unwrap();
+        assert_eq!(contracts.len(), 2);
+        assert!(contracts.contains(&"0xcontract1".to_string()));
+
+        let all = db.get_all_deployed_counter_contracts(11155111).await.unwrap();
+        assert_eq!(all.len(), 2);
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_log_asset_roundtrip() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_la_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        db.log_asset_creation("0xalice", "0xasset1", "ERC20", "Test", "TST").await.unwrap();
+        db.log_asset_creation("0xbob", "0xasset2", "ERC721", "NFT", "NFT").await.unwrap();
+
+        let alice_assets = db.get_assets_by_type("0xalice", "ERC20").await.unwrap();
+        assert_eq!(alice_assets.len(), 1);
+        assert_eq!(alice_assets[0], "0xasset1");
+
+        let count = db.get_asset_count_by_address("0xalice", "ERC20").await.unwrap();
+        assert_eq!(count, 1);
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 /// Queued task result for async logging

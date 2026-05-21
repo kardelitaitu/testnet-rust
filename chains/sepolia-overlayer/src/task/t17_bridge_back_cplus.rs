@@ -1,4 +1,5 @@
 use super::{SepoliaTask, TaskContext, TaskResult};
+use crate::utils::calc::calc_pct_rounded;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::abi::{encode, Token};
@@ -96,10 +97,10 @@ impl SepoliaTask for BridgeBackCplusTask {
         let cplus_balance = get_cplus_balance(provider, address).await?;
 
         // --- 2. Calculate 5% of C+ balance, round to nearest whole C+ ---
-        let pct_raw = cplus_balance.as_u128() * 5 / 100;
-        let rounding = 500_000_000_000_000_000u128; // half of 10^18
-        let whole_cplus = (pct_raw + rounding) / 1_000_000_000_000_000_000u128;
-        let bridge_amount = U256::from(whole_cplus) * U256::exp10(18);
+        const DEC18: u128 = 1_000_000_000_000_000_000;
+        let bridge_raw = calc_pct_rounded(cplus_balance.as_u128(), 5, 100, 18);
+        let whole_cplus = bridge_raw / DEC18;
+        let bridge_amount = U256::from(bridge_raw);
 
         if whole_cplus == 0 {
             return Ok(TaskResult {

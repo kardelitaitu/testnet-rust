@@ -178,4 +178,76 @@ mod tests {
         assert_eq!(config.max_gwei(), 0.000000050);
         assert_eq!(config.priority_gwei(), 0.000000002);
     }
+
+    #[test]
+    fn test_gwei_to_wei_zero() {
+        assert_eq!(gwei_to_wei(0.0), 0);
+    }
+
+    #[test]
+    fn test_standard_gas_limits_default() {
+        let limits = StandardGasLimits::default();
+        assert_eq!(limits.deploy, 1_200_000);
+        assert_eq!(limits.transfer, 21_000);
+        assert_eq!(limits.counter_interact, 50_000);
+        assert_eq!(limits.send_meme, 100_000);
+    }
+
+    #[test]
+    fn test_gas_config_new_equals_default() {
+        assert_eq!(GasConfig::new().max_gwei, GasConfig::default().max_gwei);
+        assert_eq!(GasConfig::new().priority_gwei, GasConfig::default().priority_gwei);
+    }
+
+    #[test]
+    fn test_gas_config_limit_counter_interact() {
+        let config = GasConfig::default();
+        assert_eq!(config.limit_counter_interact(), 50_000);
+        assert_eq!(config.limit_send_meme(), 100_000);
+        assert_eq!(config.limit_deploy(), 1_200_000);
+    }
+
+    #[test]
+    fn test_gas_config_builder_both_fees() {
+        let config = GasConfig::new().with_max_fee(5.0).with_priority_fee(0.5);
+        assert_eq!(config.max_gwei(), 5.0);
+        assert_eq!(config.priority_gwei(), 0.5);
+    }
+
+    // ---- Property-based tests ----
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn proptest_gwei_to_wei_no_panic(val: f64) {
+            // Should never panic, regardless of input
+            let _ = gwei_to_wei(val);
+        }
+
+        #[test]
+        fn proptest_gwei_to_wei_monotonic(a: f64, b: f64) {
+            // Filter out NaN which breaks ordering
+            prop_assume!(!a.is_nan() && !b.is_nan());
+            if a > b {
+                let wa = gwei_to_wei(a);
+                let wb = gwei_to_wei(b);
+                assert!(wa >= wb, "gwei_to_wei({})={} should be >= gwei_to_wei({})={}", a, wa, b, wb);
+            }
+        }
+
+        #[test]
+        fn proptest_gas_config_builder_roundtrip(max_gwei: f64, priority: f64) {
+            // Filter out NaN and infinity which GasConfig doesn't handle
+            prop_assume!(max_gwei.is_finite() && max_gwei >= 0.0);
+            prop_assume!(priority.is_finite() && priority >= 0.0);
+            let config = GasConfig::new()
+                .with_max_fee(max_gwei)
+                .with_priority_fee(priority);
+            assert!((config.max_gwei() - max_gwei).abs() < f64::EPSILON,
+                "max_gwei roundtrip: expected {}, got {}", max_gwei, config.max_gwei());
+            assert!((config.priority_gwei() - priority).abs() < f64::EPSILON,
+                "priority roundtrip: expected {}, got {}", priority, config.priority_gwei());
+        }
+    }
 }

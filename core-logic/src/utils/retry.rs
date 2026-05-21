@@ -560,6 +560,29 @@ mod circuit_breaker_tests {
         assert_eq!(cb.config.success_threshold, 3);
         assert_eq!(cb.config.reset_timeout_ms, 60000);
     }
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn proptest_circuit_breaker_random_sequence(actions in proptest::collection::vec(0..2u8, 1..20)) {
+            let cb = CircuitBreaker::new("test", CircuitBreakerConfig {
+                failure_threshold: 2,
+                success_threshold: 2,
+                reset_timeout_ms: 50000,
+            });
+            for action in actions {
+                match action {
+                    0 => cb.on_failure(),
+                    1 => cb.on_success(),
+                    _ => unreachable!(),
+                }
+                let state = cb.state();
+                assert!(state == "CLOSED" || state == "OPEN" || state == "HALF_OPEN",
+                    "Invalid state: {}", state);
+            }
+        }
+    }
 }
 
 #[cfg(test)]

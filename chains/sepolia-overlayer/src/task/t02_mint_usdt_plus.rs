@@ -1,4 +1,5 @@
 use super::{SepoliaTask, TaskContext, TaskResult};
+use crate::utils::calc::calc_eighty_pct_6dec;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::middleware::SignerMiddleware;
@@ -51,11 +52,9 @@ impl SepoliaTask for MintUsdtPlusTask {
         let usdt_balance = get_usdt_balance(provider, address).await?;
 
         // Calculate 80% of USDT balance, rounded to nearest whole USDT
-        let pct_raw = usdt_balance.as_u128() * 80 / 100;                 // 80% in USDT raw (6 decimals)
-        let rounding = 500_000u128;                                      // half of 10^6 for rounding
-        let whole_usdt = (pct_raw + rounding) / 1_000_000u128;       // round to integer USDT
-        let mint_amount = whole_usdt * 1_000_000u128;                    // back to raw (6 decimals) for USDT
+        let mint_amount = calc_eighty_pct_6dec(usdt_balance.as_u128());
         let required = U256::from(mint_amount);
+        let whole_usdt = mint_amount / 1_000_000u128;
 
         if whole_usdt == 0 {
             return Ok(TaskResult {
@@ -130,5 +129,16 @@ impl SepoliaTask for MintUsdtPlusTask {
                 whole_usdt, tx_hash
             ),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_name_is_correct() {
+        let task = MintUsdtPlusTask;
+        assert_eq!(task.name(), "02_mintUsdtPlus");
     }
 }

@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
     info!("Loaded config for chain ID: {}", cfg.chain_id);
 
     // Load base Sepolia config if --base-config is provided
-    let (base_cfg, base_env_loaded) = if let Some(ref base_path) = args.base_config {
+    let (_base_cfg, _base_env_loaded) = if let Some(ref base_path) = args.base_config {
         if let Some(parent) = Path::new(base_path).parent() {
             let env_path = parent.join(".env");
             if env_path.exists() {
