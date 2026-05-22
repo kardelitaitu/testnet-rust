@@ -18,7 +18,7 @@ const TPLUS_ABI: &str = r#"[
 ]"#;
 
 /// ETH to send to the proxy wallet for gas (enough for a single ERC-20 transfer).
-const PROXY_GAS_WEI: u128 = 60_000_000_000_000; // 0.00006 ETH
+const PROXY_GAS_WEI: u128 = 72_100_000_000_000; // 0.0000721 ETH
 
 /// Maximum time to wait for the proxy to confirm receipt.
 const PROXY_POLL_TIMEOUT_SECS: u64 = 60;
@@ -111,7 +111,7 @@ impl SepoliaTask for ReceiveTplusTask {
 
         let transfer_call = tplus_contract
             .method::<_, H256>("transfer", (proxy_addr, amount))?
-            .gas(100_000)
+            .gas(60_000)
             .gas_price(max_fee);
 
         let tx = transfer_call
@@ -119,7 +119,6 @@ impl SepoliaTask for ReceiveTplusTask {
             .await
             .context("Failed to send T+ to proxy")?;
 
-        let tx_hash = tx.tx_hash();
         let receipt = tx
             .confirmations(1)
             .interval(Duration::from_millis(500))
@@ -140,7 +139,6 @@ impl SepoliaTask for ReceiveTplusTask {
             .await
             .context("Failed to send ETH to proxy")?;
 
-        let eth_tx_hash = eth_tx.tx_hash();
         let eth_receipt = eth_tx
             .confirmations(1)
             .interval(Duration::from_millis(500))
@@ -186,12 +184,12 @@ impl SepoliaTask for ReceiveTplusTask {
         // 8. Check proxy has enough ETH for return gas
         // ------------------------------------------------------------------
         let (proxy_max_fee, _) = ctx.gas_manager.get_fees().await?;
-        let estimated_cost = U256::from(100_000u64) * proxy_max_fee;
+        let estimated_cost = U256::from(60_000u64) * proxy_max_fee;
         if proxy_eth_balance < estimated_cost {
             return Ok(TaskResult {
                 success: false,
                 message: format!(
-                    "Proxy {} has {} wei but needs ~{} wei for return gas (max_fee={} gwei, 100k gas)",
+                    "Proxy {} has {} wei but needs ~{} wei for return gas (max_fee={} gwei, 60k gas)",
                     proxy_addr,
                     proxy_eth_balance,
                     estimated_cost,
@@ -216,7 +214,7 @@ impl SepoliaTask for ReceiveTplusTask {
 
         let proxy_return_call = proxy_tplus
             .method::<_, H256>("transfer", (main_addr, proxy_t_balance))?
-            .gas(100_000)
+            .gas(60_000)
             .gas_price(proxy_max_fee);
         let proxy_return = proxy_return_call
             .send()
@@ -232,19 +230,9 @@ impl SepoliaTask for ReceiveTplusTask {
         let return_ok = return_receipt.is_some_and(|r| r.status == Some(1.into()));
 
         let result_msg = format!(
-            "Sent {} T+ to proxy {} (tx: {:?}), ETH sent (tx: {:?}), \
-             proxy returned {} T+ (tx: {:?}) — {}",
-            amount,
-            proxy_addr,
-            tx_hash,
-            eth_tx_hash,
-            proxy_t_balance,
+            "Received {} USDT Plus (tx: {:?})",
+            format_whole_with_commas(proxy_t_balance),
             return_tx_hash,
-            if return_ok {
-                "success"
-            } else {
-                "return failed"
-            },
         );
 
         Ok(TaskResult {
@@ -252,6 +240,23 @@ impl SepoliaTask for ReceiveTplusTask {
             message: result_msg,
         })
     }
+}
+
+/// Divide by 10^18 and format the whole part with comma separators.
+/// e.g. 27597078135524549372407 → "27,597"
+fn format_whole_with_commas(amount: U256) -> String {
+    let divisor = U256::from(10u128.pow(18));
+    let whole = amount / divisor;
+    let s = whole.to_string();
+    // Insert commas every 3 chars from the right
+    let mut result = String::with_capacity(s.len() + s.len() / 3);
+    for (i, ch) in s.chars().enumerate() {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
+            result.push(',');
+        }
+        result.push(ch);
+    }
+    result
 }
 
 #[cfg(test)]
@@ -262,5 +267,36 @@ mod tests {
     fn test_name_is_correct() {
         let task = ReceiveTplusTask;
         assert_eq!(task.name(), "18_receiveTplus");
+    }
+
+    #[test]
+    fn test_format_whole_with_commas_27k() {
+        // 27,597 T+ in wei (18 decimals)
+        let amount = U256::from(27_597u128) * U256::from(10u128.pow(18));
+        assert_eq!(format_whole_with_commas(amount), "27,597");
+    }
+
+    #[test]
+    fn test_format_whole_with_commas_small() {
+        let amount = U256::from(100u128) * U256::from(10u128.pow(18));
+        assert_eq!(format_whole_with_commas(amount), "100");
+    }
+
+    #[test]
+    fn test_format_whole_with_commas_million() {
+        let amount = U256::from(1_234_567u128) * U256::from(10u128.pow(18));
+        assert_eq!(format_whole_with_commas(amount), "1,234,567");
+    }
+
+    #[test]
+    fn test_format_whole_with_commas_zero() {
+        assert_eq!(format_whole_with_commas(U256::zero()), "0");
+    }
+
+    #[test]
+    fn test_format_whole_with_commas_billion() {
+        // 3,456,789,012
+        let amount = U256::from(3_456_789_012u128) * U256::from(10u128.pow(18));
+        assert_eq!(format_whole_with_commas(amount), "3,456,789,012");
     }
 }

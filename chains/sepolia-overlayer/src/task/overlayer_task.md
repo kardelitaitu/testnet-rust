@@ -19,5 +19,5 @@
 | t15 | sendRandomUsdcPlus | Send 0.5% of USDC+ (C+) balance to a random EVM address via `transfer(address,uint256)` |
 | t16 | bridgeBackTplus | Bridge T+ (USDT+) from Base Sepolia → Eth Sepolia via LayerZero OFT `send()` (40% of T+, ~0.0001 ETH fee) |
 | t17 | bridgeBackCplus | Bridge C+ (USDC+) from Base Sepolia → Eth Sepolia via LayerZero OFT `send()` (40% of C+, ~0.0001 ETH fee) |
-| t18 | receiveTplus | Send 5% of T+ + 0.00006 ETH to a random ephemeral proxy wallet, proxy returns all T+ back to main — tests ERC-20 send/receive round-trip |
-| t19 | receiveCplus | Send 5% of C+ + 0.00006 ETH to a random ephemeral proxy wallet, proxy returns all C+ back to main — tests ERC-20 send/receive round-trip |
+| t18 | receiveTplus | Send 5% of T+ + 0.0000721 ETH to a random ephemeral proxy wallet, proxy returns all T+ back to main — tests ERC-20 send/receive round-trip |
+| t19 | receiveCplus | Send 5% of C+ + 0.0000721 ETH to a random ephemeral proxy wallet, proxy returns all C+ back to main — tests ERC-20 send/receive round-trip |
