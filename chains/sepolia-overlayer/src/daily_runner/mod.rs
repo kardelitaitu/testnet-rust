@@ -25,10 +25,10 @@
 use crate::config::{SepoliaConfig, TaskLimits};
 use crate::task::{
     AaveUsdcFaucetTask, AaveUsdtFaucetTask, BridgeBackCplusTask, BridgeBackTplusTask,
-    BridgeCplusTask, BridgeTplusTask, MintUsdcPlusTask, MintUsdtPlusTask, RedeemUsdcPlusTask,
-    RedeemUsdtPlusTask, SendRandomUsdcPlusTask, SendRandomUsdtPlusTask, SepoliaCheckBalanceTask,
-    SepoliaTask, StakeUsdcPlusTask, StakeUsdtPlusTask, TaskContext, UnstakeCplusTask,
-    UnstakeTplusTask,
+    BridgeCplusTask, BridgeTplusTask, MintUsdcPlusTask, MintUsdtPlusTask, ReceiveCplusTask,
+    ReceiveTplusTask, RedeemUsdcPlusTask, RedeemUsdtPlusTask, SendRandomUsdcPlusTask,
+    SendRandomUsdtPlusTask, SepoliaCheckBalanceTask, SepoliaTask, StakeUsdcPlusTask,
+    StakeUsdtPlusTask, TaskContext, UnstakeCplusTask, UnstakeTplusTask,
 };
 use crate::utils::gas::GasManager;
 
@@ -53,7 +53,7 @@ pub mod database;
 // Constants
 // -----------------------------------------------------------------------
 
-/// All 17 task names in order — single source of truth.
+/// All 19 task names in order — single source of truth.
 /// Must match the tasks registered in [`all_tasks()`].
 pub const ALL_TASK_NAMES: &[&str] = &[
     "01_checkBalance",
@@ -73,6 +73,8 @@ pub const ALL_TASK_NAMES: &[&str] = &[
     "15_sendRandomUsdcPlus",
     "16_bridgeBackTplus",
     "17_bridgeBackCplus",
+    "18_receiveTplus",
+    "19_receiveCplus",
 ];
 
 /// Pause window start (23:55 UTC) in minutes since midnight.
@@ -111,7 +113,7 @@ pub fn today_utc() -> String {
     chrono::Utc::now().format("%Y-%m-%d").to_string()
 }
 
-/// Build the canonical list of all 17 task implementations.
+/// Build the canonical list of all 19 task implementations.
 pub fn all_tasks() -> Vec<Box<dyn SepoliaTask>> {
     vec![
         Box::new(SepoliaCheckBalanceTask),
@@ -131,6 +133,8 @@ pub fn all_tasks() -> Vec<Box<dyn SepoliaTask>> {
         Box::new(SendRandomUsdcPlusTask),
         Box::new(BridgeBackTplusTask),
         Box::new(BridgeBackCplusTask),
+        Box::new(ReceiveTplusTask),
+        Box::new(ReceiveCplusTask),
     ]
 }
 
@@ -301,7 +305,8 @@ impl DailyRunner {
         );
 
         let runner = Arc::new(self.clone_inner());
-        let mut handles = Vec::with_capacity(count);
+
+        let mut handles = vec![];
 
         for i in 0..count {
             let r = runner.clone();
@@ -986,7 +991,7 @@ mod tests {
 
     #[test]
     fn test_all_tasks_count() {
-        assert_eq!(all_tasks().len(), 17);
+        assert_eq!(all_tasks().len(), 19);
     }
 
     #[test]
@@ -1109,7 +1114,7 @@ mod tests {
         let limits = HashMap::new(); // default limit=1
 
         let remaining = get_remaining_tasks(&counts, &limits);
-        assert_eq!(remaining.len(), 16); // 17 total - 1 done
+        assert_eq!(remaining.len(), 18); // 19 total - 1 done
         assert!(!remaining.contains(&"01_checkBalance"));
     }
 
@@ -1122,7 +1127,7 @@ mod tests {
 
         let remaining = get_remaining_tasks(&counts, &limits);
         assert!(remaining.contains(&"01_checkBalance")); // still has capacity
-        assert_eq!(remaining.len(), 17); // all tasks have capacity
+        assert_eq!(remaining.len(), 19); // all tasks have capacity
     }
 
     #[test]
@@ -1134,7 +1139,7 @@ mod tests {
 
         let remaining = get_remaining_tasks(&counts, &limits);
         assert!(!remaining.contains(&"01_checkBalance")); // at capacity
-        assert_eq!(remaining.len(), 16); // 16 other tasks at limit=1 with 0 done
+        assert_eq!(remaining.len(), 18); // 18 other tasks at limit=1 with 0 done
     }
 
     #[test]
@@ -1173,7 +1178,7 @@ mod tests {
         let counts = HashMap::new();
         let limits = HashMap::new();
         let remaining = get_remaining_tasks(&counts, &limits);
-        assert_eq!(remaining.len(), 17, "All 17 tasks should be pending");
+        assert_eq!(remaining.len(), 19, "All 19 tasks should be pending");
         for expected in ALL_TASK_NAMES {
             assert!(remaining.contains(expected), "Missing: {}", expected);
         }
@@ -1190,7 +1195,7 @@ mod tests {
         let remaining = get_remaining_tasks(&counts, &limits);
         assert!(!remaining.contains(&"01_checkBalance")); // 5 >= 3 → excluded
                                                           // Other 16 tasks still pending
-        assert_eq!(remaining.len(), 16);
+        assert_eq!(remaining.len(), 18);
     }
 
     #[test]
@@ -1202,7 +1207,7 @@ mod tests {
 
         let remaining = get_remaining_tasks(&counts, &limits);
         assert!(!remaining.contains(&"01_checkBalance")); // limit=0, 0 < 0 = false
-        assert_eq!(remaining.len(), 16, "Only checkBalance should be excluded");
+        assert_eq!(remaining.len(), 18, "Only checkBalance should be excluded");
     }
 
     // ---- ALL_TASK_NAMES format ----
@@ -1267,15 +1272,15 @@ mod tests {
         let date = today_utc();
         let limits = HashMap::new(); // all tasks limit=1
 
-        // Wallet 0: 3/17 tasks done
+        // Wallet 0: 3/19 tasks done
         for i in 0..3 {
             db.record_task_completion("0xalice", ALL_TASK_NAMES[i], &date, true, "ok")
                 .await
                 .unwrap();
         }
-        // Wallet 1: 0/17 done
-        // Wallet 2: all 17/17 done (with limit=1 each)
-        for i in 0..17 {
+        // Wallet 1: 0/19 done
+        // Wallet 2: all 19/19 done (with limit=1 each)
+        for i in 0..19 {
             db.record_task_completion("0xcharlie", ALL_TASK_NAMES[i], &date, true, "ok")
                 .await
                 .unwrap();
@@ -1323,7 +1328,7 @@ mod tests {
         assert_eq!(counts.len(), 5);
 
         let pending = get_remaining_tasks(&counts, &limits);
-        assert_eq!(pending.len(), 12, "12 tasks should be pending");
+        assert_eq!(pending.len(), 14, "14 tasks should be pending");
 
         // None of the pending tasks should be in completed
         for task in &pending {
@@ -1350,7 +1355,7 @@ mod tests {
 
         // Pending should still include the task
         let pending = get_remaining_tasks(&counts, &limits);
-        assert_eq!(pending.len(), 17, "All 17 tasks should still be pending");
+        assert_eq!(pending.len(), 19, "All 19 tasks should still be pending");
     }
 
     #[tokio::test]
@@ -1382,8 +1387,8 @@ mod tests {
         let pending = get_remaining_tasks(&counts, &limits);
         // checkBalance still has capacity (3/5 done), so it's still pending
         assert!(pending.contains(&"01_checkBalance"));
-        // 16 other tasks at limit=1 with 0 done
-        assert_eq!(pending.len(), 17);
+        // 18 other tasks at limit=1 with 0 done
+        assert_eq!(pending.len(), 19);
     }
 
     #[tokio::test]
@@ -1405,7 +1410,7 @@ mod tests {
 
         let pending = get_remaining_tasks(&counts, &limits);
         assert!(pending.contains(&"01_checkBalance")); // still has 3 more
-        assert_eq!(pending.len(), 17);
+        assert_eq!(pending.len(), 19);
     }
 
     // ------------------------------------------------------------------
@@ -1516,7 +1521,7 @@ mod tests {
                 **t != "01_checkBalance" && **t != "02_mintUsdtPlus" && **t != "03_mintUsdcPlus"
             })
             .collect();
-        assert_eq!(remaining_tasks.len(), 14, "14 remaining tasks expected");
+        assert_eq!(remaining_tasks.len(), 16, "16 remaining tasks expected");
 
         for task in &remaining_tasks {
             db.record_task_completion(wallet, task, &date, true, "ok")
@@ -1557,7 +1562,7 @@ mod tests {
 
         // ---- Verify total completions ----
         let total = db.get_total_completed(wallet, &date).await.unwrap();
-        assert_eq!(total, 24, "Total completions = 5 + 3 + 2 + (14 x 1) = 24");
+        assert_eq!(total, 26, "Total completions = 5 + 3 + 2 + (16 x 1) = 26");
     }
 
     #[tokio::test]
@@ -2628,7 +2633,7 @@ mod tests {
     #[test]
     fn test_all_tasks_have_no_duplicate_names() {
         let tasks = all_tasks();
-        assert_eq!(tasks.len(), 17, "Must have exactly 17 tasks");
+        assert_eq!(tasks.len(), 19, "Must have exactly 19 tasks");
 
         let mut names = std::collections::HashSet::new();
         for t in &tasks {
@@ -2654,8 +2659,8 @@ mod tests {
         }
         assert_eq!(
             names.len(),
-            17,
-            "Duplicate task names found: {} unique, expected 17",
+            19,
+            "Duplicate task names found: {} unique, expected 19",
             names.len()
         );
     }
@@ -2681,7 +2686,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wallet_usage_pct_eight_of_seventeen() {
+    fn test_wallet_usage_pct_eight_of_nineteen() {
         let mut counts = HashMap::new();
         for i in 0..8 {
             let name = ALL_TASK_NAMES[i];
@@ -2689,7 +2694,7 @@ mod tests {
         }
         let limits = HashMap::new();
         let pct = wallet_usage_pct(&counts, &limits);
-        let expected = 8.0 / 17.0 * 100.0;
+        let expected = 8.0 / 19.0 * 100.0;
         assert!(
             (pct - expected).abs() < 0.5,
             "Expected ~{:.1}%, got {}",
@@ -2699,7 +2704,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wallet_usage_pct_all_seventeen_done() {
+    fn test_wallet_usage_pct_all_nineteen_done() {
         let mut counts = HashMap::new();
         for name in ALL_TASK_NAMES {
             counts.insert(name.to_string(), 1usize);

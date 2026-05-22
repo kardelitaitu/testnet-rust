@@ -16,6 +16,8 @@ use crate::task::t14_send_random_usdt_plus::SendRandomUsdtPlusTask;
 use crate::task::t15_send_random_usdc_plus::SendRandomUsdcPlusTask;
 use crate::task::t16_bridge_back_tplus::BridgeBackTplusTask;
 use crate::task::t17_bridge_back_cplus::BridgeBackCplusTask;
+use crate::task::t18_receive_tplus::ReceiveTplusTask;
+use crate::task::t19_receive_cplus::ReceiveCplusTask;
 use crate::task::{SepoliaTask, TaskContext};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -174,6 +176,8 @@ impl EvmSpammer {
             Box::new(SendRandomUsdcPlusTask),
             Box::new(BridgeBackTplusTask),
             Box::new(BridgeBackCplusTask),
+            Box::new(ReceiveTplusTask),
+            Box::new(ReceiveCplusTask),
         ];
 
         let gas_manager = Arc::new(crate::utils::gas::GasManager::new(

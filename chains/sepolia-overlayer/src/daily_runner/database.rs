@@ -26,7 +26,7 @@ pub struct DailyDb {
 
 impl DailyDb {
     /// Number of defined tasks. Used for validation.
-    pub const TASKS_PER_WALLET: usize = 17;
+    pub const TASKS_PER_WALLET: usize = 19;
 
     /// Open or create the database, initialising the schema.
     pub async fn new(db_path: &str) -> Result<Self> {
@@ -529,7 +529,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_tasks_per_wallet_constant() {
-        assert_eq!(DailyDb::TASKS_PER_WALLET, 17);
+        assert_eq!(DailyDb::TASKS_PER_WALLET, 19);
     }
 
     #[tokio::test]

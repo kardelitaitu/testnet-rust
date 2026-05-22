@@ -39,6 +39,8 @@ pub mod t14_send_random_usdt_plus;
 pub mod t15_send_random_usdc_plus;
 pub mod t16_bridge_back_tplus;
 pub mod t17_bridge_back_cplus;
+pub mod t18_receive_tplus;
+pub mod t19_receive_cplus;
 
 pub use t01_check_balance::SepoliaCheckBalanceTask;
 pub use t02_mint_usdt_plus::MintUsdtPlusTask;
@@ -57,7 +59,8 @@ pub use t14_send_random_usdt_plus::SendRandomUsdtPlusTask;
 pub use t15_send_random_usdc_plus::SendRandomUsdcPlusTask;
 pub use t16_bridge_back_tplus::BridgeBackTplusTask;
 pub use t17_bridge_back_cplus::BridgeBackCplusTask;
-
+pub use t18_receive_tplus::ReceiveTplusTask;
+pub use t19_receive_cplus::ReceiveCplusTask;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -82,6 +85,8 @@ mod tests {
             Box::new(SendRandomUsdcPlusTask),
             Box::new(BridgeBackTplusTask),
             Box::new(BridgeBackCplusTask),
+            Box::new(ReceiveTplusTask),
+            Box::new(ReceiveCplusTask),
         ];
 
         let expected = [
@@ -102,6 +107,8 @@ mod tests {
             "15_sendRandomUsdcPlus",
             "16_bridgeBackTplus",
             "17_bridgeBackCplus",
+            "18_receiveTplus",
+            "19_receiveCplus",
         ];
 
         assert_eq!(tasks.len(), expected.len(), "Task count mismatch");
