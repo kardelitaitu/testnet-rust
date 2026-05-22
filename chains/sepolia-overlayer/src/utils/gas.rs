@@ -50,9 +50,9 @@ impl GasManager {
 
         let gas_price = self.get_gas_price().await?;
 
-        let config_max: U256 = parse_units(self.config.max_gwei(), "gwei")?.into();
-        let config_prio: U256 = parse_units(self.config.priority_gwei(), "gwei")?.into();
-        let min_fee_floor: U256 = parse_units(self.min_fee_gwei, "gwei")?.into();
+        let config_max: U256 = parse_units(self.config.max_gwei(), "gwei")?;
+        let config_prio: U256 = parse_units(self.config.priority_gwei(), "gwei")?;
+        let min_fee_floor: U256 = parse_units(self.min_fee_gwei, "gwei")?;
 
         let Some(base_fee) = block.base_fee_per_gas else {
             let fee = gas_price.max(min_fee_floor).min(config_max);

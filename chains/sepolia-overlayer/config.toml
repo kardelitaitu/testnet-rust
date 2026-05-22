@@ -27,7 +27,7 @@ task_timeout_secs = 120
 # The daily runner will execute each task up to this many times per wallet
 # per day. Failed executions do NOT count toward the limit.
 #
-# To see all 17 task names: chains/sepolia-overlayer/src/task/
+# To see all 19 task names: chains/sepolia-overlayer/src/task/
 #
 [task_limits]
 01_checkbalance = 2
@@ -47,6 +47,8 @@ task_timeout_secs = 120
 15_sendrandomusdcplus = 1
 16_bridgebacktplus = 1
 17_bridgebackcplus = 1
+18_receivetplus = 1
+19_receivecplus = 1
 
 
 # Command to Run

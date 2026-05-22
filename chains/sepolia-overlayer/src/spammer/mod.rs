@@ -187,7 +187,7 @@ impl EvmSpammer {
 
         let weights: Vec<u32> = tasks
             .iter()
-            .map(|t: &Box<dyn SepoliaTask>| {
+            .map(|t| {
                 let w = get_task_weight(t.name());
                 info!("Task '{}': Weight {}", t.name(), w);
                 w
@@ -198,9 +198,9 @@ impl EvmSpammer {
             Ok(d) => d,
             Err(e) => {
                 tracing::warn!("Failed to create weighted distribution: {}", e);
-                WeightedIndex::new(&vec![1; weights.len()]).unwrap_or_else(|e| {
+                WeightedIndex::new(vec![1; weights.len()]).unwrap_or_else(|e| {
                     tracing::error!("Critical error creating distribution: {}", e);
-                    WeightedIndex::new(&vec![1]).expect("Failed to create fallback distribution")
+                    WeightedIndex::new(vec![1]).expect("Failed to create fallback distribution")
                 })
             }
         };
