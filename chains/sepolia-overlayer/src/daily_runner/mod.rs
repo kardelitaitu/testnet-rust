@@ -39,6 +39,8 @@ use ethers::signers::Signer;
 use rand::Rng;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
+use std::time::SystemTime;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
@@ -271,7 +273,7 @@ pub struct DailyRunner {
     pub wallet_addresses: Vec<String>,
     pub worker_count: usize,
     pub tasks: Vec<Box<dyn SepoliaTask>>,
-    pub task_limits: TaskLimits,
+    pub task_limits: Arc<RwLock<TaskLimits>>,
     pub proxy_pool: Arc<RwLock<Vec<ProxyConfig>>>,
     pub proxy_health: Arc<ProxyHealthManager>,
     pub proxy_rate_limiter: Arc<ProxyRateLimiter>,
@@ -281,6 +283,10 @@ pub struct DailyRunner {
     pub base_rpc_url: Option<String>,
     pub base_gas_manager: Option<Arc<GasManager>>,
     pub base_config: Option<SepoliaConfig>,
+    /// Path to the config.toml for live-reloading task limits.
+    pub config_path: Option<String>,
+    /// Last known mtime of the config file — used to detect changes.
+    pub last_limits_mtime: Arc<StdMutex<Option<SystemTime>>>,
     /// Test-only: when `true`, forces the worker loop to behave as if
     /// inside the pause window regardless of actual UTC time.
     #[cfg(test)]
@@ -296,12 +302,13 @@ impl DailyRunner {
         eprintln!("[DEBUG] DailyRunner::run() called");
         let count = self.worker_count.max(1).min(self.total_wallets.max(1));
         eprintln!("[DEBUG] count={}, wallets={}", count, self.total_wallets);
+        let limits_debug = format!("{:?}", *self.task_limits.read().await);
         info!(
-            "Starting DailyRunner: {} wallets, {} workers, task timeout: {}s, limits: {:?}",
+            "Starting DailyRunner: {} wallets, {} workers, task timeout: {}s, limits: {}",
             self.total_wallets,
             count,
             self.config.task_timeout_secs.unwrap_or(120).max(1),
-            self.task_limits
+            limits_debug,
         );
 
         let runner = Arc::new(self.clone_inner());
@@ -344,7 +351,7 @@ impl DailyRunner {
             wallet_addresses: self.wallet_addresses.clone(),
             worker_count: self.worker_count,
             tasks: all_tasks(),
-            task_limits: self.task_limits.clone(),
+            task_limits: Arc::clone(&self.task_limits),
             proxy_pool: self.proxy_pool.clone(),
             proxy_health: self.proxy_health.clone(),
             proxy_rate_limiter: self.proxy_rate_limiter.clone(),
@@ -354,8 +361,50 @@ impl DailyRunner {
             base_rpc_url: self.base_rpc_url.clone(),
             base_gas_manager: self.base_gas_manager.clone(),
             base_config: self.base_config.clone(),
+            config_path: self.config_path.clone(),
+            last_limits_mtime: Arc::clone(&self.last_limits_mtime),
             #[cfg(test)]
             test_pause: self.test_pause,
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Hot-reload: refresh task limits from config file if mtime changed
+    // ------------------------------------------------------------------
+
+    /// Check if the config file has been modified and reload task limits.
+    async fn refresh_task_limits(&self) {
+        let Some(ref path) = self.config_path else { return };
+
+        let current_mtime = match std::fs::metadata(path).and_then(|m| m.modified()) {
+            Ok(m) => m,
+            Err(_) => return,
+        };
+
+        let should_reload = {
+            let mut last = self.last_limits_mtime.lock().unwrap();
+            if *last == Some(current_mtime) {
+                false // No change since last check
+            } else {
+                *last = Some(current_mtime);
+                true
+            }
+        };
+
+        if !should_reload {
+            return;
+        }
+
+        match crate::config::SepoliaConfig::load(path) {
+            Ok(cfg) => {
+                let new_limits = cfg.task_limits.unwrap_or_default();
+                let mut limits = self.task_limits.write().await;
+                *limits = new_limits;
+                info!("Task limits reloaded from {}: {:?}", path, *limits);
+            }
+            Err(e) => {
+                warn!("Failed to reload task limits from {}: {}", path, e);
+            }
         }
     }
 
@@ -430,7 +479,7 @@ impl DailyRunner {
             for idx in 0..self.total_wallets {
                 let addr = &self.wallet_addresses[idx];
                 let wc = all_counts.get(addr.as_str()).cloned().unwrap_or_default();
-                if wallet_has_remaining(&wc, &self.task_limits) {
+                if wallet_has_remaining(&wc, &*self.task_limits.read().await) {
                     active.push(idx);
                 }
             }
@@ -608,13 +657,16 @@ impl DailyRunner {
         // Select proxy first — so LIMIT logs show real P:xxx
         let (proxy_config, proxy_id) = self.select_proxy().await;
 
+        // Hot-reload task limits from config if file changed
+        self.refresh_task_limits().await;
+
         // Compute pending tasks based on limits
-        let pending: Vec<&str> = get_remaining_tasks(&task_counts, &self.task_limits);
+        let pending: Vec<&str> = get_remaining_tasks(&task_counts, &*self.task_limits.read().await);
 
         if pending.is_empty() {
             let rep_task = ALL_TASK_NAMES[0];
             let wc_count = task_counts.get(rep_task).copied().unwrap_or(0);
-            let wc_limit = get_task_limit(&self.task_limits, rep_task) as usize;
+            let wc_limit = get_task_limit(&*self.task_limits.read().await, rep_task) as usize;
             return TaskOutcome::WalletComplete {
                 wallet_idx,
                 wallet_address: wallet_addr.to_string(),
@@ -630,7 +682,7 @@ impl DailyRunner {
 
         // Current count & limit for this task (before this execution)
         let current_count = task_counts.get(task_name).copied().unwrap_or(0);
-        let current_limit = get_task_limit(&self.task_limits, task_name) as usize;
+        let current_limit = get_task_limit(&*self.task_limits.read().await, task_name) as usize;
 
         // Find the task implementation
         let task = match self.tasks.iter().find(|t| t.name() == task_name) {
@@ -1597,7 +1649,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -1615,6 +1667,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };
@@ -1656,7 +1710,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -1674,6 +1728,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };
@@ -1727,7 +1783,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(vec![proxy_config])),
             proxy_health: proxy_health.clone(),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -1745,6 +1801,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };
@@ -1788,7 +1846,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 2,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -1806,6 +1864,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         });
@@ -1997,7 +2057,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -2015,6 +2075,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: true, // force pause window
         };
@@ -2066,7 +2128,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -2084,6 +2146,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };
@@ -2154,7 +2218,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -2172,6 +2236,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };
@@ -2209,7 +2275,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -2227,6 +2293,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };
@@ -2289,7 +2357,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(vec![healthy_proxy, unhealthy_proxy])),
             proxy_health: proxy_health.clone(),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -2307,6 +2375,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };
@@ -2374,7 +2444,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -2392,6 +2462,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };
@@ -2519,7 +2591,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -2537,6 +2609,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };
@@ -2596,7 +2670,7 @@ mod tests {
             wallet_addresses: vec![],
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -2614,6 +2688,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };
@@ -2767,7 +2843,7 @@ mod tests {
             wallet_addresses: vec!["0xaaa".into(), "0xbbb".into()],
             worker_count: 2,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -2785,6 +2861,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };
@@ -2826,7 +2904,7 @@ mod tests {
             wallet_addresses: vec![], // empty but total_wallets = 1
             worker_count: 1,
             tasks: all_tasks(),
-            task_limits: HashMap::new(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
@@ -2844,6 +2922,8 @@ mod tests {
             base_rpc_url: None,
             base_gas_manager: None,
             base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
             #[cfg(test)]
             test_pause: false,
         };

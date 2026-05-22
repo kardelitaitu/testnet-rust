@@ -198,7 +198,7 @@ async fn main() -> Result<()> {
         wallet_addresses,
         worker_count,
         tasks: all_tasks(),
-        task_limits,
+        task_limits: Arc::new(RwLock::new(task_limits)),
         proxy_pool,
         proxy_health,
         proxy_rate_limiter,
@@ -208,6 +208,8 @@ async fn main() -> Result<()> {
         base_rpc_url,
         base_gas_manager,
         base_config,
+        config_path: Some(args.config.clone()),
+        last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
     };
 
     // Run until Ctrl+C
