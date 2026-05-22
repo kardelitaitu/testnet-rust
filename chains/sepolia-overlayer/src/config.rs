@@ -345,6 +345,8 @@ tps = 10
 15_sendrandomusdcplus = 1
 16_bridgebacktplus = 1
 17_bridgebackcplus = 1
+18_receivetplus = 1
+19_receivecplus = 1
 "#;
         let settings = Config::builder()
             .add_source(config::File::from_str(toml, config::FileFormat::Toml))
@@ -352,7 +354,7 @@ tps = 10
             .unwrap();
         let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
         let limits = cfg.task_limits.expect("task_limits should be Some");
-        assert_eq!(limits.len(), 17, "all 17 task limits should be present");
+        assert_eq!(limits.len(), 19, "all 19 task limits should be present");
         assert_eq!(limits.get("01_checkbalance"), Some(&20));
         assert_eq!(limits.get("02_mintusdtplus"), Some(&10));
         assert_eq!(limits.get("03_mintusdcplus"), Some(&10));
@@ -370,6 +372,61 @@ tps = 10
         assert_eq!(limits.get("15_sendrandomusdcplus"), Some(&1));
         assert_eq!(limits.get("16_bridgebacktplus"), Some(&1));
         assert_eq!(limits.get("17_bridgebackcplus"), Some(&1));
+        assert_eq!(
+            limits.get("18_receivetplus"),
+            Some(&1),
+            "t18 receiveTplus should have limit 1"
+        );
+        assert_eq!(
+            limits.get("19_receivecplus"),
+            Some(&1),
+            "t19 receiveCplus should have limit 1"
+        );
+    }
+
+    /// Verifies that the new t18 and t19 task limits can be resolved via
+    /// case-insensitive lookup (simulating how get_task_limit works at runtime).
+    #[test]
+    fn test_sepolia_config_task_limits_18_19_case_insensitive() {
+        let toml = r#"
+rpc_url = "https://rpc.com"
+chain_id = 1
+explorer = "https://explorer.com"
+symbol = "ETH"
+tps = 10
+
+[task_limits]
+18_receivetplus = 2
+19_receivecplus = 3
+"#;
+        let settings = Config::builder()
+            .add_source(config::File::from_str(toml, config::FileFormat::Toml))
+            .build()
+            .unwrap();
+        let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
+        let limits = cfg.task_limits.expect("task_limits should be Some");
+
+        // TOML lowercases keys, so we look up the lowercased versions.
+        // Simulate the runtime get_task_limit pattern (eq_ignore_ascii_case).
+        let t18_val = limits
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case("18_receiveTplus"))
+            .map(|(_, &v)| v);
+        let t19_val = limits
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case("19_receiveCplus"))
+            .map(|(_, &v)| v);
+
+        assert_eq!(
+            t18_val,
+            Some(2),
+            "t18 should resolve via case-insensitive match"
+        );
+        assert_eq!(
+            t19_val,
+            Some(3),
+            "t19 should resolve via case-insensitive match"
+        );
     }
 
     #[test]
