@@ -18,6 +18,7 @@ use crate::task::t16_bridge_back_tplus::BridgeBackTplusTask;
 use crate::task::t17_bridge_back_cplus::BridgeBackCplusTask;
 use crate::task::t18_receive_tplus::ReceiveTplusTask;
 use crate::task::t19_receive_cplus::ReceiveCplusTask;
+use crate::task::t20_aave_wbtc_faucet::AaveWbtcFaucetTask;
 use crate::task::{SepoliaTask, TaskContext};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -178,6 +179,7 @@ impl EvmSpammer {
             Box::new(BridgeBackCplusTask),
             Box::new(ReceiveTplusTask),
             Box::new(ReceiveCplusTask),
+            Box::new(AaveWbtcFaucetTask),
         ];
 
         let gas_manager = Arc::new(crate::utils::gas::GasManager::new(

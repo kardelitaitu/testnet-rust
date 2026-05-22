@@ -21,3 +21,4 @@
 | t17 | bridgeBackCplus | Bridge C+ (USDC+) from Base Sepolia → Eth Sepolia via LayerZero OFT `send()` (40% of C+, ~0.0001 ETH fee) |
 | t18 | receiveTplus | Send 5% of T+ + 0.0000721 ETH to a random ephemeral proxy wallet, proxy returns all T+ back to main — tests ERC-20 send/receive round-trip |
 | t19 | receiveCplus | Send 5% of C+ + 0.0000721 ETH to a random ephemeral proxy wallet, proxy returns all C+ back to main — tests ERC-20 send/receive round-trip |
+| t20 | aaveWbtcFaucet | Mint 1 WBTC from AAVE faucet via `mint(address,address,uint256)` |

@@ -24,11 +24,11 @@
 
 use crate::config::{SepoliaConfig, TaskLimits};
 use crate::task::{
-    AaveUsdcFaucetTask, AaveUsdtFaucetTask, BridgeBackCplusTask, BridgeBackTplusTask,
-    BridgeCplusTask, BridgeTplusTask, MintUsdcPlusTask, MintUsdtPlusTask, ReceiveCplusTask,
-    ReceiveTplusTask, RedeemUsdcPlusTask, RedeemUsdtPlusTask, SendRandomUsdcPlusTask,
-    SendRandomUsdtPlusTask, SepoliaCheckBalanceTask, SepoliaTask, StakeUsdcPlusTask,
-    StakeUsdtPlusTask, TaskContext, UnstakeCplusTask, UnstakeTplusTask,
+    AaveUsdcFaucetTask, AaveUsdtFaucetTask, AaveWbtcFaucetTask, BridgeBackCplusTask,
+    BridgeBackTplusTask, BridgeCplusTask, BridgeTplusTask, MintUsdcPlusTask, MintUsdtPlusTask,
+    ReceiveCplusTask, ReceiveTplusTask, RedeemUsdcPlusTask, RedeemUsdtPlusTask,
+    SendRandomUsdcPlusTask, SendRandomUsdtPlusTask, SepoliaCheckBalanceTask, SepoliaTask,
+    StakeUsdcPlusTask, StakeUsdtPlusTask, TaskContext, UnstakeCplusTask, UnstakeTplusTask,
 };
 use crate::utils::gas::GasManager;
 
@@ -77,6 +77,7 @@ pub const ALL_TASK_NAMES: &[&str] = &[
     "17_bridgeBackCplus",
     "18_receiveTplus",
     "19_receiveCplus",
+    "20_aaveWbtcFaucet",
 ];
 
 /// Pause window start (23:55 UTC) in minutes since midnight.
@@ -137,6 +138,7 @@ pub fn all_tasks() -> Vec<Box<dyn SepoliaTask>> {
         Box::new(BridgeBackCplusTask),
         Box::new(ReceiveTplusTask),
         Box::new(ReceiveCplusTask),
+        Box::new(AaveWbtcFaucetTask),
     ]
 }
 
@@ -1061,7 +1063,7 @@ mod tests {
 
     #[test]
     fn test_all_tasks_count() {
-        assert_eq!(all_tasks().len(), 19);
+        assert_eq!(all_tasks().len(), 20);
     }
 
     #[test]
@@ -1198,7 +1200,7 @@ mod tests {
             !remaining.contains(&"01_checkBalance"),
             "task with limit=0 should never be in remaining list"
         );
-        assert_eq!(remaining.len(), 18);
+        assert_eq!(remaining.len(), 19);
     }
 
     #[test]
@@ -1231,12 +1233,14 @@ mod tests {
         let mut limits = HashMap::new();
         limits.insert("01_checkBalance".into(), 0u32);
         let mut counts = HashMap::new();
+        // 5 of 19 non-zero tasks completed (20 total, 1 zero-limit)
         for task in ALL_TASK_NAMES.iter().take(6).skip(1) {
             counts.insert(task.to_string(), 1usize);
         }
 
         let pct = wallet_usage_pct(&counts, &limits);
-        assert!((pct - 27.78).abs() < 0.1, "expected ~27.78%, got {}", pct);
+        // 5 of 19 done = 26.32%
+        assert!((pct - 26.32).abs() < 0.1, "expected ~26.32%, got {}", pct);
     }
 
     #[test]
@@ -1258,7 +1262,7 @@ mod tests {
         let limits = HashMap::new(); // default limit=1
 
         let remaining = get_remaining_tasks(&counts, &limits);
-        assert_eq!(remaining.len(), 18); // 19 total - 1 done
+        assert_eq!(remaining.len(), 19); // 19 total - 1 done
         assert!(!remaining.contains(&"01_checkBalance"));
     }
 
@@ -1271,7 +1275,7 @@ mod tests {
 
         let remaining = get_remaining_tasks(&counts, &limits);
         assert!(remaining.contains(&"01_checkBalance")); // still has capacity
-        assert_eq!(remaining.len(), 19); // all tasks have capacity
+        assert_eq!(remaining.len(), 20); // all tasks have capacity
     }
 
     #[test]
@@ -1283,7 +1287,7 @@ mod tests {
 
         let remaining = get_remaining_tasks(&counts, &limits);
         assert!(!remaining.contains(&"01_checkBalance")); // at capacity
-        assert_eq!(remaining.len(), 18); // 18 other tasks at limit=1 with 0 done
+        assert_eq!(remaining.len(), 19); // 18 other tasks at limit=1 with 0 done
     }
 
     #[test]
@@ -1322,7 +1326,7 @@ mod tests {
         let counts = HashMap::new();
         let limits = HashMap::new();
         let remaining = get_remaining_tasks(&counts, &limits);
-        assert_eq!(remaining.len(), 19, "All 19 tasks should be pending");
+        assert_eq!(remaining.len(), 20, "All 20 tasks should be pending");
         for expected in ALL_TASK_NAMES {
             assert!(remaining.contains(expected), "Missing: {}", expected);
         }
@@ -1338,8 +1342,8 @@ mod tests {
 
         let remaining = get_remaining_tasks(&counts, &limits);
         assert!(!remaining.contains(&"01_checkBalance")); // 5 >= 3 → excluded
-                                                          // Other 16 tasks still pending
-        assert_eq!(remaining.len(), 18);
+                                                          // Other 17 tasks still pending
+        assert_eq!(remaining.len(), 19);
     }
 
     #[test]
@@ -1351,7 +1355,7 @@ mod tests {
 
         let remaining = get_remaining_tasks(&counts, &limits);
         assert!(!remaining.contains(&"01_checkBalance")); // limit=0, 0 < 0 = false
-        assert_eq!(remaining.len(), 18, "Only checkBalance should be excluded");
+        assert_eq!(remaining.len(), 19, "Only checkBalance should be excluded");
     }
 
     // ---- ALL_TASK_NAMES format ----
@@ -1422,9 +1426,9 @@ mod tests {
                 .await
                 .unwrap();
         }
-        // Wallet 1: 0/19 done
-        // Wallet 2: all 19/19 done (with limit=1 each)
-        for i in 0..19 {
+        // Wallet 1: 0/20 done
+        // Wallet 2: all 20/20 done (with limit=1 each)
+        for i in 0..20 {
             db.record_task_completion("0xcharlie", ALL_TASK_NAMES[i], &date, true, "ok")
                 .await
                 .unwrap();
@@ -1472,7 +1476,7 @@ mod tests {
         assert_eq!(counts.len(), 5);
 
         let pending = get_remaining_tasks(&counts, &limits);
-        assert_eq!(pending.len(), 14, "14 tasks should be pending");
+        assert_eq!(pending.len(), 15, "15 tasks should be pending");
 
         // None of the pending tasks should be in completed
         for task in &pending {
@@ -1499,7 +1503,7 @@ mod tests {
 
         // Pending should still include the task
         let pending = get_remaining_tasks(&counts, &limits);
-        assert_eq!(pending.len(), 19, "All 19 tasks should still be pending");
+        assert_eq!(pending.len(), 20, "All 20 tasks should still be pending");
     }
 
     #[tokio::test]
@@ -1531,8 +1535,8 @@ mod tests {
         let pending = get_remaining_tasks(&counts, &limits);
         // checkBalance still has capacity (3/5 done), so it's still pending
         assert!(pending.contains(&"01_checkBalance"));
-        // 18 other tasks at limit=1 with 0 done
-        assert_eq!(pending.len(), 19);
+        // 19 other tasks at limit=1 with 0 done
+        assert_eq!(pending.len(), 20);
     }
 
     #[tokio::test]
@@ -1554,7 +1558,7 @@ mod tests {
 
         let pending = get_remaining_tasks(&counts, &limits);
         assert!(pending.contains(&"01_checkBalance")); // still has 3 more
-        assert_eq!(pending.len(), 19);
+        assert_eq!(pending.len(), 20);
     }
 
     // ------------------------------------------------------------------
@@ -1665,7 +1669,7 @@ mod tests {
                 **t != "01_checkBalance" && **t != "02_mintUsdtPlus" && **t != "03_mintUsdcPlus"
             })
             .collect();
-        assert_eq!(remaining_tasks.len(), 16, "16 remaining tasks expected");
+        assert_eq!(remaining_tasks.len(), 17, "17 remaining tasks expected");
 
         for task in &remaining_tasks {
             db.record_task_completion(wallet, task, &date, true, "ok")
@@ -1706,7 +1710,7 @@ mod tests {
 
         // ---- Verify total completions ----
         let total = db.get_total_completed(wallet, &date).await.unwrap();
-        assert_eq!(total, 26, "Total completions = 5 + 3 + 2 + (16 x 1) = 26");
+        assert_eq!(total, 27, "Total completions = 5 + 3 + 2 + (17 x 1) = 27");
     }
 
     #[tokio::test]
@@ -2801,7 +2805,7 @@ mod tests {
     #[test]
     fn test_all_tasks_have_no_duplicate_names() {
         let tasks = all_tasks();
-        assert_eq!(tasks.len(), 19, "Must have exactly 19 tasks");
+        assert_eq!(tasks.len(), 20, "Must have exactly 20 tasks");
 
         let mut names = std::collections::HashSet::new();
         for t in &tasks {
@@ -2827,8 +2831,8 @@ mod tests {
         }
         assert_eq!(
             names.len(),
-            19,
-            "Duplicate task names found: {} unique, expected 19",
+            20,
+            "Duplicate task names found: {} unique, expected 20",
             names.len()
         );
     }
@@ -2844,17 +2848,17 @@ mod tests {
     }
 
     #[test]
-    fn test_wallet_usage_pct_one_of_seventeen_default_limits() {
+    fn test_wallet_usage_pct_one_of_twenty_default_limits() {
         let mut counts = HashMap::new();
         counts.insert("01_checkBalance".to_string(), 1usize);
         let limits = HashMap::new();
-        // 1 done / 17 total = ~5.88%
+        // 1 done / 20 total = 5.0%
         let pct = wallet_usage_pct(&counts, &limits);
-        assert!(pct > 5.0 && pct < 7.0, "Expected ~5.88%, got {}", pct);
+        assert!(pct > 4.0 && pct < 6.0, "Expected 5.0%, got {}", pct);
     }
 
     #[test]
-    fn test_wallet_usage_pct_eight_of_nineteen() {
+    fn test_wallet_usage_pct_eight_of_twenty() {
         let mut counts = HashMap::new();
         for i in 0..8 {
             let name = ALL_TASK_NAMES[i];
@@ -2862,7 +2866,7 @@ mod tests {
         }
         let limits = HashMap::new();
         let pct = wallet_usage_pct(&counts, &limits);
-        let expected = 8.0 / 19.0 * 100.0;
+        let expected = 8.0 / 20.0 * 100.0;
         assert!(
             (pct - expected).abs() < 0.5,
             "Expected ~{:.1}%, got {}",
@@ -2872,7 +2876,7 @@ mod tests {
     }
 
     #[test]
-    fn test_wallet_usage_pct_all_nineteen_done() {
+    fn test_wallet_usage_pct_all_twenty_done() {
         let mut counts = HashMap::new();
         for name in ALL_TASK_NAMES {
             counts.insert(name.to_string(), 1usize);
@@ -2888,7 +2892,7 @@ mod tests {
         counts.insert("01_checkBalance".to_string(), 50usize);
         let mut limits = HashMap::new();
         limits.insert("01_checkbalance".into(), 100u32);
-        // 50 done / (100 + 16*1) = 50/116 ≈ 43.1%
+        // 50 done / (100 + 19*1) = 50/119 ≈ 42.0%
         let pct = wallet_usage_pct(&counts, &limits);
         assert!(pct > 40.0 && pct < 45.0, "Expected ~43.1%, got {}", pct);
     }

@@ -31,8 +31,8 @@ task_timeout_secs = 120
 #
 [task_limits]
 01_checkbalance = 2
-02_mintusdtplus = 5
-03_mintusdcplus = 5
+02_mintusdtplus = 10
+03_mintusdcplus = 10
 04_redeemusdtplus = 2
 05_redeemusdcplus = 2
 06_stakeusdtplus = 5
@@ -49,6 +49,7 @@ task_timeout_secs = 120
 17_bridgebackcplus = 1
 18_receivetplus = 1
 19_receivecplus = 1
+20_aavewbtcfaucet = 3
 
 
 # Command to Run

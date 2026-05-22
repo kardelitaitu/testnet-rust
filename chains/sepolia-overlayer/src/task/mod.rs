@@ -41,6 +41,7 @@ pub mod t16_bridge_back_tplus;
 pub mod t17_bridge_back_cplus;
 pub mod t18_receive_tplus;
 pub mod t19_receive_cplus;
+pub mod t20_aave_wbtc_faucet;
 
 pub use t01_check_balance::SepoliaCheckBalanceTask;
 pub use t02_mint_usdt_plus::MintUsdtPlusTask;
@@ -61,6 +62,7 @@ pub use t16_bridge_back_tplus::BridgeBackTplusTask;
 pub use t17_bridge_back_cplus::BridgeBackCplusTask;
 pub use t18_receive_tplus::ReceiveTplusTask;
 pub use t19_receive_cplus::ReceiveCplusTask;
+pub use t20_aave_wbtc_faucet::AaveWbtcFaucetTask;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,6 +89,7 @@ mod tests {
             Box::new(BridgeBackCplusTask),
             Box::new(ReceiveTplusTask),
             Box::new(ReceiveCplusTask),
+            Box::new(AaveWbtcFaucetTask),
         ];
 
         let expected = [
@@ -109,9 +112,9 @@ mod tests {
             "17_bridgeBackCplus",
             "18_receiveTplus",
             "19_receiveCplus",
+            "20_aaveWbtcFaucet",
         ];
-
-        assert_eq!(tasks.len(), expected.len(), "Task count mismatch");
+        assert_eq!(tasks.len(), expected.len(), "tasks len != expected len");
 
         let mut seen = std::collections::HashSet::new();
         for (i, task) in tasks.iter().enumerate() {
