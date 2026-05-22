@@ -1177,6 +1177,80 @@ mod tests {
         assert!(!wallet_has_remaining(&counts, &limits));
     }
 
+    // ---- Zero-limit tests (limit=0 means "never run this task") ----
+
+    #[test]
+    fn test_get_task_limit_returns_zero() {
+        let mut limits = HashMap::new();
+        limits.insert("01_checkBalance".into(), 0u32);
+        assert_eq!(get_task_limit(&limits, "01_checkBalance"), 0);
+        assert_eq!(get_task_limit(&limits, "02_mintUsdtPlus"), 1);
+    }
+
+    #[test]
+    fn test_get_remaining_tasks_zero_limit_task_excluded() {
+        let mut limits = HashMap::new();
+        limits.insert("01_checkBalance".into(), 0u32);
+        let counts = HashMap::new();
+
+        let remaining = get_remaining_tasks(&counts, &limits);
+        assert!(
+            !remaining.contains(&"01_checkBalance"),
+            "task with limit=0 should never be in remaining list"
+        );
+        assert_eq!(remaining.len(), 18);
+    }
+
+    #[test]
+    fn test_wallet_has_remaining_zero_limit_task_does_not_keep_wallet_active() {
+        let mut limits = HashMap::new();
+        limits.insert("01_checkBalance".into(), 0u32);
+        let counts = HashMap::new();
+
+        assert!(wallet_has_remaining(&counts, &limits));
+    }
+
+    #[test]
+    fn test_wallet_all_zero_limits_reports_no_remaining() {
+        let limits: HashMap<String, u32> = ALL_TASK_NAMES
+            .iter()
+            .map(|t| (t.to_string(), 0u32))
+            .collect();
+        let counts = HashMap::new();
+
+        assert!(!wallet_has_remaining(&counts, &limits));
+        let remaining = get_remaining_tasks(&counts, &limits);
+        assert!(
+            remaining.is_empty(),
+            "all-zero limits should produce empty pending"
+        );
+    }
+
+    #[test]
+    fn test_wallet_usage_pct_excludes_zero_limit_tasks() {
+        let mut limits = HashMap::new();
+        limits.insert("01_checkBalance".into(), 0u32);
+        let mut counts = HashMap::new();
+        for task in ALL_TASK_NAMES.iter().take(6).skip(1) {
+            counts.insert(task.to_string(), 1usize);
+        }
+
+        let pct = wallet_usage_pct(&counts, &limits);
+        assert!((pct - 27.78).abs() < 0.1, "expected ~27.78%, got {}", pct);
+    }
+
+    #[test]
+    fn test_wallet_usage_pct_all_zero_limits_returns_zero() {
+        let limits: HashMap<String, u32> = ALL_TASK_NAMES
+            .iter()
+            .map(|t| (t.to_string(), 0u32))
+            .collect();
+        let counts = HashMap::new();
+
+        let pct = wallet_usage_pct(&counts, &limits);
+        assert_eq!(pct, 0.0, "all-zero limits should return 0%");
+    }
+
     #[test]
     fn test_get_remaining_tasks_basic() {
         let mut counts = HashMap::new();
