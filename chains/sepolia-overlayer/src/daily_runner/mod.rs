@@ -374,7 +374,9 @@ impl DailyRunner {
 
     /// Check if the config file has been modified and reload task limits.
     async fn refresh_task_limits(&self) {
-        let Some(ref path) = self.config_path else { return };
+        let Some(ref path) = self.config_path else {
+            return;
+        };
 
         let current_mtime = match std::fs::metadata(path).and_then(|m| m.modified()) {
             Ok(m) => m,
@@ -430,7 +432,7 @@ impl DailyRunner {
         );
 
         let task_timeout_secs = self.config.task_timeout_secs.unwrap_or(120).max(1);
-        let task_timeout = Duration::from_secs(task_timeout_secs);
+        let _task_timeout = Duration::from_secs(task_timeout_secs);
 
         loop {
             if cancel.is_cancelled() {
@@ -515,14 +517,7 @@ impl DailyRunner {
                 }
             }
 
-            // Execute one pending task for this wallet, but do not let a single
-            // RPC or receipt wait stall the wallet forever.
-            let task_future = tokio::time::timeout(
-                task_timeout,
-                self.execute_one_task(wallet_idx, &today, worker_id),
-            );
-            tokio::pin!(task_future);
-
+            // Execute one pending task for this wallet.
             let outcome = tokio::select! {
                 _ = cancel.cancelled() => {
                     info!(
@@ -531,17 +526,8 @@ impl DailyRunner {
                     );
                     None
                 }
-                result = &mut task_future => {
-                    Some(match result {
-                        Ok(outcome) => outcome,
-                        Err(_) => TaskOutcome::Timeout {
-                            task_name: "unknown".into(),
-                            message: format!("Task exceeded {}s timeout", task_timeout_secs),
-                            proxy_id: "---".into(),
-                            count: 0,
-                            limit: 0,
-                        },
-                    })
+                outcome = self.execute_one_task(wallet_idx, &today, worker_id) => {
+                    Some(outcome)
                 }
             };
 
@@ -784,10 +770,14 @@ impl DailyRunner {
             gas_manager: ctx_gas,
         };
 
-        // Execute the task
+        // Execute the task with a timeout so RPC hangs don't stall the wallet
+        let task_timeout = self.config.task_timeout_secs.unwrap_or(120).max(1);
         let start = std::time::Instant::now();
-        match task.run(ctx).await {
-            Ok(result) => {
+        let run_result =
+            tokio::time::timeout(Duration::from_secs(task_timeout), task.run(ctx)).await;
+
+        match run_result {
+            Ok(Ok(result)) => {
                 let elapsed = start.elapsed();
 
                 if let Some(ref proxy) = proxy_config {
@@ -826,7 +816,7 @@ impl DailyRunner {
                     }
                 }
             }
-            Err(e) => {
+            Ok(Err(e)) => {
                 let elapsed = start.elapsed();
 
                 if let Some(ref proxy) = proxy_config {
@@ -846,6 +836,34 @@ impl DailyRunner {
                 TaskOutcome::Retry {
                     task_name: task_name.to_string(),
                     message: format!("{}", e),
+                    proxy_id: proxy_id.clone(),
+                    count: current_count,
+                    limit: current_limit,
+                }
+            }
+            Err(_) => {
+                let elapsed = start.elapsed();
+
+                if let Some(ref proxy) = proxy_config {
+                    self.proxy_health.record_failure(&proxy.url).await;
+                }
+
+                let msg = format!(
+                    "Task exceeded {}s timeout ({:.1}s)",
+                    task_timeout,
+                    elapsed.as_secs_f64()
+                );
+                if let Err(log_err) = self
+                    .db
+                    .record_task_completion(wallet_addr, task_name, today, false, &msg)
+                    .await
+                {
+                    warn!("Failed to record task failure: {}", log_err);
+                }
+
+                TaskOutcome::Timeout {
+                    task_name: task_name.to_string(),
+                    message: msg,
                     proxy_id: proxy_id.clone(),
                     count: current_count,
                     limit: current_limit,
