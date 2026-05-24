@@ -29,6 +29,7 @@ impl BatchSendTransactionMemeTask {
         Self
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn execute_batch(
         &self,
         ctx: &TaskContext,

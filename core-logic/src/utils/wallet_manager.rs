@@ -12,20 +12,15 @@ use std::fmt;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Supported blockchain types for polymorphic wallet management
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Zeroize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Zeroize)]
 pub enum ChainType {
+    #[default]
     Evm,
     Solana,
     Sui,
     Aptos,
     Tron,
     Ton,
-}
-
-impl Default for ChainType {
-    fn default() -> Self {
-        Self::Evm
-    }
 }
 
 impl fmt::Display for ChainType {

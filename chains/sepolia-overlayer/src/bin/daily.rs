@@ -49,6 +49,10 @@ struct Args {
     #[arg(long, default_value_t = 0.01)]
     min_gwei: f64,
 
+    /// Maximum gas fee cap in gwei
+    #[arg(long, default_value_t = 1.2)]
+    max_gwei: f64,
+
     /// Disable proxy loading
     #[arg(long)]
     no_proxy: bool,
@@ -139,7 +143,7 @@ async fn main() -> Result<()> {
     };
 
     let proxy_health = Arc::new(core_logic::ProxyHealthManager::new(3, 5));
-    let proxy_rate_limiter = Arc::new(core_logic::ProxyRateLimiter::new(config.tps as u32));
+    let proxy_rate_limiter = Arc::new(core_logic::ProxyRateLimiter::new(config.tps));
 
     // Daily database
     let db = sepolia_overlayer::daily_runner::database::DailyDb::new(&args.db_path).await?;
@@ -173,13 +177,21 @@ async fn main() -> Result<()> {
         reqwest::Url::parse(&config.rpc_url)?,
         client,
     ));
-    let gas_manager = Arc::new(GasManager::new(Arc::new(provider), args.min_gwei));
+    let gas_manager = Arc::new(GasManager::with_max(
+        Arc::new(provider),
+        args.min_gwei,
+        args.max_gwei,
+    ));
 
     let base_gas_manager = base_config.as_ref().map(|_| {
         let base_provider = ethers::providers::Provider::new(ethers::providers::Http::new(
             reqwest::Url::parse(base_rpc_url.as_deref().unwrap()).expect("Invalid base RPC URL"),
         ));
-        Arc::new(GasManager::new(Arc::new(base_provider), args.min_gwei))
+        Arc::new(GasManager::with_max(
+            Arc::new(base_provider),
+            args.min_gwei,
+            args.max_gwei,
+        ))
     });
 
     // Build per-task limits (default = 1 for tasks not in config)

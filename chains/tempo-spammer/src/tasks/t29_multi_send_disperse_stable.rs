@@ -46,11 +46,10 @@ impl TempoTask for MultiSendDisperseStableTask {
         let wallet_addr_str = address.to_string();
 
         // 1. Select Stable Token
-        let stable_tokens = if let Some(db) = &ctx.db {
-            match db.get_assets_by_type(&wallet_addr_str, "stablecoin").await {
-                Ok(addresses) => addresses,
-                Err(_) => Vec::new(),
-            }
+        let stable_tokens: Vec<String> = if let Some(db) = &ctx.db {
+            db.get_assets_by_type(&wallet_addr_str, "stablecoin")
+                .await
+                .unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -141,8 +140,10 @@ impl TempoTask for MultiSendDisperseStableTask {
             }
         }
 
-        if last_tx_hash.is_none() && first_error.is_some() {
-            return Err(anyhow::anyhow!(first_error.unwrap()));
+        if last_tx_hash.is_none() {
+            if let Some(err) = first_error {
+                return Err(anyhow::anyhow!(err));
+            }
         }
 
         Ok(TaskResult {

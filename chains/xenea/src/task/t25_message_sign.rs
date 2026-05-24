@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use ethers::prelude::*;
 use hex::encode as hex_encode;
 
+#[derive(Default)]
 pub struct MessageSignTask;
 
 impl MessageSignTask {

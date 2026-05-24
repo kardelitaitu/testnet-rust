@@ -6,6 +6,7 @@ use ethers::prelude::*;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct GasPriceZeroTask;
 
 impl GasPriceZeroTask {

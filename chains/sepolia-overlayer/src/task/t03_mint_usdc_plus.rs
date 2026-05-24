@@ -1,5 +1,5 @@
 use super::{SepoliaTask, TaskContext, TaskResult};
-use crate::utils::calc::calc_eighty_pct_6dec;
+use crate::utils::calc::calc_pct_rounded;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::middleware::SignerMiddleware;
@@ -69,15 +69,15 @@ impl SepoliaTask for MintUsdcPlusTask {
         // Check USDC balance
         let usdc_balance = get_usdc_balance(provider, address).await?;
 
-        // Calculate 80% of USDC balance, rounded to nearest whole USDC
-        let mint_amount = calc_eighty_pct_6dec(usdc_balance.as_u128());
+        // Calculate 3% of USDC balance, rounded to nearest whole USDC
+        let mint_amount = calc_pct_rounded(usdc_balance.as_u128(), 3, 100, 6);
         let required = U256::from(mint_amount);
         let whole_usdc = mint_amount / 1_000_000u128;
 
         if whole_usdc == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "1% of USDC balance rounds to 0, nothing to mint".to_string(),
+                message: "3% of USDC balance rounds to 0, nothing to mint".to_string(),
             });
         }
 
@@ -94,7 +94,7 @@ impl SepoliaTask for MintUsdcPlusTask {
             );
 
             let approve_call = usdc_contract
-                .method::<_, H256>("approve", (usdc_plus_addr, required))?
+                .method::<_, H256>("approve", (usdc_plus_addr, U256::MAX))?
                 .gas(50000);
             let approve_tx = approve_call.send().await?;
 

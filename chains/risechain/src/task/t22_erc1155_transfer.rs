@@ -8,6 +8,7 @@ use rand::Rng;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct Erc1155TransferTask;
 
 impl Erc1155TransferTask {

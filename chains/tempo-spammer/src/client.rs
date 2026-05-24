@@ -120,6 +120,7 @@ pub struct TempoClient {
 
 impl TempoClient {
     /// Creates a new client from an existing reqwest client
+    #[allow(clippy::too_many_arguments)]
     pub async fn new_from_reqwest(
         rpc_url: &str,
         private_key: &str,

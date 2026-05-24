@@ -247,10 +247,10 @@ impl EvmSpammer {
                     e
                 );
                 // Fallback: all tasks have equal weight
-                WeightedIndex::new(&vec![1; weights.len()]).unwrap_or_else(|e| {
+                WeightedIndex::new(vec![1; weights.len()]).unwrap_or_else(|e| {
                     // Ultimate fallback - single task with weight 1
                     tracing::error!(target: "smart_main", "Critical error creating distribution: {}", e);
-                    WeightedIndex::new(&vec![1]).expect("Failed to create fallback distribution")
+                    WeightedIndex::new(vec![1]).expect("Failed to create fallback distribution")
                 })
             }
         };

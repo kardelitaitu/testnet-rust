@@ -9,6 +9,7 @@ use rand::{seq::SliceRandom, Rng};
 use std::sync::Arc;
 use tracing::{debug, info};
 
+#[derive(Default)]
 pub struct NftTransferTask;
 
 impl NftTransferTask {

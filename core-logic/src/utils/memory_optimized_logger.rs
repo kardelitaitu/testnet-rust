@@ -130,7 +130,7 @@ impl MemoryOptimizedFileAppender {
         let mut log_files: Vec<_> = std::fs::read_dir(log_dir)?
             .filter_map(|entry| entry.ok())
             .filter(|entry| {
-                entry.path().is_file() && entry.path().extension().map_or(false, |ext| ext == "log")
+                entry.path().is_file() && entry.path().extension().is_some_and(|ext| ext == "log")
             })
             .collect();
 

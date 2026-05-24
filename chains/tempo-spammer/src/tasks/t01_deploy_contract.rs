@@ -88,7 +88,7 @@ impl TempoTask for DeployContractTask {
             }
         };
 
-        let tx_hash = pending.tx_hash().clone();
+        let tx_hash = *pending.tx_hash();
 
         if let Some(db) = &ctx.db {
             db.log_counter_contract_creation(

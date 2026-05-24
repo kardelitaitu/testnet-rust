@@ -1033,7 +1033,7 @@ impl ClientPool {
             .connect_timeout(std::time::Duration::from_secs(10))
             .pool_idle_timeout(None);
 
-        if let Some(ref proxy_config) = proxy_config {
+        if let Some(proxy_config) = proxy_config {
             let proxy = reqwest::Proxy::all(&proxy_config.url)
                 .with_context(|| format!("Failed to create proxy for URL: {}", proxy_config.url))?;
 

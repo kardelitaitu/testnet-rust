@@ -47,10 +47,10 @@ impl SepoliaTask for UnstakeTplusTask {
         // --- 1. Check sOverl... (staked share) balance ---
         let sovl_balance = get_sovl_balance(provider, address).await?;
 
-        // --- 2. Calculate 2% of sOverl... balance, round to 2 decimal places ---
+        // --- 2. Calculate 10% of sOverl... balance, round to 2 decimal places ---
         // sOverl... has 18 decimals; rounding to 2dp means rounding to 10^16 units
         let two_dp_unit: u128 = 10_000_000_000_000_000; // 10^16 = 0.01 shares
-        let mut shares_amount = calc_pct_rounded(sovl_balance.as_u128(), 2, 100, 16);
+        let mut shares_amount = calc_pct_rounded(sovl_balance.as_u128(), 10, 100, 16);
         if shares_amount < two_dp_unit {
             shares_amount = two_dp_unit; // minimum 0.01 shares
         }

@@ -133,8 +133,7 @@ async fn main() -> Result<()> {
     let mut wallet_indices: Vec<usize> = (0..total_wallets).collect();
     wallet_indices.shuffle(&mut rng);
 
-    for i in 0..max_workers {
-        let wallet_idx = wallet_indices[i];
+    for &wallet_idx in wallet_indices.iter().take(max_workers) {
         // Lazy decrypt
         let decrypted = match manager
             .get_wallet(wallet_idx, wallet_password.as_deref())

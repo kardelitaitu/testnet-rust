@@ -7,6 +7,7 @@ use rand::Rng;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct StoragePatternTask;
 
 impl StoragePatternTask {
@@ -42,7 +43,7 @@ impl Task<TaskContext> for StoragePatternTask {
         let value_b: u128 = rng.gen();
         let packed = (U256::from(value_a) << 128) | U256::from(value_b);
 
-        let deploy_data = hex::decode(&storage_bytecode.trim_start_matches("0x")).unwrap();
+        let deploy_data = hex::decode(storage_bytecode.trim_start_matches("0x")).unwrap();
         let deploy_data_bytes = Bytes::from(deploy_data);
 
         debug!(
@@ -80,7 +81,7 @@ impl Task<TaskContext> for StoragePatternTask {
         // Verify code
         let code = provider.get_code(contract_address, None).await?;
         debug!("Code length at deployment: {}", code.len());
-        if code.len() == 0 {
+        if code.is_empty() {
             return Err(anyhow::Error::msg("Deployed contract has no code!"));
         }
 

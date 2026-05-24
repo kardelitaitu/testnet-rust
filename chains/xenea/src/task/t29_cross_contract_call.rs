@@ -6,6 +6,7 @@ use std::sync::Arc;
 use tokio::time::{timeout, Duration};
 use tracing::debug;
 
+#[derive(Default)]
 pub struct CrossContractCallTask;
 
 impl CrossContractCallTask {
@@ -28,7 +29,7 @@ impl Task<TaskContext> for CrossContractCallTask {
         let gas_price = U256::from(1_100_000_000u64);
         let deploy_gas_limit = crate::utils::gas::GasManager::LIMIT_DEPLOY;
         let call_gas_limit = 500_000u64;
-        let estimated_gas = U256::from(deploy_gas_limit + call_gas_limit) * gas_price;
+        let estimated_gas = (deploy_gas_limit + call_gas_limit) * gas_price;
 
         // 1. Balance check
         let balance = provider.get_balance(address, None).await?;

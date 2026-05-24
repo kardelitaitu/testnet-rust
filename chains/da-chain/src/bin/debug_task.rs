@@ -9,7 +9,6 @@ use da_chain_project::task::{
 use dialoguer::{theme::ColorfulTheme, Select};
 use dotenv::dotenv;
 use ethers::prelude::*;
-use reqwest;
 use std::env;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -33,8 +32,11 @@ struct Args {
     #[arg(long)]
     no_proxy: bool,
 
-    #[arg(long, default_value_t = 700.0)]
+    #[arg(long, default_value_t = 0.2)]
     min_gwei: f64,
+
+    #[arg(long, default_value_t = 0.5)]
+    max_gwei: f64,
 }
 
 #[tokio::main]
@@ -138,17 +140,14 @@ async fn main() -> Result<()> {
     let client = if let Some(ref proxy_str) = proxy_url {
         println!(
             "Using proxy: {}",
-            proxy_str.split('@').last().unwrap_or("...")
+            proxy_str.split('@').next_back().unwrap_or("...")
         );
         match reqwest::Proxy::all(proxy_str) {
-            Ok(p) => client_builder
-                .proxy(p)
-                .build()
-                .unwrap_or(reqwest::Client::new()),
-            Err(_) => client_builder.build().unwrap_or(reqwest::Client::new()),
+            Ok(p) => client_builder.proxy(p).build().unwrap_or_default(),
+            Err(_) => client_builder.build().unwrap_or_default(),
         }
     } else {
-        client_builder.build().unwrap_or(reqwest::Client::new())
+        client_builder.build().unwrap_or_default()
     };
 
     let provider = Provider::new(Http::new_with_client(Url::parse(&cfg.rpc_url)?, client));
@@ -197,9 +196,10 @@ async fn main() -> Result<()> {
     println!("Using wallet: {:?}", wallet.address());
 
     // 9. Create GasManager
-    let gas_manager = Arc::new(da_chain_project::utils::gas::GasManager::new(
+    let gas_manager = Arc::new(da_chain_project::utils::gas::GasManager::with_max(
         Arc::new(provider.clone()),
         args.min_gwei,
+        args.max_gwei,
     ));
 
     // 10. Create TaskContext

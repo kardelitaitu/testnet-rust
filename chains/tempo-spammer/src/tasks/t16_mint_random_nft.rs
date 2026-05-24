@@ -65,11 +65,10 @@ impl TempoTask for MintRandomNftTask {
         let mut rng = rand::rngs::OsRng;
 
         // Step 1: Query database for NFT collections
-        let available_collections = if let Some(db) = &ctx.db {
-            match db.get_assets_by_type(&wallet_address, "nft").await {
-                Ok(collections) => collections,
-                Err(_e) => Vec::new(),
-            }
+        let available_collections: Vec<String> = if let Some(db) = &ctx.db {
+            db.get_assets_by_type(&wallet_address, "nft")
+                .await
+                .unwrap_or_default()
         } else {
             return Ok(TaskResult {
                 success: false,

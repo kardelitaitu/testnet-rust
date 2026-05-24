@@ -7,6 +7,7 @@ use rand::rngs::OsRng;
 use rand::Rng;
 use std::sync::Arc;
 
+#[derive(Default)]
 pub struct ContractCallRawTask;
 
 impl ContractCallRawTask {
@@ -56,7 +57,7 @@ impl Task<TaskContext> for ContractCallRawTask {
 
         let data = ethers::abi::encode(&[
             ethers::abi::Token::Address(recipient),
-            ethers::abi::Token::Uint(amount_wei.into()),
+            ethers::abi::Token::Uint(amount_wei),
         ]);
 
         let tx = Eip1559TransactionRequest::new()

@@ -4,23 +4,12 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ProxyHealth {
     pub failure_count: u32,
     pub last_failure: Option<Instant>,
     pub paused_until: Option<Instant>,
     pub success_count: u32,
-}
-
-impl Default for ProxyHealth {
-    fn default() -> Self {
-        Self {
-            failure_count: 0,
-            last_failure: None,
-            paused_until: None,
-            success_count: 0,
-        }
-    }
 }
 
 pub struct ProxyHealthManager {

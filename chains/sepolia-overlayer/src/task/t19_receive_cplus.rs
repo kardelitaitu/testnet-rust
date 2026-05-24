@@ -17,9 +17,12 @@ const CPLUS_ABI: &str = r#"[
     {"constant":false,"inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"name":"transfer","outputs":[{"name":"","type":"bool"}],"type":"function"}
 ]"#;
 
-/// ETH to send to the proxy wallet for gas (enough for a single ERC-20 transfer).
-const PROXY_GAS_WEI: u128 = 72_100_000_000_000; // 0.0000721 ETH
-
+/// Gas budget for proxy top-up (return transfer only, with a small buffer).
+const PROXY_TOPUP_GAS_LIMIT: u64 = 80_000;
+/// Gas buffer for main wallet's two transactions (token transfer 60k + ETH send 21k) + margin
+const MAIN_GAS_LIMIT: u64 = 125_000;
+/// Gas limit for the token return transfer itself.
+const RETURN_TRANSFER_GAS_LIMIT: u64 = 60_000;
 /// Maximum time to wait for the proxy to confirm receipt.
 const PROXY_POLL_TIMEOUT_SECS: u64 = 60;
 
@@ -70,15 +73,21 @@ impl SepoliaTask for ReceiveCplusTask {
         }
 
         // ------------------------------------------------------------------
-        // 3. Check main wallet has enough ETH for gas + proxy funding
+        // 3. Get gas fees
+        // ------------------------------------------------------------------
+        let (max_fee, _priority_fee) = ctx.gas_manager.get_fees().await?;
+
+        // ------------------------------------------------------------------
+        // 4. Check main wallet has enough ETH for gas + proxy funding
         // ------------------------------------------------------------------
         let main_eth: U256 = provider
             .get_balance(main_addr, None)
             .await
             .context("Failed to check main ETH balance")?;
 
-        let proxy_gas_u256 = U256::from(PROXY_GAS_WEI);
-        let min_eth = proxy_gas_u256 + U256::from(2_000_000_000_000_000u128); // 0.002 ETH buffer
+        let proxy_gas_u256 = calculate_proxy_topup_amount(max_fee);
+        let main_gas_u256 = U256::from(MAIN_GAS_LIMIT) * max_fee;
+        let min_eth = proxy_gas_u256 + main_gas_u256;
         if main_eth < min_eth {
             return Ok(TaskResult {
                 success: false,
@@ -90,17 +99,15 @@ impl SepoliaTask for ReceiveCplusTask {
         }
 
         // ------------------------------------------------------------------
-        // 4. Build main-wallet signer
+        // 5. Build main-wallet signer
         // ------------------------------------------------------------------
-        let (max_fee, _priority_fee) = ctx.gas_manager.get_fees().await?;
-
         let main_signer = Arc::new(SignerMiddleware::new(
             provider.clone(),
             main_wallet.clone().with_chain_id(chain_id),
         ));
 
         // ------------------------------------------------------------------
-        // 5. Send C+ from main → proxy
+        // 6. Send C+ from main → proxy
         // ------------------------------------------------------------------
         let cplus_contract = Contract::new(
             cplus_addr,
@@ -110,7 +117,7 @@ impl SepoliaTask for ReceiveCplusTask {
 
         let transfer_call = cplus_contract
             .method::<_, H256>("transfer", (proxy_addr, amount))?
-            .gas(60_000)
+            .gas(RETURN_TRANSFER_GAS_LIMIT)
             .gas_price(max_fee);
 
         let tx = transfer_call
@@ -131,7 +138,7 @@ impl SepoliaTask for ReceiveCplusTask {
         }
 
         // ------------------------------------------------------------------
-        // 6. Send ETH from main → proxy (for proxy's return gas)
+        // 7. Send ETH from main → proxy (for proxy's return gas)
         // ------------------------------------------------------------------
         let eth_tx = main_signer
             .send_transaction(TransactionRequest::pay(proxy_addr, proxy_gas_u256), None)
@@ -151,7 +158,7 @@ impl SepoliaTask for ReceiveCplusTask {
         }
 
         // ------------------------------------------------------------------
-        // 7. Wait for proxy to confirm receipt of both
+        // 8. Wait for proxy to confirm receipt of both
         // ------------------------------------------------------------------
         let proxy_amount = amount;
         let deadline = std::time::Instant::now() + Duration::from_secs(PROXY_POLL_TIMEOUT_SECS);
@@ -180,10 +187,10 @@ impl SepoliaTask for ReceiveCplusTask {
         };
 
         // ------------------------------------------------------------------
-        // 8. Check proxy has enough ETH for return gas
+        // 9. Check proxy has enough ETH for return gas
         // ------------------------------------------------------------------
         let (proxy_max_fee, _) = ctx.gas_manager.get_fees().await?;
-        let estimated_cost = U256::from(60_000u64) * proxy_max_fee;
+        let estimated_cost = U256::from(RETURN_TRANSFER_GAS_LIMIT) * proxy_max_fee;
         if proxy_eth_balance < estimated_cost {
             return Ok(TaskResult {
                 success: false,
@@ -198,7 +205,7 @@ impl SepoliaTask for ReceiveCplusTask {
         }
 
         // ------------------------------------------------------------------
-        // 9. Proxy sends all C+ back to main wallet
+        // 10. Proxy sends all C+ back to main wallet
         // ------------------------------------------------------------------
         let proxy_signer = Arc::new(SignerMiddleware::new(
             provider.clone(),
@@ -213,12 +220,12 @@ impl SepoliaTask for ReceiveCplusTask {
 
         let proxy_return_call = proxy_cplus
             .method::<_, H256>("transfer", (main_addr, proxy_t_balance))?
-            .gas(60_000)
+            .gas(RETURN_TRANSFER_GAS_LIMIT)
             .gas_price(proxy_max_fee);
         let proxy_return = proxy_return_call
             .send()
             .await
-            .context("Proxy failed to send T+ back")?;
+            .context("Proxy failed to send C+ back")?;
 
         let return_tx_hash = proxy_return.tx_hash();
         let return_receipt = proxy_return
@@ -226,7 +233,9 @@ impl SepoliaTask for ReceiveCplusTask {
             .interval(Duration::from_millis(500))
             .await?;
 
-        let return_ok = return_receipt.is_some_and(|r| r.status == Some(1.into()));
+        let return_ok = return_receipt
+            .as_ref()
+            .is_some_and(|r| r.status == Some(1.into()));
 
         let result_msg = format!(
             "Received {} USDC Plus (tx: {:?})",
@@ -239,6 +248,10 @@ impl SepoliaTask for ReceiveCplusTask {
             message: result_msg,
         })
     }
+}
+
+fn calculate_proxy_topup_amount(max_fee: U256) -> U256 {
+    U256::from(PROXY_TOPUP_GAS_LIMIT) * max_fee
 }
 
 /// Divide by 10^18 and format the whole part with comma separators.
@@ -295,5 +308,17 @@ mod tests {
     fn test_format_whole_with_commas_billion() {
         let amount = U256::from(3_456_789_012u128) * U256::from(10u128.pow(18));
         assert_eq!(format_whole_with_commas(amount), "3,456,789,012");
+    }
+
+    #[test]
+    fn test_return_transfer_gas_limit_is_60k() {
+        assert_eq!(RETURN_TRANSFER_GAS_LIMIT, 60_000);
+    }
+
+    #[test]
+    fn test_calculate_proxy_topup_amount_1gwei() {
+        let one_gwei = U256::from(1_000_000_000u64);
+        let expected = U256::from(PROXY_TOPUP_GAS_LIMIT) * one_gwei;
+        assert_eq!(calculate_proxy_topup_amount(one_gwei), expected);
     }
 }

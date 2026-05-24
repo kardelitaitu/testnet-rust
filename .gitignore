@@ -13,13 +13,17 @@ chains/sepolia-overlayer/wallets-json-sepolia-overlayer
 address.txt
 proxies.txt
 target-xenea
+target_check_no_refund
+target_check_receive_cplus
 
 # Secrets
 .env
 _start-dacc.bat
 
 # IDEs and OS files
+.antigravitycli/
 .vscode/
+.qwen/
 .trae/
 .agent/
 .cargo/
@@ -30,3 +34,4 @@ node_modules/
 
 # Windows Reserved
 nul
+.exe

@@ -9,6 +9,7 @@ Root `Cargo.toml` workspace members:
 - `chains/risechain`
 - `chains/xenea`
 - `chains/da-chain`
+- `chains/sepolia-overlayer`
 - `chains/tempo-spammer`
 - `chains/robinhood`
 
@@ -69,6 +70,22 @@ Runtime helpers:
 - `chains/da-chain/src/spammer/mod.rs`
 - `chains/da-chain/src/utils/gas.rs`
 - Uses `ExplorerGasTracker` from `core-logic` with a payload for the gas tracker page.
+
+### `chains/sepolia-overlayer` (`sepolia-overlayer`)
+Sepolia-specific overlayer implementation with main, daily, debug, funding, and balance dump binaries.
+
+Entrypoints:
+- `chains/sepolia-overlayer/src/main.rs` (`sepolia-overlayer`)
+- `chains/sepolia-overlayer/src/bin/debug_task.rs`
+- `chains/sepolia-overlayer/src/bin/daily.rs`
+- `chains/sepolia-overlayer/src/bin/fund.rs` (`sepolia-funder`)
+- `chains/sepolia-overlayer/src/bin/wallet-balance-dump.rs`
+
+Task area:
+- `chains/sepolia-overlayer/src/task/`
+
+Config default:
+- `chains/sepolia-overlayer/config.toml`
 
 ### `chains/tempo-spammer` (`tempo-spammer`)
 Tempo chain-specific implementation (edition 2024, alloy-based stack).

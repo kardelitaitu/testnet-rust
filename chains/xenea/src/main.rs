@@ -168,8 +168,7 @@ async fn main() -> Result<()> {
         Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new()));
 
     let mut spammers = Vec::new();
-    for i in 0..max_workers {
-        let wallet_idx = wallet_indices[i];
+    for &wallet_idx in wallet_indices.iter().take(max_workers) {
         // Get a wallet for initial setup (spammer will rotate per task)
         let decrypted = match manager
             .as_ref()

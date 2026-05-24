@@ -94,16 +94,16 @@ impl SepoliaTask for BridgeBackTplusTask {
         // --- 1. Check T+ balance on Base Sepolia ---
         let tplus_balance = get_tplus_balance(provider, address).await?;
 
-        // --- 2. Calculate 5% of T+ balance, round to nearest whole T+ ---
+        // --- 2. Calculate 20% of T+ balance, round to nearest whole T+ ---
         const DEC18: u128 = 1_000_000_000_000_000_000;
-        let bridge_raw = calc_pct_rounded(tplus_balance.as_u128(), 5, 100, 18);
+        let bridge_raw = calc_pct_rounded(tplus_balance.as_u128(), 20, 100, 18);
         let whole_tplus = bridge_raw / DEC18;
         let bridge_amount = U256::from(bridge_raw);
 
         if whole_tplus == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "5% of T+ balance on Base Sepolia rounds to 0, nothing to bridge"
+                message: "20% of T+ balance on Base Sepolia rounds to 0, nothing to bridge"
                     .to_string(),
             });
         }

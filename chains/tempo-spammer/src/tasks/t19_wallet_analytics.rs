@@ -36,7 +36,7 @@ impl TempoTask for WalletAnalyticsTask {
         let client = &ctx.client;
         let address = ctx.address();
 
-        let mut report = format!("=== Wallet Analytics ===\n");
+        let mut report = "=== Wallet Analytics ===\n".to_string();
         report.push_str(&format!("Address: {:?}\n\n", address));
 
         // 1. Check system stablecoin balances (these are the native tokens on Tempo)

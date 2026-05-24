@@ -306,7 +306,7 @@ impl TempoTask for BatchMintStableTask {
             max_priority_fee_per_gas: 1_500_000_000,
             max_fee_per_gas: max_fee.to::<u128>(),
             gas_limit: 3_000_000, // Bumped to 3M to handle 30 mints
-            calls: calls,
+            calls,
             nonce,
             valid_before: Some(now + 3600),
             valid_after: Some(now - 60),

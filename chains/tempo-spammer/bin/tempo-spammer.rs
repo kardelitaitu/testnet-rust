@@ -639,23 +639,19 @@ async fn run_spammer(
                                 }
 
                                 if !handled {
-                                    match ctx.client.get_pending_nonce(&ctx.config.rpc_url).await {
-                                        Ok(fresh_nonce) => {
-                                            robust_manager
-                                                .initialize(ctx.address(), fresh_nonce)
-                                                .await;
-                                            recovered = true;
-                                        }
-                                        Err(_) => {}
+                                    if let Ok(fresh_nonce) =
+                                        ctx.client.get_pending_nonce(&ctx.config.rpc_url).await
+                                    {
+                                        robust_manager.initialize(ctx.address(), fresh_nonce).await;
+                                        recovered = true;
                                     }
                                 }
                             } else if let Some(manager) = &ctx.client.nonce_manager {
-                                match ctx.client.get_pending_nonce(&ctx.config.rpc_url).await {
-                                    Ok(fresh_nonce) => {
-                                        manager.set(ctx.address(), fresh_nonce).await;
-                                        recovered = true;
-                                    }
-                                    Err(_) => {}
+                                if let Ok(fresh_nonce) =
+                                    ctx.client.get_pending_nonce(&ctx.config.rpc_url).await
+                                {
+                                    manager.set(ctx.address(), fresh_nonce).await;
+                                    recovered = true;
                                 }
                             }
                         }
@@ -809,7 +805,7 @@ async fn run_single_task(
     }
 
     // Graceful shutdown: flush any pending database writes
-    if let Some(db) = Arc::try_unwrap(db_manager).ok() {
+    if let Ok(db) = Arc::try_unwrap(db_manager) {
         info!("Shutting down database...");
         if let Err(e) = db.shutdown().await {
             error!("Error during database shutdown: {}", e);

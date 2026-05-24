@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use ethers::prelude::*;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct VerifyCreate2Task;
 
 impl VerifyCreate2Task {
@@ -81,7 +82,7 @@ impl Task<TaskContext> for VerifyCreate2Task {
             for log in call_receipt.logs {
                 // Event Deployed(address addr, uint256 salt)
                 // topic0 is hash of event signature
-                if log.topics.len() > 0 {
+                if !log.topics.is_empty() {
                     // We assume it's our event
                     let addr_bytes = &log.data[12..32]; // First 32 bytes, address is last 20
                     deployed_addr = Address::from_slice(addr_bytes);
@@ -95,7 +96,7 @@ impl Task<TaskContext> for VerifyCreate2Task {
             // Verify code at deployed address
             let code = provider.get_code(deployed_addr, None).await?;
             debug!("Code at deployed address: {} bytes", code.len());
-            if code.len() > 0 {
+            if !code.is_empty() {
                 return Ok(TaskResult {
                     success: true,
                     message: format!("CREATE2 Opcode WORKS! Deployed at {:?}", deployed_addr),

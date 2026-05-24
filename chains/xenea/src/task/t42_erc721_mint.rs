@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tokio::time::{timeout, Duration};
 use tracing::debug;
 
+#[derive(Default)]
 pub struct ERC721MintTask;
 
 impl ERC721MintTask {

@@ -204,12 +204,9 @@ impl TempoTask for DistributeSharesMemeTask {
             client.provider.send_transaction(distribute_tx)
         );
 
-        let deploy_hash = p1.context("Deploy Tx Submission Failed")?.tx_hash().clone();
-        let _fund_hash = p2.context("Fund Tx Submission Failed")?.tx_hash().clone();
-        let dist_hash = p3
-            .context("Distribute Tx Submission Failed")?
-            .tx_hash()
-            .clone();
+        let deploy_hash = *p1.context("Deploy Tx Submission Failed")?.tx_hash();
+        let _fund_hash = *p2.context("Fund Tx Submission Failed")?.tx_hash();
+        let dist_hash = *p3.context("Distribute Tx Submission Failed")?.tx_hash();
 
         // Update Nonce Manager after all 3 txs submitted
         if let Some(manager) = &client.nonce_manager {

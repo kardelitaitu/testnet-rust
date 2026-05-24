@@ -19,9 +19,13 @@ impl GasManager {
     pub const LIMIT_SEND_MEME: U256 = U256([100_000, 0, 0, 0]);
 
     pub fn new(provider: Arc<Provider<Http>>, min_fee_gwei: f64) -> Self {
+        Self::with_max(provider, min_fee_gwei, Self::MAX_FEE_GWEI_DEFAULT)
+    }
+
+    pub fn with_max(provider: Arc<Provider<Http>>, min_fee_gwei: f64, max_fee_gwei: f64) -> Self {
         Self {
             config: GasConfig::new()
-                .with_max_fee(Self::MAX_FEE_GWEI_DEFAULT)
+                .with_max_fee(max_fee_gwei)
                 .with_priority_fee(Self::PRIORITY_FEE_GWEI_DEFAULT),
             provider,
             min_fee_gwei,

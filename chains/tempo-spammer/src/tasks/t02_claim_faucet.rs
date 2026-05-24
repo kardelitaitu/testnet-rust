@@ -86,7 +86,7 @@ impl TempoTask for ClaimFaucetTask {
             }
         };
 
-        let tx_hash = pending.tx_hash().clone();
+        let tx_hash = *pending.tx_hash();
 
         Ok(TaskResult {
             success: true,

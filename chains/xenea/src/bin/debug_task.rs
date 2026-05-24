@@ -4,7 +4,6 @@ use core_logic::setup_logger;
 use dialoguer::{theme::ColorfulTheme, Password, Select};
 use dotenv::dotenv;
 use ethers::prelude::*;
-use reqwest;
 use std::env;
 use tracing::{error, info};
 use url::Url;
@@ -120,7 +119,7 @@ async fn main() -> Result<()> {
         print!("Found {} wallet files in wallet-json. ", total_wallets);
         // Verify decryption with first wallet to ensure password is correct
         // This serves the purpose of the previous "keys.is_empty()" check
-        if let Err(_) = manager.get_wallet(0, password.as_deref()).await {
+        if manager.get_wallet(0, password.as_deref()).await.is_err() {
             println!("\n⚠️  Decryption failed with env KEY (or KEY unset/wrong).");
             let input = Password::with_theme(&ColorfulTheme::default())
                 .with_prompt("Enter wallet password")
@@ -192,11 +191,11 @@ async fn main() -> Result<()> {
                             Ok(p) => client_builder
                                 .proxy(p)
                                 .build()
-                                .unwrap_or(reqwest::Client::new()),
+                                .unwrap_or_default(),
                             Err(_) => reqwest::Client::new(),
                         }
                     } else {
-                        client_builder.build().unwrap_or(reqwest::Client::new())
+                        client_builder.build().unwrap_or_default()
                     };
 
                     let provider_url = Url::parse(&cfg.rpc_url).expect("Invalid RPC URL");
@@ -217,11 +216,11 @@ async fn main() -> Result<()> {
 
                                     let ctx = TaskContext {
                                         provider: (*provider_arc).clone(),
-                                        wallet: wallet,
+                                        wallet,
                                         config: (*cfg).clone(),
                                         proxy: proxy_url,
                                         db: Some(db_manager),
-                                        gas_manager: gas_manager,
+                                        gas_manager,
                                     };
 
                                     let task = XeneaCheckBalanceTask;
@@ -331,16 +330,13 @@ async fn main() -> Result<()> {
         );
         let client_builder = reqwest::Client::builder().default_headers(headers);
         let client = if let Some(u) = &proxy_url {
-            println!("Using proxy: {}", u.split('@').last().unwrap_or("..."));
+            println!("Using proxy: {}", u.split('@').next_back().unwrap_or("..."));
             match reqwest::Proxy::all(u) {
-                Ok(p) => client_builder
-                    .proxy(p)
-                    .build()
-                    .unwrap_or(reqwest::Client::new()),
+                Ok(p) => client_builder.proxy(p).build().unwrap_or_default(),
                 Err(_) => reqwest::Client::new(),
             }
         } else {
-            client_builder.build().unwrap_or(reqwest::Client::new())
+            client_builder.build().unwrap_or_default()
         };
 
         let provider_url = Url::parse(&cfg.rpc_url).expect("Invalid RPC URL");

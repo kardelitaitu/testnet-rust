@@ -21,6 +21,7 @@ use core_logic::database::DatabaseManager;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
 use tokio_util::sync::CancellationToken;
 
 pub struct EvmSpammer {
@@ -45,8 +46,10 @@ pub struct EvmSpammer {
     busy_wallets: Arc<Mutex<HashSet<usize>>>,
 }
 
-fn get_task_weight(_name: &str) -> u32 {
-    // All tasks have equal weight initially
+fn get_task_weight(name: &str) -> u32 {
+    if name == "02_simpleNativeTransfer" {
+        return 10;
+    }
     1
 }
 
@@ -56,8 +59,8 @@ mod tests {
 
     #[test]
     fn test_get_task_weight_always_one() {
-        assert_eq!(get_task_weight("check_balance"), 1);
-        assert_eq!(get_task_weight("native_transfer"), 1);
+        assert_eq!(get_task_weight("01_checkBalance"), 1);
+        assert_eq!(get_task_weight("02_simpleNativeTransfer"), 10);
         assert_eq!(get_task_weight(""), 1);
         assert_eq!(get_task_weight("anything"), 1);
     }
@@ -111,6 +114,7 @@ mod tests {
 }
 
 impl EvmSpammer {
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_signer(
         spam_config: SpamConfig,
         dachain_config: DaChainConfig,
@@ -125,6 +129,7 @@ impl EvmSpammer {
         total_wallets: usize,
         busy_wallets: Arc<Mutex<HashSet<usize>>>,
         min_gwei: f64,
+        max_gwei: f64,
     ) -> Result<Self> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
@@ -134,7 +139,10 @@ impl EvmSpammer {
             ),
         );
 
-        let client_builder = Client::builder().default_headers(headers);
+        let client_builder = Client::builder()
+            .default_headers(headers)
+            .pool_max_idle_per_host(10)
+            .tcp_keepalive(std::time::Duration::from_secs(30));
         let client = client_builder.build()?;
 
         let provider = Provider::new(Http::new_with_client(
@@ -147,27 +155,29 @@ impl EvmSpammer {
             Box::new(SimpleNativeTransferTask),
         ];
 
-        let gas_manager = Arc::new(crate::utils::gas::GasManager::new(
+        let gas_manager = Arc::new(crate::utils::gas::GasManager::with_max(
             Arc::new(provider.clone()),
             min_gwei,
+            max_gwei,
         ));
 
         let weights: Vec<u32> = tasks
             .iter()
-            .map(|t: &Box<dyn DaChainTask>| {
+            .map(|t| {
                 let w = get_task_weight(t.name());
                 info!("Task '{}': Weight {}", t.name(), w);
                 w
             })
             .collect();
+        let weight_len = weights.len();
 
-        let dist = match WeightedIndex::new(&weights) {
+        let dist = match WeightedIndex::new(weights) {
             Ok(d) => d,
             Err(e) => {
                 tracing::warn!("Failed to create weighted distribution: {}", e);
-                WeightedIndex::new(&vec![1; weights.len()]).unwrap_or_else(|e| {
+                WeightedIndex::new(vec![1; weight_len]).unwrap_or_else(|e| {
                     tracing::error!("Critical error creating distribution: {}", e);
-                    WeightedIndex::new(&vec![1]).expect("Failed to create fallback distribution")
+                    WeightedIndex::new(vec![1]).expect("Failed to create fallback distribution")
                 })
             }
         };
@@ -203,7 +213,10 @@ impl EvmSpammer {
             ),
         );
 
-        let mut client_builder = Client::builder().default_headers(headers);
+        let mut client_builder = Client::builder()
+            .default_headers(headers)
+            .pool_max_idle_per_host(10)
+            .tcp_keepalive(std::time::Duration::from_secs(30));
 
         if let Some(proxy_conf) = proxy_config {
             let mut proxy = reqwest::Proxy::all(&proxy_conf.url).unwrap();

@@ -6,6 +6,7 @@ use rand::rngs::OsRng;
 use rand::Rng;
 use std::sync::Arc;
 
+#[derive(Default)]
 pub struct Create2DeployTask;
 
 impl Create2DeployTask {

@@ -152,9 +152,9 @@ impl TempoTask for DistributeSharesTask {
             // Check results
             match (p1, p2, p3) {
                 (Ok(deploy_pending), Ok(fund_pending), Ok(dist_pending)) => {
-                    let deploy_hash = deploy_pending.tx_hash().clone();
-                    let fund_hash = fund_pending.tx_hash().clone();
-                    let dist_hash = dist_pending.tx_hash().clone();
+                    let deploy_hash = *deploy_pending.tx_hash();
+                    let fund_hash = *fund_pending.tx_hash();
+                    let dist_hash = *dist_pending.tx_hash();
 
                     tracing::debug!(
                         "Pipeline Sent! hashes: {:?}, {:?}, {:?}",

@@ -5,6 +5,7 @@ use ethers::prelude::*;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct TransparentProxyTask;
 
 impl TransparentProxyTask {
@@ -50,7 +51,7 @@ impl Task<TaskContext> for TransparentProxyTask {
 
         let _salt = 54321u64;
 
-        let mut impl_data = hex::decode(&impl_bytecode.trim_start_matches("0x")).unwrap();
+        let mut impl_data = hex::decode(impl_bytecode.trim_start_matches("0x")).unwrap();
         let encoded_admin = ethers::abi::encode(&[ethers::abi::Token::Address(address)]);
         impl_data.extend(encoded_admin);
 

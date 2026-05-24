@@ -55,11 +55,10 @@ impl TempoTask for MintStableTask {
 
         // println!("Looking for stablecoins for wallet: {}", wallet_addr_str);
 
-        let created_token_addresses = if let Some(db) = &ctx.db {
-            match db.get_assets_by_type(&wallet_addr_str, "stablecoin").await {
-                Ok(addresses) => addresses,
-                Err(_) => Vec::new(),
-            }
+        let created_token_addresses: Vec<String> = if let Some(db) = &ctx.db {
+            db.get_assets_by_type(&wallet_addr_str, "stablecoin")
+                .await
+                .unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -305,7 +304,7 @@ async fn check_has_role(
 ) -> Result<bool> {
     let has_role_call = ITIP20Mintable::hasRoleCall {
         role: alloy_primitives::B256::from(role),
-        account: account,
+        account,
     };
     let calldata = has_role_call.abi_encode();
 

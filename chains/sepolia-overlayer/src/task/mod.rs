@@ -42,6 +42,8 @@ pub mod t17_bridge_back_cplus;
 pub mod t18_receive_tplus;
 pub mod t19_receive_cplus;
 pub mod t20_aave_wbtc_faucet;
+pub mod t21_redeem_to_ausdt;
+pub mod t22_redeem_to_ausdc;
 
 pub use t01_check_balance::SepoliaCheckBalanceTask;
 pub use t02_mint_usdt_plus::MintUsdtPlusTask;
@@ -63,6 +65,8 @@ pub use t17_bridge_back_cplus::BridgeBackCplusTask;
 pub use t18_receive_tplus::ReceiveTplusTask;
 pub use t19_receive_cplus::ReceiveCplusTask;
 pub use t20_aave_wbtc_faucet::AaveWbtcFaucetTask;
+pub use t21_redeem_to_ausdt::RedeemToAusdtTask;
+pub use t22_redeem_to_ausdc::RedeemToAusdcTask;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -90,6 +94,8 @@ mod tests {
             Box::new(ReceiveTplusTask),
             Box::new(ReceiveCplusTask),
             Box::new(AaveWbtcFaucetTask),
+            Box::new(RedeemToAusdtTask),
+            Box::new(RedeemToAusdcTask),
         ];
 
         let expected = [
@@ -113,6 +119,8 @@ mod tests {
             "18_receiveTplus",
             "19_receiveCplus",
             "20_aaveWbtcFaucet",
+            "21_redeemToAusdt",
+            "22_redeemToAusdc",
         ];
         assert_eq!(tasks.len(), expected.len(), "tasks len != expected len");
 

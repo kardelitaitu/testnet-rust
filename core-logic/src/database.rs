@@ -1162,6 +1162,7 @@ impl DatabaseManager {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn log_dex_order(
         &self,
         wallet: &str,

@@ -14,7 +14,8 @@ use sepolia_overlayer::task::{
     t13_bridge_cplus::BridgeCplusTask, t14_send_random_usdt_plus::SendRandomUsdtPlusTask,
     t15_send_random_usdc_plus::SendRandomUsdcPlusTask, t16_bridge_back_tplus::BridgeBackTplusTask,
     t17_bridge_back_cplus::BridgeBackCplusTask, t18_receive_tplus::ReceiveTplusTask,
-    t19_receive_cplus::ReceiveCplusTask, t20_aave_wbtc_faucet::AaveWbtcFaucetTask, SepoliaTask,
+    t19_receive_cplus::ReceiveCplusTask, t20_aave_wbtc_faucet::AaveWbtcFaucetTask,
+    t21_redeem_to_ausdt::RedeemToAusdtTask, t22_redeem_to_ausdc::RedeemToAusdcTask, SepoliaTask,
     TaskContext,
 };
 use std::env;
@@ -46,6 +47,9 @@ struct Args {
 
     #[arg(long, default_value_t = 0.01)]
     min_gwei: f64,
+
+    #[arg(long, default_value_t = 1.2)]
+    max_gwei: f64,
 }
 
 #[tokio::main]
@@ -174,17 +178,14 @@ async fn main() -> Result<()> {
     let client = if let Some(ref proxy_str) = proxy_url {
         println!(
             "Using proxy: {}",
-            proxy_str.split('@').last().unwrap_or("...")
+            proxy_str.split('@').next_back().unwrap_or("...")
         );
         match reqwest::Proxy::all(proxy_str) {
-            Ok(p) => client_builder
-                .proxy(p)
-                .build()
-                .unwrap_or(reqwest::Client::new()),
-            Err(_) => client_builder.build().unwrap_or(reqwest::Client::new()),
+            Ok(p) => client_builder.proxy(p).build().unwrap_or_default(),
+            Err(_) => client_builder.build().unwrap_or_default(),
         }
     } else {
-        client_builder.build().unwrap_or(reqwest::Client::new())
+        client_builder.build().unwrap_or_default()
     };
 
     let provider = Provider::new(Http::new_with_client(Url::parse(&cfg.rpc_url)?, client));
@@ -211,6 +212,8 @@ async fn main() -> Result<()> {
         Box::new(ReceiveTplusTask),
         Box::new(ReceiveCplusTask),
         Box::new(AaveWbtcFaucetTask),
+        Box::new(RedeemToAusdtTask),
+        Box::new(RedeemToAusdcTask),
     ];
     let items: Vec<&str> = tasks.iter().map(|t| t.name()).collect();
 
@@ -251,9 +254,10 @@ async fn main() -> Result<()> {
     println!("Using wallet: {:?}", wallet.address());
 
     // 9. Create GasManager
-    let gas_manager = Arc::new(sepolia_overlayer::utils::gas::GasManager::new(
+    let gas_manager = Arc::new(sepolia_overlayer::utils::gas::GasManager::with_max(
         Arc::new(provider.clone()),
         args.min_gwei,
+        args.max_gwei,
     ));
 
     // 10. Create TaskContext

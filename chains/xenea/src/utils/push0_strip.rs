@@ -9,7 +9,7 @@ pub fn strip_push0(bytecode: &[u8]) -> Vec<u8> {
             // PUSH0 -> PUSH1 0x00
             result.push(0x60);
             result.push(0x00);
-        } else if byte >= 0x60 && byte <= 0x7f {
+        } else if (0x60..=0x7f).contains(&byte) {
             // PUSH1..PUSH32: copy opcode + its data bytes
             let n = (byte - 0x60 + 1) as usize;
             result.push(byte);

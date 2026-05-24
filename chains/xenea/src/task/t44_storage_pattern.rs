@@ -7,6 +7,7 @@ use rand::Rng;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct StoragePatternTask;
 
 impl StoragePatternTask {
@@ -61,7 +62,7 @@ impl Task<TaskContext> for StoragePatternTask {
         let packed = (U256::from(value_a) << 128) | U256::from(value_b);
 
         let deploy_data = crate::utils::strip_push0(
-            &hex::decode(&storage_bytecode.trim_start_matches("0x")).unwrap(),
+            &hex::decode(storage_bytecode.trim_start_matches("0x")).unwrap(),
         );
 
         let deploy_nonce = nonce_manager.next().await?;

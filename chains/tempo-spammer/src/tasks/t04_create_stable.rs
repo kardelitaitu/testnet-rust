@@ -136,7 +136,7 @@ impl TempoTask for CreateStableTask {
         for log in receipt.inner.logs() {
             if log.address() == factory_address {
                 let topics = log.topics();
-                if topics.first() == Some(&event_sig.into()) && topics.len() > 1 {
+                if topics.first() == Some(&event_sig) && topics.len() > 1 {
                     let token_bytes: [u8; 32] = topics[1].as_slice().try_into().unwrap();
                     token_address = Address::from_slice(&token_bytes[12..32]);
                     break;

@@ -94,16 +94,16 @@ impl SepoliaTask for BridgeBackCplusTask {
         // --- 1. Check C+ balance on Base Sepolia ---
         let cplus_balance = get_cplus_balance(provider, address).await?;
 
-        // --- 2. Calculate 5% of C+ balance, round to nearest whole C+ ---
+        // --- 2. Calculate 20% of C+ balance, round to nearest whole C+ ---
         const DEC18: u128 = 1_000_000_000_000_000_000;
-        let bridge_raw = calc_pct_rounded(cplus_balance.as_u128(), 5, 100, 18);
+        let bridge_raw = calc_pct_rounded(cplus_balance.as_u128(), 20, 100, 18);
         let whole_cplus = bridge_raw / DEC18;
         let bridge_amount = U256::from(bridge_raw);
 
         if whole_cplus == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "5% of C+ balance on Base Sepolia rounds to 0, nothing to bridge"
+                message: "20% of C+ balance on Base Sepolia rounds to 0, nothing to bridge"
                     .to_string(),
             });
         }

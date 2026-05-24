@@ -5,6 +5,7 @@ use ethers::prelude::*;
 use rand::Rng;
 use std::sync::Arc;
 
+#[derive(Default)]
 pub struct CrossContractCallTask;
 
 impl CrossContractCallTask {
@@ -86,10 +87,8 @@ impl Task<TaskContext> for CrossContractCallTask {
 
         let mut target_address = Address::zero();
         for log in receipt.logs.iter() {
-            if log.address == factory_address {
-                if log.data.len() >= 32 {
-                    target_address = Address::from_slice(&log.data[12..32]);
-                }
+            if log.address == factory_address && log.data.len() >= 32 {
+                target_address = Address::from_slice(&log.data[12..32]);
             }
         }
 
@@ -102,7 +101,7 @@ impl Task<TaskContext> for CrossContractCallTask {
         }
 
         let code = provider.get_code(target_address, None).await?;
-        if code.len() == 0 {
+        if code.is_empty() {
             return Ok(TaskResult {
                 success: false,
                 message: format!("Deployed contract has no code at {:?}", target_address),

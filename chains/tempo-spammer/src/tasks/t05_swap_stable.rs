@@ -77,7 +77,7 @@ impl TempoTask for SwapStableTask {
                 .filter(|(_, _, balance)| *balance > U256::ZERO)
                 .collect();
 
-            if tokens_with_balance.len() < 1 {
+            if tokens_with_balance.is_empty() {
                 return Ok(TaskResult {
                     success: false,
                     message: "No tokens with balance found".to_string(),

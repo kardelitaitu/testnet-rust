@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use ethers::prelude::*;
 use std::sync::Arc;
 
+#[derive(Default)]
 pub struct ERC4626VaultTask;
 
 impl ERC4626VaultTask {

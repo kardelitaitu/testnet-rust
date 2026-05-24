@@ -68,7 +68,7 @@ impl TempoTask for SendTokenTask {
                 Err(e) => {
                     attempt += 1;
                     if attempt >= max_retries {
-                        return Err(e.into());
+                        return Err(e);
                     }
                     // Reduced sleep for speed
                     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -103,7 +103,7 @@ impl TempoTask for SendTokenTask {
             }
         };
 
-        let tx_hash = pending.tx_hash().clone();
+        let tx_hash = *pending.tx_hash();
 
         Ok(TaskResult {
             success: true,

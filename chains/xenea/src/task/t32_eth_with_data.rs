@@ -8,6 +8,7 @@ use rand::Rng;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct EthWithDataTask;
 
 impl EthWithDataTask {
@@ -56,7 +57,7 @@ impl Task<TaskContext> for EthWithDataTask {
         let mut rng = OsRng;
         let mut custom_data = [0u8; 8];
         rng.fill(&mut custom_data);
-        let data_hex = hex::encode(&custom_data);
+        let data_hex = hex::encode(custom_data);
 
         // 4. Initialize Nonce Manager
         let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(

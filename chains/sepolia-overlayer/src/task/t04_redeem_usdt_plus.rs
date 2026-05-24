@@ -51,10 +51,10 @@ impl SepoliaTask for RedeemUsdtPlusTask {
         // --- 1. Check T+ balance ---
         let tplus_balance = get_tplus_balance(provider, address).await?;
 
-        // --- 2. Calculate 5% of T+ balance, round down to nearest whole T+ ---
+        // --- 2. Calculate 10% of T+ balance, round down to nearest whole T+ ---
         // T+ has 18 decimals, USDT has 6 decimals
         // 1 T+ = 10^18, 1 USDT = 10^6
-        let redeem_overlayer = calc_pct_rounded(tplus_balance.as_u128(), 5, 100, 18);
+        let redeem_overlayer = calc_pct_rounded(tplus_balance.as_u128(), 10, 100, 18);
         let dec18: u128 = 1_000_000_000_000_000_000;
         let whole_tplus = redeem_overlayer / dec18;
         let collateral_amount = whole_tplus * 1_000_000u128;
@@ -62,7 +62,7 @@ impl SepoliaTask for RedeemUsdtPlusTask {
         if whole_tplus == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "2% of T+ balance rounds to 0, nothing to redeem".to_string(),
+                message: "10% of T+ balance rounds to 0, nothing to redeem".to_string(),
             });
         }
 

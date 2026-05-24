@@ -58,11 +58,10 @@ impl TempoTask for BatchMintMemeTask {
         let address = ctx.address();
         let chain_id = ctx.chain_id();
 
-        let meme_tokens = if let Some(db) = &ctx.db {
-            match db.get_assets_by_type(&address.to_string(), "meme").await {
-                Ok(addresses) => addresses,
-                Err(_) => Vec::new(),
-            }
+        let meme_tokens: Vec<String> = if let Some(db) = &ctx.db {
+            db.get_assets_by_type(&address.to_string(), "meme")
+                .await
+                .unwrap_or_default()
         } else {
             Vec::new()
         };

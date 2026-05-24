@@ -457,10 +457,7 @@ async fn check_proxy_health(proxy: &ProxyConfig, rpc_url: &str) -> bool {
     };
 
     // Try a simple HEAD request to RPC endpoint
-    match client.head(rpc_url).send().await {
-        Ok(_) => true, // Any response = proxy works
-        Err(_) => false,
-    }
+    client.head(rpc_url).send().await.is_ok()
 }
 
 /// Scan all proxies in parallel batches and ban unhealthy ones
@@ -539,7 +536,6 @@ pub async fn scan_proxies_partial(
     // Wait for minimum healthy proxies
     let mut healthy_count = 0;
     let mut banned_count = 0;
-    let mut checked_count = 0;
 
     // Check proxies one by one until we have enough
     for (idx, proxy) in proxies_fg.iter().enumerate() {
@@ -547,13 +543,12 @@ pub async fn scan_proxies_partial(
             tracing::info!(
                 "✅ Fast-start: {} healthy proxies reached! Starting workers while checking remaining {}...",
                 healthy_count,
-                proxies_fg.len() - checked_count
+                proxies_fg.len() - idx
             );
             break;
         }
 
         let is_healthy = check_proxy_health(proxy, &rpc_url_fg).await;
-        checked_count += 1;
 
         if is_healthy {
             healthy_count += 1;

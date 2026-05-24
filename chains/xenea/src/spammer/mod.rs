@@ -97,6 +97,7 @@ mod tests {
 
 impl EvmSpammer {
     // Modified constructor to accept proxy pool, health manager, and rate limiter
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_signer(
         spam_config: SpamConfig,
         xenea_config: XeneaConfig,
@@ -184,9 +185,10 @@ impl EvmSpammer {
                 w
             })
             .collect();
+        let weight_len = weights.len();
 
         // Create weighted distribution with fallback for invalid weights
-        let dist = match WeightedIndex::new(&weights) {
+        let dist = match WeightedIndex::new(weights) {
             Ok(d) => d,
             Err(e) => {
                 tracing::warn!(
@@ -195,10 +197,10 @@ impl EvmSpammer {
                     e
                 );
                 // Fallback: all tasks have equal weight
-                WeightedIndex::new(&vec![1; weights.len()]).unwrap_or_else(|e| {
+                WeightedIndex::new(vec![1; weight_len]).unwrap_or_else(|e| {
                     // Ultimate fallback - single task with weight 1
                     tracing::error!(target: "smart_main", "Critical error creating distribution: {}", e);
-                    WeightedIndex::new(&vec![1]).expect("Failed to create fallback distribution")
+                    WeightedIndex::new(vec![1]).expect("Failed to create fallback distribution")
                 })
             }
         };

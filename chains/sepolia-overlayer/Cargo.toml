@@ -17,6 +17,14 @@ path = "src/bin/debug_task.rs"
 name = "sepolia-daily"
 path = "src/bin/daily.rs"
 
+[[bin]]
+name = "sepolia-funder"
+path = "src/bin/fund.rs"
+
+[[bin]]
+name = "wallet-balance-dump"
+path = "src/bin/wallet-balance-dump.rs"
+
 [lib]
 name = "sepolia_overlayer"
 path = "src/lib.rs"
@@ -48,3 +56,7 @@ chrono = "0.4"
 
 [dependencies.core-logic]
 path = "../../core-logic"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"

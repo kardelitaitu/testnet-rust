@@ -33,6 +33,8 @@ struct Args {
     max_tps: u32,
     #[arg(long, default_value_t = 0.01)]
     min_gwei: f64,
+    #[arg(long, default_value_t = 1.2)]
+    max_gwei: f64,
     #[arg(long)]
     workers: Option<usize>,
 }
@@ -177,8 +179,7 @@ async fn main() -> Result<()> {
         Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new()));
 
     let mut spammers = Vec::new();
-    for i in 0..max_workers {
-        let wallet_idx = wallet_indices[i];
+    for &wallet_idx in wallet_indices.iter().take(max_workers) {
         let decrypted = match manager
             .as_ref()
             .get_wallet(wallet_idx, wallet_password.as_deref())
@@ -230,6 +231,7 @@ async fn main() -> Result<()> {
             total_wallets,
             busy_wallets.clone(),
             args.min_gwei,
+            args.max_gwei,
             base_rpc_url,
             base_config,
         )?;

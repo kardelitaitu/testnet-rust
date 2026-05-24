@@ -7,6 +7,7 @@ use rand::Rng;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct Create2DeployTask;
 
 impl Create2DeployTask {

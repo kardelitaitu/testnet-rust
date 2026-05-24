@@ -222,9 +222,9 @@ impl TempoTask for DistributeSharesStableTask {
             client.provider.send_transaction(distribute_tx)
         );
 
-        let deploy_hash = p1.context("Deploy Tx Failed")?.tx_hash().clone();
-        let fund_hash = p2.context("Fund Tx Failed")?.tx_hash().clone();
-        let dist_hash = p3.context("Distribute Tx Failed")?.tx_hash().clone();
+        let deploy_hash = *p1.context("Deploy Tx Failed")?.tx_hash();
+        let fund_hash = *p2.context("Fund Tx Failed")?.tx_hash();
+        let dist_hash = *p3.context("Distribute Tx Failed")?.tx_hash();
 
         tracing::debug!(
             "Pipeline Sent! hashes: {:?}, {:?}, {:?}",

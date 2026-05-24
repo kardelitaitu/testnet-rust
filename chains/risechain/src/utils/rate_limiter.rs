@@ -162,9 +162,10 @@ impl PerWalletRateLimiter {
     }
 
     pub async fn acquire_with_wait(&self, wallet_id: &str) {
-        let config = self.config.lock().unwrap();
-        let delay_ms = 1000 / config.tps.max(1) as u64;
-        drop(config);
+        let delay_ms = {
+            let config = self.config.lock().unwrap();
+            1000 / config.tps.max(1) as u64
+        };
 
         while !self.acquire(wallet_id).await {
             sleep(Duration::from_millis(delay_ms)).await;

@@ -12,9 +12,6 @@ use robinhood_spammer::utils::gas::GasManager;
 use robinhood_spammer::utils::load_proxies;
 use std::env;
 use std::sync::Arc;
-use tracing;
-use tracing_subscriber;
-
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -62,9 +59,10 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    if let Err(_) = wallet_manager
+    if wallet_manager
         .get_wallet(args.wallet, wallet_password.as_deref())
         .await
+        .is_err()
     {
         let input = Password::with_theme(&ColorfulTheme::default())
             .with_prompt("Enter wallet password")

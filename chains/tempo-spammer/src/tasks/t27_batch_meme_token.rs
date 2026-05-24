@@ -45,11 +45,10 @@ impl TempoTask for BatchMemeTokenTask {
         let address = ctx.address();
         let wallet_addr_str = address.to_string();
 
-        let mut meme_tokens = if let Some(db) = &ctx.db {
-            match db.get_assets_by_type(&wallet_addr_str, "meme").await {
-                Ok(addresses) => addresses,
-                Err(_) => Vec::new(),
-            }
+        let mut meme_tokens: Vec<String> = if let Some(db) = &ctx.db {
+            db.get_assets_by_type(&wallet_addr_str, "meme")
+                .await
+                .unwrap_or_default()
         } else {
             Vec::new()
         };

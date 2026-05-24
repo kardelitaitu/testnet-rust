@@ -19,6 +19,8 @@ use crate::task::t17_bridge_back_cplus::BridgeBackCplusTask;
 use crate::task::t18_receive_tplus::ReceiveTplusTask;
 use crate::task::t19_receive_cplus::ReceiveCplusTask;
 use crate::task::t20_aave_wbtc_faucet::AaveWbtcFaucetTask;
+use crate::task::t21_redeem_to_ausdt::RedeemToAusdtTask;
+use crate::task::t22_redeem_to_ausdc::RedeemToAusdcTask;
 use crate::task::{SepoliaTask, TaskContext};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -140,6 +142,7 @@ impl EvmSpammer {
         total_wallets: usize,
         busy_wallets: Arc<Mutex<HashSet<usize>>>,
         min_gwei: f64,
+        max_gwei: f64,
         base_rpc_url: Option<String>,
         base_config: Option<SepoliaConfig>,
     ) -> Result<Self> {
@@ -180,11 +183,14 @@ impl EvmSpammer {
             Box::new(ReceiveTplusTask),
             Box::new(ReceiveCplusTask),
             Box::new(AaveWbtcFaucetTask),
+            Box::new(RedeemToAusdtTask),
+            Box::new(RedeemToAusdcTask),
         ];
 
-        let gas_manager = Arc::new(crate::utils::gas::GasManager::new(
+        let gas_manager = Arc::new(crate::utils::gas::GasManager::with_max(
             Arc::new(provider.clone()),
             min_gwei,
+            max_gwei,
         ));
 
         let weights: Vec<u32> = tasks
@@ -214,9 +220,10 @@ impl EvmSpammer {
                     .expect("Invalid base RPC URL"),
                 reqwest::Client::new(),
             ));
-            Arc::new(crate::utils::gas::GasManager::new(
+            Arc::new(crate::utils::gas::GasManager::with_max(
                 Arc::new(base_provider),
                 min_gwei,
+                max_gwei,
             ))
         });
 

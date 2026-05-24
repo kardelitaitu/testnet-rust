@@ -7,6 +7,7 @@ use ethers::prelude::*;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct BatchApproveTask;
 
 impl BatchApproveTask {
@@ -52,7 +53,7 @@ impl Task<TaskContext> for BatchApproveTask {
         let gas_price = U256::from(1_100_000_000u64);
         let gas_limit = crate::utils::gas::GasManager::LIMIT_SEND_MEME;
         let max_tokens = token_addresses.len().min(5); // cap at 5 to avoid excessive gas
-        let estimated_gas = U256::from(gas_limit * max_tokens as u64) * gas_price;
+        let estimated_gas = (gas_limit * max_tokens as u64) * gas_price;
 
         // 3. Balance check
         let balance = provider.get_balance(address, None).await?;

@@ -45,15 +45,10 @@ impl TempoTask for ClaimViralFaucetTask {
         let wallet_addr_str = format!("{:?}", address);
 
         // 1. Load Faucets from DB
-        let faucets = if let Some(db) = &ctx.db {
-            match db
-                // Use get_all_assets_by_type to find faucets created by ANYONE
-                .get_all_assets_by_type("viral_faucet")
+        let faucets: Vec<String> = if let Some(db) = &ctx.db {
+            db.get_all_assets_by_type("viral_faucet")
                 .await
-            {
-                Ok(addresses) => addresses,
-                Err(_) => Vec::new(),
-            }
+                .unwrap_or_default()
         } else {
             Vec::new()
         };

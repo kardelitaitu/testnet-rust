@@ -20,7 +20,7 @@ impl TokenInfo {
     pub fn new(symbol: &str, address: &str, is_system: bool) -> Self {
         Self {
             symbol: symbol.to_string(),
-            address: Address::from_str(address).unwrap_or_else(|_| Address::ZERO),
+            address: Address::from_str(address).unwrap_or(Address::ZERO),
             is_system,
         }
     }
@@ -50,7 +50,7 @@ impl TempoTokens {
     }
 
     pub fn get_path_usd_address() -> Address {
-        Address::from_str(Self::SYSTEM_TOKENS[0].1).unwrap_or_else(|_| Address::ZERO)
+        Address::from_str(Self::SYSTEM_TOKENS[0].1).unwrap_or(Address::ZERO)
     }
 
     pub fn get_random_memo() -> String {

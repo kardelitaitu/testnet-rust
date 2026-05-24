@@ -224,6 +224,7 @@ Alternative execution path if `cargo run` is slow:
   - Auto-detects `wallet-json/`.
   - Fallback to `pv.txt`.
   - Supports chain-targeted key extraction and cache.
+  - Uses `#[derive(Default)]` with `#[default]` on `ChainType::Evm`.
 - Worker orchestration: `core-logic/src/utils/runner.rs`
   - Runs spammers concurrently with `CancellationToken` and Ctrl+C graceful shutdown.
 
@@ -260,6 +261,10 @@ Sepolia:
 - Spammer: `chains/sepolia-overlayer/src/spammer/mod.rs`
 - Task registry/context: `chains/sepolia-overlayer/src/task/mod.rs`
 - Debug tool: `chains/sepolia-overlayer/src/bin/debug_task.rs`
+- Funder binary (`sepolia-funder`): `chains/sepolia-overlayer/src/bin/fund.rs`
+  - Strongly TDD'd for fast/safe iteration: pure helpers for filtering, `generate_dry_run_plan`, gas selection (`choose_gas_price_mgwei`), hop math (`calculate_seed_amount`, etc.), and injectable confirmation (`confirm_funding` taking BufRead).
+  - 47 unit tests + CLI integration tests (`tests/fund_cli.rs` using assert_cmd).
+  - See `sepolia-funder.md` for usage and `src/bin/fund.rs` tests for the testable surface.
 
 ## 5) RISE task wiring (important)
 
@@ -301,6 +306,19 @@ cargo run -p rise-project --bin debug_task -- --config chains/risechain/config.t
 - Async-safe patterns (`tokio::select!`, cancellation token).
 - Structured logging with `tracing`.
 - Run `cargo fmt` after edits.
+- Maintain zero clippy warnings (`cargo clippy --workspace`) before committing.
+
+### Applied clippy conventions (core-logic reference)
+
+When fixing clippy warnings, follow these patterns (examples from `core-logic`):
+
+| Lint | Pattern | Example fix |
+|------|---------|-------------|
+| `derivable_impls` | Replace manual `impl Default` with `#[derive(Default)]` | `proxy_health.rs`, `wallet_manager.rs` |
+| `unnecessary_map_or` | `.map_or(true, pred)` → `.is_none_or(pred)`, `.map_or(false, pred)` → `.is_some_and(pred)` | `memory_monitor.rs`, `memory_optimized_logger.rs` |
+| `redundant_closure` | `|| Metric::default()` → `Metric::default` | `metrics.rs` |
+| `await_holding_lock` | Scope `MutexGuard` in a block to drop before `.await` | `rate_limiter.rs` |
+| `too_many_arguments` | Add `#[allow(clippy::too_many_arguments)]` on private helpers where refactoring would add unnecessary complexity | `database.rs` |
 
 ## 8) Security rules
 

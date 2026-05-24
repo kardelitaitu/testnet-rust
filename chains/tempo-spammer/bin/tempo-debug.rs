@@ -12,8 +12,6 @@ use tempo_spammer::RobustNonceManager;
 use tempo_spammer::TempoClient;
 use tempo_spammer::config::TempoSpammerConfig;
 use tempo_spammer::tasks::{GasManager, TaskContext, TempoTask, load_proxies};
-use tracing;
-use tracing_subscriber;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -96,9 +94,10 @@ async fn main() -> Result<()> {
     println!("Using wallet {} of {}", args.wallet, total_wallets);
 
     // Test wallet decryption with current password
-    if let Err(_) = wallet_manager
+    if wallet_manager
         .get_wallet(args.wallet, wallet_password.as_deref())
         .await
+        .is_err()
     {
         println!("\n⚠️  Decryption failed with env KEY (or KEY unset/wrong).");
         let input = Password::with_theme(&ColorfulTheme::default())
@@ -513,7 +512,7 @@ async fn main() -> Result<()> {
             999,
             "check_native_balance",
             "Check Native Balance",
-            Box::new(tempo_spammer::tasks::check_native_balance::CheckNativeBalanceTask::default()),
+            Box::new(tempo_spammer::tasks::check_native_balance::CheckNativeBalanceTask),
         ),
     ];
 
@@ -583,7 +582,7 @@ async fn main() -> Result<()> {
             let duration = start_time.elapsed();
             let timed_out_result = TaskResult {
                 success: false,
-                message: format!("Task timed out after 60s"),
+                message: "Task timed out after 60s".to_string(),
                 tx_hash: None,
             };
             println!("⚠️  Failed: {}", timed_out_result.message);

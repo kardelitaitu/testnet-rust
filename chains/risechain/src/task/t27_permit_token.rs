@@ -5,6 +5,7 @@ use ethers::prelude::*;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct PermitTokenTask;
 
 impl PermitTokenTask {
@@ -89,7 +90,7 @@ impl Task<TaskContext> for PermitTokenTask {
             .await
             .context("Failed to get permit typehash")?;
 
-        let struct_hash = ethers::utils::keccak256(&ethers::abi::encode(&[
+        let struct_hash = ethers::utils::keccak256(ethers::abi::encode(&[
             ethers::abi::Token::FixedBytes(permit_typehash.as_bytes().to_vec()),
             ethers::abi::Token::Address(address),
             ethers::abi::Token::Address(address),

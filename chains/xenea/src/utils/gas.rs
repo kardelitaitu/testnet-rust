@@ -45,8 +45,8 @@ impl GasManager {
             .await
             .unwrap_or_else(|_| U256::from(1u64));
 
-        let config_max: U256 = parse_units(self.config.max_gwei(), "gwei")?.into();
-        let config_prio: U256 = parse_units(self.config.priority_gwei(), "gwei")?.into();
+        let config_max: U256 = parse_units(self.config.max_gwei(), "gwei")?;
+        let config_prio: U256 = parse_units(self.config.priority_gwei(), "gwei")?;
 
         let Some(base_fee) = block.base_fee_per_gas else {
             // Legacy-fee fallback for chains that do not expose baseFeePerGas.
@@ -86,11 +86,11 @@ impl GasManager {
     pub async fn get_priority_fee_adjusted(&self, base_fee: U256) -> Result<U256> {
         let block = self.provider.get_block(BlockNumber::Latest).await?;
         let Some(block) = block else {
-            return Ok(parse_units(self.config.priority_gwei(), "gwei")?.into());
+            return parse_units(self.config.priority_gwei(), "gwei");
         };
 
         let Some(parent_base_fee) = block.base_fee_per_gas else {
-            return Ok(parse_units(self.config.priority_gwei(), "gwei")?.into());
+            return parse_units(self.config.priority_gwei(), "gwei");
         };
 
         let base_fee_change = if parent_base_fee > U256::zero() {
@@ -100,11 +100,11 @@ impl GasManager {
         };
 
         let priority_fee = if base_fee_change > U256::from(10) {
-            parse_units(self.config.priority_gwei() * 2.0, "gwei")?.into()
+            parse_units(self.config.priority_gwei() * 2.0, "gwei")?
         } else if base_fee_change > U256::from(5) {
-            parse_units(self.config.priority_gwei() * 1.5, "gwei")?.into()
+            parse_units(self.config.priority_gwei() * 1.5, "gwei")?
         } else {
-            parse_units(self.config.priority_gwei(), "gwei")?.into()
+            parse_units(self.config.priority_gwei(), "gwei")?
         };
 
         Ok(priority_fee)

@@ -82,9 +82,10 @@ async fn main() -> Result<()> {
     }
 
     // Interactive password prompt if env var not set or invalid
-    if let Err(_) = wallet_manager
+    if wallet_manager
         .get_wallet(0, wallet_password.as_deref())
         .await
+        .is_err()
     {
         println!("\n⚠️  Wallet decryption failed (password not set or invalid).");
         let input = Password::with_theme(&ColorfulTheme::default())
@@ -116,7 +117,7 @@ async fn main() -> Result<()> {
 
     // 4. Define The Sequence
     let sequence_ids = vec![2, 4, 7, 21, 22];
-    let task_names = vec![
+    let task_names = [
         "Claim Faucet",
         "Create Stable",
         "Mint Stable",
@@ -152,7 +153,7 @@ async fn main() -> Result<()> {
     );
 
     // Determine effective worker count: compile-time > CLI arg > interactive
-    let compile_workers = if COMPILE_TIME_WORKERS > 0 {
+    let compile_workers = if COMPILE_TIME_WORKERS != 0 {
         COMPILE_TIME_WORKERS as usize
     } else {
         args.workers

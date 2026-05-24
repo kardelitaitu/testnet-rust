@@ -54,11 +54,10 @@ impl TempoTask for BurnStableTask {
         let address = ctx.address();
         let wallet_addr_str = address.to_string();
 
-        let mut created_token_addresses = if let Some(db) = &ctx.db {
-            match db.get_assets_by_type(&wallet_addr_str, "stablecoin").await {
-                Ok(addresses) => addresses,
-                Err(_) => Vec::new(),
-            }
+        let mut created_token_addresses: Vec<String> = if let Some(db) = &ctx.db {
+            db.get_assets_by_type(&wallet_addr_str, "stablecoin")
+                .await
+                .unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -81,9 +80,8 @@ impl TempoTask for BurnStableTask {
 
             // Re-query DB
             if let Some(db) = &ctx.db {
-                match db.get_assets_by_type(&wallet_addr_str, "stablecoin").await {
-                    Ok(addresses) => created_token_addresses = addresses,
-                    Err(_) => {}
+                if let Ok(addresses) = db.get_assets_by_type(&wallet_addr_str, "stablecoin").await {
+                    created_token_addresses = addresses
                 }
             }
 

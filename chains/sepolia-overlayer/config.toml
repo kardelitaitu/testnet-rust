@@ -1,4 +1,4 @@
-rpc_url = "https://ethereum-sepolia-rpc.publicnode.com"
+rpc_url = "https://sepolia.drpc.org"
 chain_id = 11155111
 explorer = "https://sepolia.etherscan.io"
 symbol = "ETH"
@@ -27,29 +27,31 @@ task_timeout_secs = 120
 # The daily runner will execute each task up to this many times per wallet
 # per day. Failed executions do NOT count toward the limit.
 #
-# To see all 19 task names: chains/sepolia-overlayer/src/task/
+# To see all 22 task names: chains/sepolia-overlayer/src/task/
 #
 [task_limits]
-01_checkbalance = 2
-02_mintusdtplus = 10
-03_mintusdcplus = 10
-04_redeemusdtplus = 2
-05_redeemusdcplus = 2
-06_stakeusdtplus = 5
-07_stakeusdcplus = 5
+01_checkbalance = 1
+02_mintusdtplus = 30
+03_mintusdcplus = 30
+04_redeemusdtplus = 1
+05_redeemusdcplus = 1
+06_stakeusdtplus = 1
+07_stakeusdcplus = 1
 08_unstaketplus = 1
 09_unstakecplus = 1
-10_aaveusdtfaucet = 3
-11_aaveusdcfaucet = 3
-12_bridgetplus = 1
+10_aaveusdtfaucet = 2
+11_aaveusdcfaucet = 2
+12_bridgetplus = 0
 13_bridgecplus = 1
-14_sendrandomusdtplus = 2
-15_sendrandomusdcplus = 1
-16_bridgebacktplus = 1
-17_bridgebackcplus = 1
-18_receivetplus = 1
+14_sendrandomusdtplus = 0
+15_sendrandomusdcplus = 0
+16_bridgebacktplus = 0
+17_bridgebackcplus = 0
+18_receivetplus = 0
 19_receivecplus = 1
-20_aavewbtcfaucet = 3
+20_aavewbtcfaucet = 1
+21_redeemtoausdt = 0
+22_redeemtoausdc = 0
 
 
 # Command to Run

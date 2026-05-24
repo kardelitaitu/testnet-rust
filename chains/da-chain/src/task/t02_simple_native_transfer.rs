@@ -6,7 +6,6 @@ use ethers::prelude::*;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use std::fs;
-use std::time::Duration;
 
 fn get_random_recipient() -> Result<Address> {
     let content =
@@ -24,55 +23,6 @@ fn get_random_recipient() -> Result<Address> {
     Ok(addr_str.parse::<Address>()?)
 }
 
-fn bump_for_replacement(max_fee: U256, priority_fee: U256) -> (U256, U256) {
-    let bumped_max_fee = max_fee * 300 / 100;
-    let bumped_priority_fee = priority_fee * 300 / 100;
-    (bumped_max_fee, bumped_priority_fee)
-}
-
-async fn try_cancel_pending_tx(
-    ctx: &TaskContext,
-    wallet_address: Address,
-    nonce: U256,
-    max_fee: U256,
-    priority_fee: U256,
-) -> Result<()> {
-    println!(
-        "[INFO] Sending cancellation tx for pending nonce {}...",
-        nonce
-    );
-    let middleware = SignerMiddleware::new(ctx.provider.clone(), ctx.wallet.clone());
-    let cancel_tx = Eip1559TransactionRequest::new()
-        .to(wallet_address)
-        .value(U256::zero())
-        .nonce(nonce)
-        .gas(21000)
-        .max_fee_per_gas(max_fee)
-        .max_priority_fee_per_gas(priority_fee)
-        .from(wallet_address);
-
-    let pending_tx = middleware.send_transaction(cancel_tx, None).await?;
-    let tx_hash = pending_tx.tx_hash();
-    println!("[DEBUG] Cancellation tx sent: {:?}", tx_hash);
-
-    let receipt = pending_tx
-        .confirmations(1)
-        .interval(Duration::from_millis(500))
-        .await?;
-
-    match &receipt {
-        Some(r) => {
-            println!("[DEBUG] Cancellation receipt status: {:?}", r.status);
-            println!("[DEBUG] Cancellation receipt block: {:?}", r.block_number);
-        }
-        None => {
-            println!("[WARNING] No receipt returned for cancellation tx after waiting");
-        }
-    }
-
-    Ok(())
-}
-
 pub struct SimpleNativeTransferTask;
 
 #[async_trait]
@@ -82,253 +32,37 @@ impl DaChainTask for SimpleNativeTransferTask {
     }
 
     async fn run(&self, ctx: TaskContext) -> Result<TaskResult> {
-        println!("[DEBUG] Starting task 02_simpleNativeTransfer");
-        let wallet_address = ctx.wallet.address();
-        println!("[DEBUG] Wallet address: {:?}", wallet_address);
-
-        // Get random recipient from address.txt
-        println!("[DEBUG] Reading recipient from address.txt...");
+        // Get random recipient
         let recipient = get_random_recipient()?;
-        println!("[DEBUG] Recipient: {:?}", recipient);
 
-        // Get nonce
-        println!("[DEBUG] Getting nonce...");
-        let confirmed_nonce = ctx
-            .provider
-            .get_transaction_count(wallet_address, None)
-            .await?;
-        println!("[DEBUG] Initial nonce (confirmed): {}", confirmed_nonce);
-
-        // Check for pending transactions
-        let pending_nonce = ctx
-            .provider
-            .get_transaction_count(wallet_address, Some(BlockId::Number(BlockNumber::Pending)))
-            .await?;
-        println!("[DEBUG] Pending nonce: {}", pending_nonce);
-
-        let mut nonce = confirmed_nonce;
-        let mut replacing = false;
-
-        if pending_nonce > confirmed_nonce {
-            println!(
-                "[INFO] Detected {} pending transaction(s), will replace with higher gas",
-                pending_nonce - confirmed_nonce
-            );
-            let (cancel_max_fee, cancel_priority_fee) = ctx.gas_manager.get_fees().await?;
-            let (cancel_max_fee, cancel_priority_fee) =
-                bump_for_replacement(cancel_max_fee, cancel_priority_fee);
-
-            if let Err(e) = try_cancel_pending_tx(
-                &ctx,
-                wallet_address,
-                confirmed_nonce,
-                cancel_max_fee,
-                cancel_priority_fee,
-            )
-            .await
-            {
-                println!("[WARNING] Failed to send cancellation tx: {}", e);
-            }
-
-            // Re-read nonce state after the cancellation attempt.
-            let refreshed_confirmed_nonce = ctx
-                .provider
-                .get_transaction_count(wallet_address, None)
-                .await?;
-            let refreshed_pending_nonce = ctx
-                .provider
-                .get_transaction_count(wallet_address, Some(BlockId::Number(BlockNumber::Pending)))
-                .await?;
-            println!(
-                "[DEBUG] Refreshed confirmed nonce: {}",
-                refreshed_confirmed_nonce
-            );
-            println!(
-                "[DEBUG] Refreshed pending nonce: {}",
-                refreshed_pending_nonce
-            );
-
-            nonce = refreshed_confirmed_nonce;
-            replacing = refreshed_pending_nonce > refreshed_confirmed_nonce;
-            if replacing {
-                println!(
-                    "[INFO] Pending tx still exists, will keep using nonce {}",
-                    nonce
-                );
-            } else {
-                println!("[INFO] Pending tx cleared, continuing with nonce {}", nonce);
-            }
-        }
-
-        // Get wallet balance
-        println!("[DEBUG] Getting balance...");
-        let balance = ctx.provider.get_balance(wallet_address, None).await?;
-        println!(
-            "[DEBUG] Balance: {} DACC",
-            ethers::utils::format_ether(balance)
-        );
-
-        if balance.is_zero() {
-            return Ok(TaskResult {
-                success: false,
-                message: "Balance is zero, skipping transfer".to_string(),
-            });
-        }
-
-        // Calculate 0.5% - 1.0% of balance
+        // Randomize amount: 0.050 to 0.100 DACC, 0.001 increment
         let mut rng = StdRng::from_entropy();
-        let percentage: f64 = rng.gen_range(0.005..=0.01); // 0.5% to 1.0%
-        println!("[DEBUG] Transfer percentage: {:.2}%", percentage * 100.0);
+        let increments = rng.gen_range(50u64..=100u64); // 0.050 to 0.100
+        let final_amount = U256::from(increments) * U256::from(10u64.pow(15)); // 0.001 DACC increments
 
-        // Convert percentage to wei scale and calculate amount directly with U256
-        let percentage_wei = (percentage * 1e18) as u128;
-        let amount_u256 = balance * U256::from(percentage_wei) / U256::from(1e18 as u128);
-        println!(
-            "[DEBUG] Calculated amount: {} DACC",
-            ethers::utils::format_ether(amount_u256)
-        );
-        println!(
-            "[DEBUG] Calculated amount: {} DACC",
-            ethers::utils::format_ether(amount_u256)
-        );
+        // Get automatic gas fees
+        let (max_fee, _priority_fee) = ctx.gas_manager.get_fees().await?;
 
-        // Ensure minimum amount (0.0001 DACC)
-        let min_amount = ethers::utils::parse_ether("0.0001")?;
-        let final_amount = if amount_u256 < min_amount {
-            println!("[DEBUG] Using minimum amount");
-            min_amount
-        } else {
-            amount_u256
-        };
-        println!(
-            "[DEBUG] Final transfer amount: {} DACC",
-            ethers::utils::format_ether(final_amount)
-        );
+        // Build and send legacy transaction — no manual nonce, no confirmation wait
+        let middleware = SignerMiddleware::new(ctx.provider.clone(), ctx.wallet);
 
-        // Get automatic gas fees (EIP-1559 if supported, else legacy)
-        println!("[DEBUG] Getting gas fees...");
-        let (mut max_fee, mut priority_fee) = ctx.gas_manager.get_fees().await?;
+        let amount_str = ethers::utils::format_ether(final_amount);
 
-        // If replacing a pending transaction, increase gas to ensure replacement
-        if replacing {
-            println!("[INFO] Increasing gas price for transaction replacement...");
-            max_fee = max_fee * 200 / 100; // Increase by 100%
-            priority_fee = priority_fee * 200 / 100;
-            println!(
-                "[DEBUG] Increased gas - max: {} wei, priority: {} wei",
-                max_fee, priority_fee
-            );
-        }
+        let tx = TransactionRequest::new()
+            .to(recipient)
+            .value(final_amount)
+            .gas_price(max_fee)
+            .gas(21000);
 
-        println!(
-            "[DEBUG] Gas fees - max: {} wei, priority: {} wei",
-            max_fee, priority_fee
-        );
+        let pending_tx = middleware.send_transaction(tx, None).await?;
+        let tx_hash = pending_tx.tx_hash();
 
-        // Check if balance is sufficient for amount + gas
-        let gas_cost = U256::from(21000) * max_fee;
-        if balance < final_amount + gas_cost {
-            return Ok(TaskResult {
-                success: false,
-                message: format!(
-                    "Insufficient balance: have {} DACC, need {} DACC for transfer + gas",
-                    ethers::utils::format_ether(balance),
-                    ethers::utils::format_ether(final_amount + gas_cost)
-                ),
-            });
-        }
-
-        // Check if chain supports EIP-1559
-        println!("[DEBUG] Checking EIP-1559 support...");
-        let supports_eip1559 = ctx
-            .provider
-            .get_block(BlockNumber::Latest)
-            .await?
-            .and_then(|b| b.base_fee_per_gas)
-            .is_some();
-        println!("[DEBUG] EIP-1559 support: {}", supports_eip1559);
-
-        let percentage_str = format!("{:.2}%", percentage * 100.0);
-
-        if supports_eip1559 {
-            // Use EIP-1559 transaction
-            println!("[DEBUG] Creating EIP-1559 transaction...");
-            let middleware = SignerMiddleware::new(ctx.provider.clone(), ctx.wallet);
-            let tx = Eip1559TransactionRequest::new()
-                .to(recipient)
-                .value(final_amount)
-                .nonce(nonce)
-                .gas(21000)
-                .max_fee_per_gas(max_fee)
-                .max_priority_fee_per_gas(priority_fee)
-                .from(wallet_address);
-
-            println!("[DEBUG] Sending EIP-1559 transaction...");
-            let pending_tx = middleware.send_transaction(tx, None).await?;
-            let tx_hash = pending_tx.tx_hash();
-            println!("[DEBUG] Transaction sent: {:?}", tx_hash);
-
-            let receipt = pending_tx
-                .confirmations(1)
-                .interval(Duration::from_millis(500))
-                .await?;
-
-            match &receipt {
-                Some(r) => {
-                    println!("[DEBUG] Receipt status: {:?}", r.status);
-                    println!("[DEBUG] Receipt block number: {:?}", r.block_number);
-                }
-                None => {
-                    println!("[WARNING] No receipt returned after waiting for 1 confirmation");
-                }
-            }
-
-            Ok(TaskResult {
-                success: receipt.is_some(),
-                message: format!(
-                    "Transferred {} DACC ({} of balance), tx: {:?}",
-                    ethers::utils::format_ether(final_amount),
-                    percentage_str,
-                    tx_hash
-                ),
-            })
-        } else {
-            // Use legacy transaction
-            let middleware = SignerMiddleware::new(ctx.provider.clone(), ctx.wallet);
-            let tx = TransactionRequest::new()
-                .to(recipient)
-                .value(final_amount)
-                .nonce(nonce)
-                .gas_price(max_fee)
-                .gas(21000);
-
-            let pending_tx = middleware.send_transaction(tx, None).await?;
-            let tx_hash = pending_tx.tx_hash();
-
-            let receipt = pending_tx
-                .confirmations(1)
-                .interval(Duration::from_millis(500))
-                .await?;
-
-            match &receipt {
-                Some(r) => {
-                    println!("[DEBUG] Receipt status: {:?}", r.status);
-                    println!("[DEBUG] Receipt block number: {:?}", r.block_number);
-                }
-                None => {
-                    println!("[WARNING] No receipt returned after waiting for 1 confirmation");
-                }
-            }
-
-            Ok(TaskResult {
-                success: receipt.is_some(),
-                message: format!(
-                    "Transferred {} DACC ({} of balance), tx: {:?}",
-                    ethers::utils::format_ether(final_amount),
-                    percentage_str,
-                    tx_hash
-                ),
-            })
-        }
+        Ok(TaskResult {
+            success: true,
+            message: format!(
+                "Sent {} DACC to {:?} (tx: {:?})",
+                amount_str, recipient, tx_hash
+            ),
+        })
     }
 }

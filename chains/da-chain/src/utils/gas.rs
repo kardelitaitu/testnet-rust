@@ -19,9 +19,13 @@ impl GasManager {
     pub const LIMIT_SEND_MEME: U256 = U256([100_000, 0, 0, 0]);
 
     pub fn new(provider: Arc<Provider<Http>>, min_fee_gwei: f64) -> Self {
+        Self::with_max(provider, min_fee_gwei, Self::MAX_FEE_GWEI_DEFAULT)
+    }
+
+    pub fn with_max(provider: Arc<Provider<Http>>, min_fee_gwei: f64, max_fee_gwei: f64) -> Self {
         Self {
             config: GasConfig::new()
-                .with_max_fee(Self::MAX_FEE_GWEI_DEFAULT)
+                .with_max_fee(max_fee_gwei)
                 .with_priority_fee(Self::PRIORITY_FEE_GWEI_DEFAULT),
             provider,
             min_fee_gwei,
@@ -50,9 +54,9 @@ impl GasManager {
 
         let gas_price = self.get_gas_price().await?;
 
-        let config_max: U256 = parse_units(self.config.max_gwei(), "gwei")?.into();
-        let config_prio: U256 = parse_units(self.config.priority_gwei(), "gwei")?.into();
-        let min_fee_floor: U256 = parse_units(self.min_fee_gwei, "gwei")?.into();
+        let config_max: U256 = parse_units(self.config.max_gwei(), "gwei")?;
+        let config_prio: U256 = parse_units(self.config.priority_gwei(), "gwei")?;
+        let min_fee_floor: U256 = parse_units(self.min_fee_gwei, "gwei")?;
 
         let Some(base_fee) = block.base_fee_per_gas else {
             let fee = gas_price.max(min_fee_floor).min(config_max);

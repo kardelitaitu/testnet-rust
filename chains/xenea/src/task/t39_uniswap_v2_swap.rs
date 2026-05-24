@@ -5,6 +5,7 @@ use ethers::prelude::*;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct UniswapV2SwapTask;
 
 impl UniswapV2SwapTask {

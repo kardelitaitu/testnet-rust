@@ -7,6 +7,7 @@ use rand::Rng;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct ERC721MintTask;
 
 impl ERC721MintTask {

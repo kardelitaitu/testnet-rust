@@ -69,15 +69,15 @@ impl SepoliaTask for StakeUsdtPlusTask {
         // --- 1. Check T+ balance ---
         let tplus_balance = get_tplus_balance(provider, address).await?;
 
-        // --- 2. Calculate 5% of T+ balance, round to nearest whole T+ ---
-        let stake_amount = calc_pct_rounded(tplus_balance.as_u128(), 5, 100, 18);
+        // --- 2. Calculate 10% of T+ balance, round to nearest whole T+ ---
+        let stake_amount = calc_pct_rounded(tplus_balance.as_u128(), 10, 100, 18);
         let dec18: u128 = 1_000_000_000_000_000_000;
         let whole_tplus = stake_amount / dec18;
 
         if whole_tplus == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "2% of T+ balance rounds to 0, nothing to stake".to_string(),
+                message: "10% of T+ balance rounds to 0, nothing to stake".to_string(),
             });
         }
 

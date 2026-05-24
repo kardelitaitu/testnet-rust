@@ -44,12 +44,11 @@ impl TempoTask for MintViralNftTask {
         let wallet_addr_str = format!("{:?}", address);
 
         // 1. Load NFTs from DB
-        let nfts = if let Some(db) = &ctx.db {
+        let nfts: Vec<String> = if let Some(db) = &ctx.db {
             // Use get_all_assets_by_type to find NFTs created by ANYONE
-            match db.get_all_assets_by_type("viral_nft").await {
-                Ok(addresses) => addresses,
-                Err(_) => Vec::new(),
-            }
+            db.get_all_assets_by_type("viral_nft")
+                .await
+                .unwrap_or_default()
         } else {
             Vec::new()
         };

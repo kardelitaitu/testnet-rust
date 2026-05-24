@@ -11,6 +11,7 @@ use tracing::{error, info};
 include!(concat!(env!("OUT_DIR"), "/build_config.rs"));
 
 /// Telegram bot configuration
+#[derive(Default)]
 pub struct TelegramConfig {
     pub bot_token: String,
     pub chat_id: String,

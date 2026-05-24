@@ -71,7 +71,7 @@ impl Default for MetricsCollector {
 impl MetricsCollector {
     pub fn global() -> &'static Self {
         static INSTANCE: std::sync::OnceLock<MetricsCollector> = std::sync::OnceLock::new();
-        INSTANCE.get_or_init(|| MetricsCollector::default())
+        INSTANCE.get_or_init(MetricsCollector::default)
     }
 
     pub fn record_task(&self, _name: &str, duration: Duration, success: bool) {

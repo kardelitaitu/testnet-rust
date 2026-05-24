@@ -3,6 +3,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use ethers::prelude::*;
 
+#[derive(Default)]
 pub struct XeneaEip7702ExploreTask;
 
 impl XeneaEip7702ExploreTask {
@@ -61,7 +62,7 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
         };
 
         messages.push(format!("Deployer: {:?}", deployer_address));
-        messages.push(format!("Auth hash: 0x{}", hex::encode(&auth_hash)));
+        messages.push(format!("Auth hash: 0x{}", hex::encode(auth_hash)));
         messages.push(format!(
             "Signature: v={}, r=0x{:064x}, s=0x{:064x}",
             y_parity, signature.r, signature.s
@@ -93,7 +94,7 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
                     let code_after = provider.get_code(deployer_address, None).await?;
                     messages.push(format!("Code length after: {} bytes", code_after.len()));
 
-                    if receipt.status == Some(U64::from(1)) && code_after.len() > 0 {
+                    if receipt.status == Some(U64::from(1)) && !code_after.is_empty() {
                         messages.push("✅ EIP-7702 WORKS! Code was set!".to_string());
                     } else if receipt.status == Some(U64::from(1)) {
                         messages.push("⚠️  Transaction succeeded but no code set".to_string());

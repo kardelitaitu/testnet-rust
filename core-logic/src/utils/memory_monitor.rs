@@ -97,7 +97,7 @@ impl MemoryMonitor {
             // Rate limit alerts to avoid spam
             if self
                 .last_alert
-                .map_or(true, |last| last.elapsed() > Duration::from_secs(60))
+                .is_none_or(|last| last.elapsed() > Duration::from_secs(60))
             {
                 warn!(
                     "High memory usage detected: {}MB (threshold: {}MB)",

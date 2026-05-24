@@ -6,6 +6,7 @@ use ethers::prelude::*;
 use rand::rngs::OsRng;
 use rand::Rng;
 
+#[derive(Default)]
 pub struct EthWithDataTask;
 
 impl EthWithDataTask {
@@ -50,7 +51,7 @@ impl Task<TaskContext> for EthWithDataTask {
 
         let mut custom_data = [0u8; 8];
         rng.fill(&mut custom_data);
-        let data_hex = hex::encode(&custom_data);
+        let data_hex = hex::encode(custom_data);
 
         let (max_fee, priority_fee) = ctx.gas_manager.get_fees().await?;
         let gas_limit = crate::utils::gas::GasManager::LIMIT_SEND_MEME;

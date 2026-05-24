@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use ethers::prelude::*;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct XeneaCheckCodeTask;
 
 impl XeneaCheckCodeTask {

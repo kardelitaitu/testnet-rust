@@ -69,15 +69,15 @@ impl SepoliaTask for StakeUsdcPlusTask {
         // --- 1. Check C+ balance ---
         let cplus_balance = get_cplus_balance(provider, address).await?;
 
-        // --- 2. Calculate 5% of C+ balance, round to nearest whole C+ ---
-        let stake_amount = calc_pct_rounded(cplus_balance.as_u128(), 5, 100, 18);
+        // --- 2. Calculate 10% of C+ balance, round to nearest whole C+ ---
+        let stake_amount = calc_pct_rounded(cplus_balance.as_u128(), 10, 100, 18);
         let dec18: u128 = 1_000_000_000_000_000_000;
         let whole_cplus = stake_amount / dec18;
 
         if whole_cplus == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "5% of C+ balance rounds to 0, nothing to stake".to_string(),
+                message: "10% of C+ balance rounds to 0, nothing to stake".to_string(),
             });
         }
 

@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let code = provider.get_code(create2_address, None).await?;
         println!("Code length: {} bytes", code.len());
-        if code.len() > 0 {
+        if !code.is_empty() {
             println!(
                 "Code (first 100 bytes): 0x{}",
                 hex::encode(&code[..code.len().min(100)])

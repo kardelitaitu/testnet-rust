@@ -8,6 +8,7 @@ use rand::{seq::SliceRandom, Rng};
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct Erc1155MintTask;
 
 impl Erc1155MintTask {

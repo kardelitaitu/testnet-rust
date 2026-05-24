@@ -5,6 +5,7 @@ use ethers::prelude::*;
 use rand::Rng;
 use std::sync::Arc;
 
+#[derive(Default)]
 pub struct DelegatecallTask;
 
 impl DelegatecallTask {

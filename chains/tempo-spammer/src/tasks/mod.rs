@@ -745,11 +745,7 @@ pub fn load_proxies(path: &str) -> Result<Vec<ProxyConfig>> {
                     } else {
                         None
                     };
-                    let password = if let Some(p) = u.password() {
-                        Some(p.to_string())
-                    } else {
-                        None
-                    };
+                    let password = u.password().map(|p| p.to_string());
 
                     let base_url = format!("{}://{}:{}", u.scheme(), host, port);
 

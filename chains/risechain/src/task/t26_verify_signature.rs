@@ -5,6 +5,7 @@ use ethers::prelude::*;
 use rand::rngs::OsRng;
 use rand::Rng;
 
+#[derive(Default)]
 pub struct VerifySignatureTask;
 
 impl VerifySignatureTask {

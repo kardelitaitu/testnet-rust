@@ -46,11 +46,10 @@ impl TempoTask for MintMemeTask {
         let address = ctx.address();
         let wallet_addr_str = address.to_string();
 
-        let mut meme_tokens = if let Some(db) = &ctx.db {
-            match db.get_assets_by_type(&wallet_addr_str, "meme").await {
-                Ok(addresses) => addresses,
-                Err(_) => Vec::new(),
-            }
+        let mut meme_tokens: Vec<String> = if let Some(db) = &ctx.db {
+            db.get_assets_by_type(&wallet_addr_str, "meme")
+                .await
+                .unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -161,15 +160,15 @@ impl TempoTask for MintMemeTask {
                         continue;
                     }
 
-                    if err_str.contains("execution reverted") || err_str.contains("aa4bc69a") {
-                        if err_str.contains("aa4bc69a") {
-                            return Ok(TaskResult {
-                                success: false,
-                                message: "Mint reverted: Likely Sold Out or Already Claimed"
-                                    .to_string(),
-                                tx_hash: None,
-                            });
-                        }
+                    if (err_str.contains("execution reverted") || err_str.contains("aa4bc69a"))
+                        && err_str.contains("aa4bc69a")
+                    {
+                        return Ok(TaskResult {
+                            success: false,
+                            message: "Mint reverted: Likely Sold Out or Already Claimed"
+                                .to_string(),
+                            tx_hash: None,
+                        });
                     }
                     return Err(e).context("Failed to mint");
                 }

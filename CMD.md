@@ -90,7 +90,19 @@ Gas behavior:
 - `--min-gwei` sets the floor for explorer/RPC fee selection.
 - `ExplorerGasTracker` reads `https://exptest.dachain.tech/gas-tracker` and feeds the shared gas helper.
 
-## 5) Robinhood (`robinhood-spammer`)
+## 5) Sepolia (`sepolia-overlayer`)
+
+Wallet balance dump:
+```powershell
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin wallet-balance-dump -- --config chains/sepolia-overlayer/config.toml --output wallet-balances.txt
+```
+
+Funder:
+```powershell
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin sepolia-funder -- --config chains/sepolia-overlayer/config.toml
+```
+
+## 6) Robinhood (`robinhood-spammer`)
 
 Main:
 ```powershell
@@ -107,7 +119,7 @@ Runner:
 cargo run -p robinhood-spammer --bin robinhood-runner -- --config chains/robinhood/config.toml
 ```
 
-## 6) Tempo (`tempo-spammer`)
+## 7) Tempo (`tempo-spammer`)
 
 Main:
 ```powershell
@@ -126,7 +138,7 @@ cargo run -p tempo-spammer --bin wallet-check -- --config chains/tempo-spammer/c
 Alternative:
 - Build once, run `target\debug\tempo-*.exe` directly.
 
-## 7) Useful Environment Variables
+## 8) Useful Environment Variables
 
 ```powershell
 $env:WALLET_PASSWORD="your_password"
@@ -134,7 +146,7 @@ $env:RUST_BACKTRACE=1
 $env:RUST_LOG="debug"
 ```
 
-## 8) Quick Troubleshooting
+## 9) Quick Troubleshooting
 
 1. Wallet decrypt fails:
 - Verify `WALLET_PASSWORD`.
@@ -152,7 +164,7 @@ $env:RUST_LOG="debug"
 - Lower worker count / TPS / semaphores.
 - Retry without proxies to isolate network issues.
 
-## 9) MCP Quick Start (Smoke Test)
+## 10) MCP Quick Start (Smoke Test)
 
 Goal: verify MCP can access this repo and run at least one external-tool path.
 

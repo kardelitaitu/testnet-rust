@@ -46,12 +46,10 @@ impl TempoTask for MultiSendConcurrentMemeTask {
         let address = ctx.address();
         let wallet_addr_str = address.to_string();
 
-        // 1. Select Meme Token
-        let meme_tokens = if let Some(db) = &ctx.db {
-            match db.get_assets_by_type(&wallet_addr_str, "meme").await {
-                Ok(addresses) => addresses,
-                Err(_) => Vec::new(),
-            }
+        let meme_tokens: Vec<String> = if let Some(db) = &ctx.db {
+            db.get_assets_by_type(&wallet_addr_str, "meme")
+                .await
+                .unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -195,10 +193,10 @@ impl TempoTask for MultiSendConcurrentMemeTask {
             }
         }
 
-        if success_count == 0 && first_error.is_some() {
-            return Err(first_error
-                .unwrap()
-                .context("All concurrent transfers failed"));
+        if success_count == 0 {
+            if let Some(err) = first_error {
+                return Err(err.context("All concurrent transfers failed"));
+            }
         }
 
         // Update Nonce Manager

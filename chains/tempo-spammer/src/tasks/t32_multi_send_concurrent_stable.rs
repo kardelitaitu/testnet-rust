@@ -47,11 +47,10 @@ impl TempoTask for MultiSendConcurrentStableTask {
         let wallet_addr_str = address.to_string();
 
         // 1. Select Stable Token
-        let stable_tokens = if let Some(db) = &ctx.db {
-            match db.get_assets_by_type(&wallet_addr_str, "stablecoin").await {
-                Ok(addresses) => addresses,
-                Err(_) => Vec::new(),
-            }
+        let stable_tokens: Vec<String> = if let Some(db) = &ctx.db {
+            db.get_assets_by_type(&wallet_addr_str, "stablecoin")
+                .await
+                .unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -131,15 +130,12 @@ impl TempoTask for MultiSendConcurrentStableTask {
                 .from(address)
                 .gas_limit(500_000);
 
-            match client.provider.send_transaction(faucet_tx).await {
-                Ok(pending) => {
-                    let _ = pending.get_receipt().await;
-                    // Refresh balance
-                    balance = TempoTokens::get_token_balance(client, token_addr, address).await?;
-                    total_impact = balance * U256::from(3) / U256::from(100);
-                    amount_per_recipient = total_impact / U256::from(count);
-                }
-                Err(_) => {} // Ignore faucet error
+            if let Ok(pending) = client.provider.send_transaction(faucet_tx).await {
+                let _ = pending.get_receipt().await;
+                // Refresh balance
+                balance = TempoTokens::get_token_balance(client, token_addr, address).await?;
+                total_impact = balance * U256::from(3) / U256::from(100);
+                amount_per_recipient = total_impact / U256::from(count);
             }
         }
 
@@ -183,7 +179,7 @@ impl TempoTask for MultiSendConcurrentStableTask {
 
             if let Some(manager) = &client.nonce_manager {
                 // Use atomic nonce reservation
-                let start_nonce = manager.get_and_increment(address).await.unwrap_or_else(|| {
+                let start_nonce = manager.get_and_increment(address).await.unwrap_or({
                     // Fallback: get from RPC and initialize
                     0u64
                 });
@@ -246,10 +242,7 @@ impl TempoTask for MultiSendConcurrentStableTask {
                                 results_status.push(true);
                             } else {
                                 results_status.push(false);
-                                errors.push(format!(
-                                    "transaction reverted {}",
-                                    format!("{:?}", tx_hash)
-                                ));
+                                errors.push(format!("transaction reverted {:?}", tx_hash));
                             }
                         }
                         Err(e) => {

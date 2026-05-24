@@ -24,7 +24,7 @@ impl Task<TaskContext> for SimpleEthTransferTask {
 
         Ok(TaskResult {
             success: true,
-            message: format!("Transferred 0.0001 ETH to self"),
+            message: "Transferred 0.0001 ETH to self".to_string(),
             tx_hash: Some(format!("{:?}", tx_hash)),
         })
     }

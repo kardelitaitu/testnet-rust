@@ -6,6 +6,7 @@ use ethers::prelude::*;
 use std::sync::Arc;
 use tracing::debug;
 
+#[derive(Default)]
 pub struct ContractCallRawTask;
 
 impl ContractCallRawTask {
@@ -60,7 +61,7 @@ impl Task<TaskContext> for ContractCallRawTask {
         // 4. Encode raw calldata: (recipient, amount)
         let data = ethers::abi::encode(&[
             ethers::abi::Token::Address(recipient),
-            ethers::abi::Token::Uint(amount_wei.into()),
+            ethers::abi::Token::Uint(amount_wei),
         ]);
 
         let tx = TransactionRequest::new()

@@ -87,7 +87,8 @@ impl TempoTask for MintDomainTask {
         if balance < min_balance {
             return Ok(TaskResult {
                 success: false,
-                message: format!("Insufficient PathUSD for domain registration. Need 1000 PathUSD"),
+                message: "Insufficient PathUSD for domain registration. Need 1000 PathUSD"
+                    .to_string(),
                 tx_hash: None,
             });
         }
@@ -150,7 +151,7 @@ impl TempoTask for MintDomainTask {
         let logs = receipt.inner.logs();
         // println!("📋 Transaction has {} log(s)", logs.len());
 
-        for (_i, _log) in logs.iter().enumerate() {
+        for _log in logs.iter() {
             // println!(
             //     "📝 Log {}: Address: {:?}, Topics: {:?}, Data: {:?}",
             //     i,
