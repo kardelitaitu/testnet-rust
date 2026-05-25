@@ -1,0 +1,13 @@
+rpc_url = "https://rpc.testnet.arc.network"
+chain_id = 5042002
+explorer = "https://testnet.arcscan.app"
+symbol = "USDC"
+tps = 10
+worker_amount = 5
+
+# Custom wallet directory for arc
+wallet_dir = "chains/arc/wallet-json-arc"
+
+# Optional: min and max delay between transactions (in milliseconds)
+min_delay_ms = 60000
+max_delay_ms = 120000
