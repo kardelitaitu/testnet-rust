@@ -9,6 +9,23 @@ use thiserror::Error;
 ///
 /// This enum wraps all specific error types and provides a unified
 /// error interface for the application layer.
+///
+/// ```
+/// use core_logic::error::{CoreError, NetworkError, ConfigError};
+///
+/// // Errors are constructed via their specific type and auto-converted
+/// let net_err: CoreError = NetworkError::Timeout {
+///     timeout_ms: 5000,
+///     endpoint: "http://rpc.example.com".into(),
+/// }.into();
+/// assert!(net_err.to_string().contains("5000"));
+///
+/// // The `Unknown` variant handles unclassified errors
+/// let unknown = CoreError::Unknown {
+///     message: "service unavailable".into(),
+/// };
+/// assert!(unknown.to_string().contains("service unavailable"));
+/// ```
 #[derive(Error, Debug)]
 pub enum CoreError {
     #[error(transparent)]
@@ -260,6 +277,26 @@ mod tests {
             key: "wallet_5".into(),
         };
         assert!(err.to_string().contains("wallet_5"));
+    }
+
+    #[test]
+    fn test_database_error_migration_failed() {
+        let err = DatabaseError::MigrationFailed {
+            msg: "schema v2→v3 failed".into(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("Migration failed"));
+        assert!(msg.contains("schema v2→v3 failed"));
+    }
+
+    #[test]
+    fn test_database_error_constraint_violation() {
+        let err = DatabaseError::ConstraintViolation {
+            constraint: "UNIQUE constraint failed: wallet.address".into(),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("Constraint violation"));
+        assert!(msg.contains("wallet.address"));
     }
 
     #[test]

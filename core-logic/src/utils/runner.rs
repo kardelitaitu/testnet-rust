@@ -265,4 +265,47 @@ mod tests {
         let rate = calculate_success_rate(9_999_999, 1);
         assert!((rate - 99.99999).abs() < 0.0001);
     }
+
+    #[tokio::test]
+    async fn test_run_spammers_cancellation() {
+        use tokio::time::{sleep, Duration};
+        
+        // One spammer cancels immediately
+        let s1 = MockSpammer {
+            stats: SpammerStats { success: 1, failed: 0 },
+            delay_ms: 100, // Should be cancelled
+            cancel_on_start: false,
+        };
+        let s2 = MockSpammer {
+            stats: SpammerStats { success: 0, failed: 0 },
+            delay_ms: 0,
+            cancel_on_start: true, // Triggers cancellation
+        };
+        
+        let start = std::time::Instant::now();
+        let _ = WorkerRunner::run_spammers(vec![Box::new(s1), Box::new(s2)]).await;
+        let elapsed = start.elapsed();
+        
+        // Should finish quickly — use generous tolerance for CI/coverage overhead
+        assert!(elapsed < Duration::from_millis(200), "Should have cancelled s1 quickly, got {:?}", elapsed);
+    }
+
+    #[tokio::test]
+    async fn test_run_spammers_one_hangs_others_succeed() {
+        use tokio::time::Duration;
+        
+        let s1 = MockSpammer {
+            stats: SpammerStats { success: 10, failed: 0 },
+            delay_ms: 10,
+            cancel_on_start: false,
+        };
+        let s2 = MockSpammer {
+            stats: SpammerStats { success: 5, failed: 5 },
+            delay_ms: 10,
+            cancel_on_start: false,
+        };
+        
+        let result = WorkerRunner::run_spammers(vec![Box::new(s1), Box::new(s2)]).await;
+        assert!(result.is_ok());
+    }
 }

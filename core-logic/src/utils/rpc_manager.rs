@@ -89,7 +89,19 @@ impl RpcManager {
     }
 
     /// Get the next endpoint using round-robin selection
+    ///
+    /// # Panics
+    ///
+    /// Panics if there are no endpoints configured. This is a configuration error
+    /// that should be caught during initialization.
+    #[track_caller]
     pub fn get_endpoint(&self) -> &RpcEndpoint {
+        if self.endpoints.is_empty() {
+            panic!(
+                "RpcManager has no endpoints configured for chain_id={}",
+                self.chain_id
+            );
+        }
         let idx = self.current_index.fetch_add(1, Ordering::SeqCst);
         &self.endpoints[idx % self.endpoints.len()]
     }
@@ -425,5 +437,68 @@ mod tests {
         let b = statuses.iter().find(|s| s.url == "http://b.com").unwrap();
         assert!(b.healthy);
         assert_eq!(b.failure_count, 0);
+    }
+
+    #[test]
+    fn test_update_health_marks_endpoint() {
+        let urls = vec!["http://rpc.com".into()];
+        let mgr = RpcManager::new(1, &urls);
+        mgr.update_health("http://rpc.com", false, 500);
+        assert!(!mgr.get_endpoint().is_healthy());
+        assert_eq!(mgr.get_endpoint().latency_ms(), 500);
+        mgr.update_health("http://rpc.com", true, 0);
+        assert!(mgr.get_endpoint().is_healthy());
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_round_robin_distribution() {
+        let urls = vec![
+            "http://a.com".into(),
+            "http://b.com".into(),
+            "http://c.com".into(),
+        ];
+        let mgr = std::sync::Arc::new(RpcManager::new(1, &urls));
+        let mut handles = Vec::new();
+        let calls_per_task = 500;
+        let task_count = 8;
+
+        for _ in 0..task_count {
+            let mgr_clone = mgr.clone();
+            handles.push(tokio::spawn(async move {
+                let mut seen = Vec::new();
+                for _ in 0..calls_per_task {
+                    seen.push(mgr_clone.get_endpoint().url.clone());
+                }
+                seen
+            }));
+        }
+
+        let mut all_urls = Vec::new();
+        for h in handles {
+            all_urls.extend(h.await.unwrap());
+        }
+
+        let total = all_urls.len() as u64;
+        assert_eq!(total, (calls_per_task * task_count) as u64);
+
+        let count_a = all_urls.iter().filter(|u| *u == "http://a.com").count() as u64;
+        let count_b = all_urls.iter().filter(|u| *u == "http://b.com").count() as u64;
+        let count_c = all_urls.iter().filter(|u| *u == "http://c.com").count() as u64;
+
+        // With 3 endpoints and 4000 total calls, each should get ~1333
+        let expected_per = total / 3;
+        let tolerance = (total as f64 * 0.05) as u64; // 5% tolerance for randomness
+        assert!(
+            count_a.abs_diff(expected_per) <= tolerance,
+            "a: got {}, expected {} ± {}", count_a, expected_per, tolerance
+        );
+        assert!(
+            count_b.abs_diff(expected_per) <= tolerance,
+            "b: got {}, expected {} ± {}", count_b, expected_per, tolerance
+        );
+        assert!(
+            count_c.abs_diff(expected_per) <= tolerance,
+            "c: got {}, expected {} ± {}", count_c, expected_per, tolerance
+        );
     }
 }

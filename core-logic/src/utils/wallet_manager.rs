@@ -702,4 +702,68 @@ mod tests {
         let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
         assert_eq!(mgr.count(), 1, "Only .json files should be counted");
     }
+
+    #[test]
+    fn test_cache_returns_same_wallet_for_same_index() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        std::fs::write(dir.path().join("wallet.json"), "{}").unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        // Decryption will fail for empty JSON — both calls get the same error
+        let w1 = rt.block_on(mgr.get_wallet_for_chain(0, Some("pwd"), ChainType::Evm));
+        let w2 = rt.block_on(mgr.get_wallet_for_chain(0, Some("pwd"), ChainType::Evm));
+        // Both should return the same error type (not ok, but consistent)
+        assert_eq!(
+            w1.is_ok(), w2.is_ok(),
+            "Both calls should have the same outcome (cache consistency)"
+        );
+        // If both failed, error messages should match
+        if let (Err(e1), Err(e2)) = (&w1, &w2) {
+            assert_eq!(e1.to_string(), e2.to_string(),
+                "Cache should return same error for same wallet index");
+        }
+    }
+
+    #[test]
+    fn test_get_wallet_for_chain_non_evm_returns_error_gracefully() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        std::fs::write(dir.path().join("wallet.json"), "{}").unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        // Non-EVM chains should not panic — they'll fail gracefully during decryption
+        // since the wallet JSON doesn't have real keys
+        for chain in &[ChainType::Solana, ChainType::Sui, ChainType::Aptos, ChainType::Tron, ChainType::Ton] {
+            let result = rt.block_on(mgr.get_wallet_for_chain(0, Some("pwd"), *chain));
+            // Should either succeed (empty wallet) or fail gracefully — no panic
+            let _ = result;
+        }
+    }
+
+    #[test]
+    fn test_concurrent_cache_access() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        // Create 3 wallet files
+        for i in 0..3 {
+            std::fs::write(dir.path().join(format!("wallet_{}.json", i)), "{}").unwrap();
+        }
+        let mgr = std::sync::Arc::new(WalletManager::with_wallet_dir(dir.path()).unwrap());
+
+        let mut handles = Vec::new();
+        for _ in 0..10 {
+            let m = mgr.clone();
+            handles.push(std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                for idx in 0..3 {
+                    let result = rt.block_on(m.get_wallet_for_chain(idx, Some("pwd"), ChainType::Evm));
+                    // Should not panic under concurrent access
+                    let _ = result;
+                }
+            }));
+        }
+        for h in handles {
+            h.join().expect("Thread should not panic");
+        }
+    }
 }

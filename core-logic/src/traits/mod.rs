@@ -25,6 +25,30 @@ pub trait Spammer: Send + Sync {
     async fn stop(&self) -> Result<()>;
 }
 
+/// Result of a single task execution.
+///
+/// Returned by all task implementations to report outcome and optional
+/// blockchain transaction hash.
+///
+/// ```
+/// use core_logic::traits::TaskResult;
+///
+/// let success = TaskResult {
+///     success: true,
+///     message: "Successfully transferred 100 USDC".into(),
+///     tx_hash: Some("0xabc123".into()),
+/// };
+/// assert!(success.success);
+/// assert!(success.tx_hash.is_some());
+///
+/// let failure = TaskResult {
+///     success: false,
+///     message: "Insufficient balance".into(),
+///     tx_hash: None,
+/// };
+/// assert!(!failure.success);
+/// assert!(failure.tx_hash.is_none());
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct TaskResult {
     pub success: bool,

@@ -125,22 +125,6 @@ mod tests {
         assert_eq!(DatabaseManager::DEFAULT_TIMEOUT_MS, 30000);
     }
 
-    fn setup_temp_db() -> (DatabaseManager, std::path::PathBuf) {
-        let dir = std::env::temp_dir().join(format!("core_db_test_{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let db_path = dir.join("test.db");
-        let path_str = db_path.to_str().unwrap().to_string();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let db = rt.block_on(DatabaseManager::new(&path_str)).unwrap();
-        (db, db_path)
-    }
-
-    fn cleanup_temp_db(db: DatabaseManager, path: std::path::PathBuf) {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(db.shutdown()).ok();
-        let _ = std::fs::remove_dir_all(path.parent().unwrap());
-    }
-
     #[tokio::test]
     async fn test_log_and_count_transaction() {
         let dir = std::env::temp_dir().join(format!("core_db_test_tx_{}", std::process::id()));
@@ -306,6 +290,105 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(count, 1);
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_batch_log_populated() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_bp_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        let items = vec![
+            TaskMetricBatchItem {
+                worker_id: "W1".into(),
+                wallet: "0x1".into(),
+                task: "T1".into(),
+                success: true,
+                message: "M1".into(),
+                duration_ms: 100,
+            },
+            TaskMetricBatchItem {
+                worker_id: "W2".into(),
+                wallet: "0x1".into(),
+                task: "T2".into(),
+                success: false,
+                message: "M2".into(),
+                duration_ms: 200,
+            },
+        ];
+
+        let inserted = db.batch_log_task_results(&items).await.unwrap();
+        assert_eq!(inserted, 2);
+        assert_eq!(db.get_transaction_count("0x1").await.unwrap(), 2);
+        assert_eq!(db.get_success_count("0x1").await.unwrap(), 1);
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_get_latest_and_all_assets_by_type() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_assets_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        db.log_asset_creation("0x1", "addr1", "ERC20", "N1", "S1").await.unwrap();
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        db.log_asset_creation("0x1", "addr2", "ERC20", "N2", "S2").await.unwrap();
+
+        let latest = db.get_latest_asset_by_type("0x1", "ERC20").await.unwrap();
+        assert_eq!(latest, Some("addr2".to_string()));
+
+        let all = db.get_all_assets_by_type("ERC20").await.unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0], "addr2"); // ordered by id DESC
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_get_all_deployed_counter_contracts_with_wallets() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_contracts_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        db.log_counter_contract_creation("0xW1", "0xC1", 1).await.unwrap();
+        db.log_counter_contract_creation("0xW2", "0xC2", 1).await.unwrap();
+
+        let contracts = db.get_all_deployed_counter_contracts_with_wallets(1).await.unwrap();
+        assert_eq!(contracts.len(), 2);
+        assert!(contracts.contains(&("0xW1".to_string(), "0xC1".to_string())));
+        assert!(contracts.contains(&("0xW2".to_string(), "0xC2".to_string())));
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_database_metrics_tracking() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_metrics_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        // 1 insert
+        db.log_task_result("W", "0x1", "T", true, "M", 0).await.unwrap();
+        // 1 select
+        let _ = db.get_transaction_count("0x1").await.unwrap();
+
+        let metrics = db.get_metrics();
+        assert_eq!(metrics.total_inserts, 1);
+        assert_eq!(metrics.total_selects, 1);
+        assert_eq!(metrics.total_queries, 2);
+        assert_eq!(metrics.total_errors, 0);
+        assert_eq!(metrics.error_rate(), 0.0);
 
         db.shutdown().await.unwrap();
         let _ = std::fs::remove_dir_all(&dir);
@@ -1325,15 +1408,30 @@ async fn db_flush_worker(
     loop {
         tokio::select! {
             // Receive new entries from workers
-            Some(entry) = rx.recv() => {
-                batch.push(entry);
+            res = rx.recv() => {
+                match res {
+                    Some(entry) => {
+                        batch.push(entry);
 
-                // Flush immediately if batch is full
-                if batch.len() >= config.batch_size {
-                    if let Err(e) = flush_batch(&batch, &pool).await {
-                        error!("Failed to flush batch: {}", e);
+                        // Flush immediately if batch is full
+                        if batch.len() >= config.batch_size {
+                            if let Err(e) = flush_batch(&batch, &pool).await {
+                                error!("Failed to flush batch: {}", e);
+                            }
+                            batch.clear();
+                        }
                     }
-                    batch.clear();
+                    None => {
+                        info!("Database channel closed, performing final flush");
+                        // Flush any remaining entries before exiting
+                        if !batch.is_empty() {
+                            if let Err(e) = flush_batch(&batch, &pool).await {
+                                error!("Failed to flush final batch: {}", e);
+                            }
+                            batch.clear();
+                        }
+                        break;
+                    }
                 }
             }
 
@@ -1345,12 +1443,6 @@ async fn db_flush_worker(
                     }
                     batch.clear();
                 }
-            }
-
-            // Channel closed (shutdown signal)
-            else => {
-                info!("Database channel closed, performing final flush");
-                break;
             }
         }
     }

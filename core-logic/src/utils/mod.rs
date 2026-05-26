@@ -30,6 +30,10 @@ pub use logger::setup_logger;
 pub use proxy_health::ProxyHealthManager;
 pub use proxy_manager::ProxyManager;
 pub use proxy_rate_limiter::ProxyRateLimiter;
+pub use rate_limiter::TokenBucket;
+pub use retry::{
+    is_transient_error, with_retry, CircuitBreaker, CircuitBreakerConfig, RetryConfig,
+};
 pub use rpc_manager::RpcManager;
 pub use runner::WorkerRunner;
 pub use wallet_manager::WalletManager;

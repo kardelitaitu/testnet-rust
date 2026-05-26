@@ -60,7 +60,8 @@ pub use utils::memory_optimizer::{
     register_memory_cleanup_hook, MemoryOptimizer, MemoryOptimizerConfig,
 };
 
-// Export retry utilities for testing
-pub use utils::retry::{
+// Export retry and rate-limiter utilities for testing
+pub use utils::{
     is_transient_error, with_retry, CircuitBreaker, CircuitBreakerConfig, RetryConfig,
+    TokenBucket,
 };

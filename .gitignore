@@ -10,6 +10,7 @@ test_logs/
 wallet-json/
 chains/da-chain/wallets-json-da-chain
 chains/sepolia-overlayer/wallets-json-sepolia-overlayer
+chains/arc/wallet-json-arc
 address.txt
 proxies.txt
 target-xenea
@@ -35,3 +36,7 @@ node_modules/
 # Windows Reserved
 nul
 .exe
+
+# Coverage artifacts
+*.lcov
+target/llvm-cov/

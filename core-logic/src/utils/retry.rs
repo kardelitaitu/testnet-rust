@@ -7,6 +7,20 @@ use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::time::Duration;
 use tracing::{debug, warn};
 
+/// Configuration for retry behaviour with exponential backoff.
+///
+/// Supports optional jitter (50-150% of calculated delay) and a max cap.
+///
+/// ```
+/// use core_logic::RetryConfig;
+///
+/// let cfg = RetryConfig::new(3, 1000)
+///     .with_max_delay(10000)
+///     .without_jitter();
+/// assert_eq!(cfg.max_retries, 3);
+/// assert_eq!(cfg.base_delay_ms, 1000);
+/// assert!(!cfg.jitter);
+/// ```
 pub struct RetryConfig {
     pub max_retries: u32,
     pub base_delay_ms: u64,
@@ -167,6 +181,7 @@ where
 pub struct CircuitBreaker {
     name: String,
     failure_count: AtomicU64,
+    success_count: AtomicU64,
     last_failure: AtomicU64,
     state: AtomicU8,
     config: CircuitBreakerConfig,
@@ -177,6 +192,7 @@ impl Clone for CircuitBreaker {
         Self {
             name: self.name.clone(),
             failure_count: AtomicU64::new(self.failure_count.load(Ordering::SeqCst)),
+            success_count: AtomicU64::new(self.success_count.load(Ordering::SeqCst)),
             last_failure: AtomicU64::new(self.last_failure.load(Ordering::SeqCst)),
             state: AtomicU8::new(self.state.load(Ordering::SeqCst)),
             config: self.config,
@@ -210,6 +226,7 @@ impl CircuitBreaker {
         Self {
             name: name.to_string(),
             failure_count: AtomicU64::new(0),
+            success_count: AtomicU64::new(0),
             last_failure: AtomicU64::new(0),
             state: AtomicU8::new(STATE_CLOSED),
             config,
@@ -230,6 +247,7 @@ impl CircuitBreaker {
         if current_state == STATE_OPEN {
             if self.should_attempt_reset() {
                 self.state.store(STATE_HALF_OPEN, Ordering::SeqCst);
+                self.success_count.store(0, Ordering::SeqCst);
                 debug!("Circuit breaker {} entering HALF_OPEN state", self.name);
             } else {
                 return Err(anyhow::anyhow!(
@@ -261,13 +279,12 @@ impl CircuitBreaker {
         let current_state = self.state.load(Ordering::SeqCst);
 
         if current_state == STATE_HALF_OPEN {
-            let successes = self.failure_count.load(Ordering::SeqCst);
+            let successes = self.success_count.fetch_add(1, Ordering::SeqCst) + 1;
             if successes >= self.config.success_threshold {
                 self.state.store(STATE_CLOSED, Ordering::SeqCst);
                 self.failure_count.store(0, Ordering::SeqCst);
+                self.success_count.store(0, Ordering::SeqCst);
                 debug!("Circuit breaker {} CLOSED (recovered)", self.name);
-            } else {
-                self.failure_count.fetch_add(1, Ordering::SeqCst);
             }
         } else {
             self.failure_count.store(0, Ordering::SeqCst);
@@ -543,20 +560,22 @@ mod circuit_breaker_tests {
     fn test_half_open_to_closed_via_on_success() {
         let config = CircuitBreakerConfig {
             failure_threshold: 1,
-            success_threshold: 2,
+            success_threshold: 3,
             reset_timeout_ms: 60000,
         };
         let cb = CircuitBreaker::new("svc", config);
-        // Manually set to HALF_OPEN
+        // Manually set to HALF_OPEN — simulates the OPEN→HALF_OPEN transition
         cb.state
             .store(STATE_HALF_OPEN, std::sync::atomic::Ordering::SeqCst);
-        // on_success reads failure_count then increments (threshold N needs N+1)
-        cb.on_success();
-        assert_eq!(cb.state(), "HALF_OPEN"); // loaded 0 < 2
-        cb.on_success();
-        assert_eq!(cb.state(), "HALF_OPEN"); // loaded 1 < 2
-        cb.on_success();
-        assert_eq!(cb.state(), "CLOSED"); // loaded 2 >= 2 → closed
+        // on_success increments the separate success_count
+        cb.on_success();     // success_count=1
+        assert_eq!(cb.state(), "HALF_OPEN"); // 1 < 3
+        cb.on_success();     // success_count=2
+        assert_eq!(cb.state(), "HALF_OPEN"); // 2 < 3
+        cb.on_success();     // success_count=3
+        assert_eq!(cb.state(), "CLOSED");     // 3 >= 3 → closed
+        // Verify failure_count was also reset
+        assert_eq!(cb.failure_count.load(std::sync::atomic::Ordering::SeqCst), 0);
     }
 
     #[test]
@@ -589,6 +608,82 @@ mod circuit_breaker_tests {
                     "Invalid state: {}", state);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod concurrent_circuit_breaker_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_concurrent_on_failure() {
+        let cb = std::sync::Arc::new(CircuitBreaker::new(
+            "concurrent",
+            CircuitBreakerConfig {
+                failure_threshold: 50,
+                success_threshold: 1,
+                reset_timeout_ms: 60000,
+            },
+        ));
+        let mut handles = Vec::new();
+        let tasks = 10;
+        let failures_per_task = 10;
+
+        for _ in 0..tasks {
+            let cb_clone = cb.clone();
+            handles.push(tokio::spawn(async move {
+                for _ in 0..failures_per_task {
+                    cb_clone.on_failure();
+                }
+            }));
+        }
+
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        // 10 tasks × 10 failures = 100, threshold = 50 → should be OPEN
+        assert_eq!(cb.state(), "OPEN");
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_mixed_success_failure() {
+        let cb = std::sync::Arc::new(CircuitBreaker::new(
+            "mixed",
+            CircuitBreakerConfig {
+                failure_threshold: 20,
+                success_threshold: 3,
+                reset_timeout_ms: 60000,
+            },
+        ));
+        let mut handles = Vec::new();
+
+        // 4 concurrent failure generators
+        for _ in 0..4 {
+            let cb_clone = cb.clone();
+            handles.push(tokio::spawn(async move {
+                for _ in 0..10 {
+                    cb_clone.on_failure();
+                }
+            }));
+        }
+        // 4 concurrent success generators (interleaved with failures)
+        for _ in 0..4 {
+            let cb_clone = cb.clone();
+            handles.push(tokio::spawn(async move {
+                for _ in 0..10 {
+                    cb_clone.on_success();
+                }
+            }));
+        }
+
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        // 4×10 = 40 failures vs threshold 20 → OPEN.
+        // 4×10 = 40 successes in CLOSED state just reset the counter.
+        assert_eq!(cb.state(), "OPEN");
     }
 }
 

@@ -369,4 +369,42 @@ mod tests {
         assert!(limiter.acquire("wallet2").await);
         assert_eq!(limiter.wallet_count(), 2);
     }
+
+    #[tokio::test]
+    async fn test_token_bucket_concurrent_contention() {
+        let bucket = std::sync::Arc::new(TokenBucket::new(1000, 100));
+        let mut handles = Vec::new();
+
+        for _ in 0..10 {
+            let b = bucket.clone();
+            handles.push(tokio::spawn(async move {
+                let mut got = 0;
+                for _ in 0..20 {
+                    if b.try_acquire(1) {
+                        got += 1;
+                    }
+                }
+                got
+            }));
+        }
+
+        let mut total = 0u64;
+        for h in handles {
+            total += h.await.unwrap();
+        }
+
+        // Total acquired should not exceed number of attempts (10 tasks × 20 = 200)
+        assert_eq!(total, 200, "Concurrent acquires should match total attempts");
+    }
+
+    #[tokio::test]
+    async fn test_per_wallet_limiter_acquire_with_wait() {
+        let limiter = PerWalletRateLimiter::new(100); // 100 TPS → generous
+        // Should not block for long with high TPS
+        tokio::time::timeout(Duration::from_millis(500), async {
+            limiter.acquire_with_wait("wallet1").await;
+        })
+        .await
+        .expect("acquire_with_wait should not time out at 100 TPS");
+    }
 }

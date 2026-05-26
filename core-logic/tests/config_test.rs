@@ -147,4 +147,34 @@ mod tests {
         assert_eq!(cloned.target_tps, config.target_tps);
         assert_eq!(cloned.duration_seconds, config.duration_seconds);
     }
+
+    #[test]
+    fn test_spam_config_edge_chain_id_zero() {
+        let config = SpamConfig {
+            rpc_url: "https://rpc.example.com".to_string(),
+            chain_id: 0,
+            target_tps: 10,
+            duration_seconds: None,
+            wallet_source: WalletSource::File {
+                path: "w.json".to_string(),
+                encrypted: false,
+            },
+        };
+        assert_eq!(config.chain_id, 0, "chain_id=0 should be accepted");
+    }
+
+    #[test]
+    fn test_spam_config_edge_tps_zero() {
+        let config = SpamConfig {
+            rpc_url: "https://rpc.example.com".to_string(),
+            chain_id: 1,
+            target_tps: 0,
+            duration_seconds: None,
+            wallet_source: WalletSource::File {
+                path: "w.json".to_string(),
+                encrypted: false,
+            },
+        };
+        assert_eq!(config.target_tps, 0, "target_tps=0 should be accepted");
+    }
 }

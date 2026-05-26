@@ -275,4 +275,56 @@ mod tests {
             "Compact JSON should not have indentation"
         );
     }
+
+    #[tokio::test]
+    async fn test_metrics_concurrent_record_task() {
+        let metrics = std::sync::Arc::new(MetricsCollector::default());
+        let mut handles = Vec::new();
+
+        for i in 0..20 {
+            let m = metrics.clone();
+            handles.push(tokio::spawn(async move {
+                let success = i % 3 != 0;
+                m.record_task(
+                    &format!("task_{}", i),
+                    Duration::from_millis(i * 10),
+                    success,
+                );
+            }));
+        }
+
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        let snap = metrics.snapshot();
+        assert_eq!(snap.tasks.total, 20);
+        // i % 3 == 0 → fail, for 0..20: failures at 0,3,6,9,12,15,18 = 7
+        assert_eq!(snap.tasks.failed, 7);
+        assert_eq!(snap.tasks.success, 13);
+        assert!(snap.performance.max_task_duration_ms >= 180);
+    }
+
+    #[tokio::test]
+    async fn test_export_to_file_creates_valid_json() {
+        let metrics = MetricsCollector::default();
+        metrics.record_task("export_me", Duration::from_millis(50), true);
+
+        let dir = std::env::temp_dir().join(format!("metrics_export_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file_path = dir.join("metrics.json");
+
+        let result = metrics.export_to_file(file_path.to_str().unwrap()).await;
+        assert!(result.is_ok(), "export_to_file should succeed");
+
+        let content = std::fs::read_to_string(&file_path)
+            .expect("Should be able to read exported file");
+        // Verify it contains the key task fields from the JSON snapshot
+        assert!(content.contains("\"tasks\""), "Exported JSON should contain tasks");
+        assert!(content.contains("\"total\":"), "Exported JSON should have total field");
+        assert!(content.contains("\"success\":"), "Exported JSON should have success field");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

@@ -128,3 +128,48 @@ fn standard_gas_limits_defaults_positive() {
     assert!(limits.limit_counter_interact() > 0);
     assert!(limits.limit_send_meme() > 0);
 }
+
+// ─── TokenBucket property-based tests ────────────────────
+
+proptest! {
+    #[test]
+    fn token_bucket_capacity_never_exceeded(acquires: Vec<u64>, capacity: u64) {
+        // capacity=0 is legal but divides by zero for per-task acquires
+        let cap = capacity.max(1).min(10_000);
+        let bucket = core_logic::TokenBucket::new(cap, 1000);
+        let mut taken: u64 = 0;
+        for a in &acquires {
+            let cost = (*a % (cap + 1)).max(1);
+            if bucket.try_acquire(cost) {
+                taken = taken.saturating_add(cost);
+            }
+        }
+        assert!(taken <= cap, "taken {} exceeds capacity {}", taken, cap);
+    }
+}
+
+// ─── MetricsCollector monotonic invariants ──────────────
+
+proptest! {
+    #[test]
+    fn metrics_counters_never_decrease(ops: Vec<(u64, u64, bool)>) {
+        // Each op: (duration_ms_shift, label_bit, success)
+        let metrics = core_logic::MetricsCollector::default();
+        let mut expected_total: u64 = 0;
+        let mut expected_success: u64 = 0;
+        let mut expected_failed: u64 = 0;
+
+        for (dur_shift, _, success) in ops {
+            let dur_ms = (dur_shift % 1000) as u64;
+            metrics.record_task("prop", std::time::Duration::from_millis(dur_ms), success);
+            expected_total += 1;
+            if success { expected_success += 1; } else { expected_failed += 1; }
+
+            // Snapshots are monotonically non-decreasing
+            let snap = metrics.snapshot();
+            assert_eq!(snap.tasks.total, expected_total);
+            assert_eq!(snap.tasks.success, expected_success);
+            assert_eq!(snap.tasks.failed, expected_failed);
+        }
+    }
+}
