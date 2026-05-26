@@ -74,7 +74,8 @@ pub use utils::{
 /// # Example
 ///
 /// ```no_run
-/// exit_with_error("Failed to load config: {}", "file not found");
+/// # use core_logic::exit_with_error;
+/// exit_with_error("Failed to load config: file not found");
 /// ```
 pub fn exit_with_error(msg: impl std::fmt::Display) -> ! {
     tracing::error!("{}", msg);
