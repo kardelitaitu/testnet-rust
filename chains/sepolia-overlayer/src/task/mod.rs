@@ -19,6 +19,9 @@ pub struct TaskResult {
 #[async_trait]
 pub trait SepoliaTask: Send + Sync {
     fn name(&self) -> &str;
+    fn weight(&self) -> u32 {
+        1
+    }
     async fn run(&self, ctx: TaskContext) -> anyhow::Result<TaskResult>;
 }
 

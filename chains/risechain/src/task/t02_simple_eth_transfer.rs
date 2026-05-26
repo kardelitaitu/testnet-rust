@@ -19,6 +19,10 @@ impl Task<TaskContext> for SimpleEthTransferTask {
         "02_simpleEthTransfer"
     }
 
+    fn weight(&self) -> u32 {
+        50
+    }
+
     async fn run(&self, ctx: TaskContext) -> Result<TaskResult> {
         let provider = &ctx.provider;
         let wallet = &ctx.wallet;

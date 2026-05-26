@@ -23,6 +23,10 @@ impl Task<TaskContext> for BatchTransferTask {
         "11_batchTransfer"
     }
 
+    fn weight(&self) -> u32 {
+        50
+    }
+
     async fn run(&self, ctx: TaskContext) -> Result<TaskResult> {
         let provider = &ctx.provider;
         let wallet = &ctx.wallet;

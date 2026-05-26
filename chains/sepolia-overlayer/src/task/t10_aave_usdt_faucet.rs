@@ -25,6 +25,10 @@ impl SepoliaTask for AaveUsdtFaucetTask {
         "10_aaveUsdtFaucet"
     }
 
+    fn weight(&self) -> u32 {
+        5
+    }
+
     async fn run(&self, ctx: TaskContext) -> Result<TaskResult> {
         let wallet = ctx.wallet;
         let address = wallet.address();

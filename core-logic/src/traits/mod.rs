@@ -61,6 +61,13 @@ pub trait Task<Ctx>: Send + Sync {
     /// Returns the name of the task
     fn name(&self) -> &str;
 
+    /// Returns the weight of the task for weighted random selection.
+    /// Higher weight = higher probability of being selected.
+    /// Default is 1.
+    fn weight(&self) -> u32 {
+        1
+    }
+
     /// Executes the task
     async fn run(&self, ctx: Ctx) -> Result<TaskResult>;
 }

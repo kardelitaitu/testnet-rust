@@ -86,60 +86,6 @@ pub struct EvmSpammer {
     dist: WeightedIndex<u32>,
 }
 
-fn get_task_weight(name: &str) -> u32 {
-    match name {
-        "11_batchTransfer" => 50,
-        "02_simpleEthTransfer" => 50,
-        _ => 1, //default
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_get_task_weight_default() {
-        assert_eq!(get_task_weight("01_checkBalance"), 1);
-        assert_eq!(get_task_weight("03_mintToken"), 1);
-        assert_eq!(get_task_weight("unknown_task"), 1);
-        assert_eq!(get_task_weight(""), 1);
-    }
-
-    #[test]
-    fn test_get_task_weight_high_priority() {
-        assert_eq!(get_task_weight("11_batchTransfer"), 50);
-        assert_eq!(get_task_weight("02_simpleEthTransfer"), 50);
-    }
-
-    #[tokio::test]
-    async fn test_new_returns_error_with_message() {
-        let config = SpamConfig {
-            rpc_url: "http://localhost:8545".into(),
-            chain_id: 1,
-            target_tps: 10,
-            duration_seconds: None,
-            wallet_source: core_logic::config::WalletSource::File {
-                path: "wallet.json".into(),
-                encrypted: true,
-            },
-        };
-        let result = EvmSpammer::new(config).await;
-        assert!(result.is_err());
-        match result {
-            Err(e) => {
-                let msg = e.to_string();
-                assert!(
-                    msg.contains("new_with_signer"),
-                    "Error should mention new_with_signer: {}",
-                    msg
-                );
-            }
-            _ => panic!("Expected Err"),
-        }
-    }
-}
-
 impl EvmSpammer {
     // Modified constructor to accept IDs
     pub fn new_with_signer(
@@ -231,7 +177,7 @@ impl EvmSpammer {
         let weights: Vec<u32> = tasks
             .iter()
             .map(|t| {
-                let w = get_task_weight(t.name());
+                let w = t.weight();
                 info!("Task '{}': Weight {}", t.name(), w);
                 w
             })

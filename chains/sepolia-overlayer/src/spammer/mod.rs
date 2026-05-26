@@ -66,37 +66,9 @@ pub struct EvmSpammer {
     base_config: Option<SepoliaConfig>,
 }
 
-fn get_task_weight(name: &str) -> u32 {
-    // Faucet tasks get double weight (run twice as often)
-    if name == "10_aaveUsdtFaucet" || name == "11_aaveUsdcFaucet" {
-        return 5;
-    }
-    1
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_get_task_weight_normal() {
-        assert_eq!(get_task_weight("01_checkBalance"), 1);
-        assert_eq!(get_task_weight("02_mintUsdtPlus"), 1);
-        assert_eq!(get_task_weight("08_unstakeTplus"), 1);
-    }
-
-    #[test]
-    fn test_get_task_weight_faucet() {
-        assert_eq!(get_task_weight("10_aaveUsdtFaucet"), 5);
-        assert_eq!(get_task_weight("11_aaveUsdcFaucet"), 5);
-    }
-
-    #[test]
-    fn test_get_task_weight_unknown() {
-        // Unknown task names get default weight of 1
-        assert_eq!(get_task_weight("99_unknown"), 1);
-        assert_eq!(get_task_weight(""), 1);
-    }
 
     #[tokio::test]
     async fn test_new_returns_error_with_message() {
@@ -196,7 +168,7 @@ impl EvmSpammer {
         let weights: Vec<u32> = tasks
             .iter()
             .map(|t| {
-                let w = get_task_weight(t.name());
+                let w = t.weight();
                 info!("Task '{}': Weight {}", t.name(), w);
                 w
             })

@@ -31,6 +31,10 @@ impl DaChainTask for SimpleNativeTransferTask {
         "02_simpleNativeTransfer"
     }
 
+    fn weight(&self) -> u32 {
+        10
+    }
+
     async fn run(&self, ctx: TaskContext) -> Result<TaskResult> {
         // Get random recipient
         let recipient = get_random_recipient()?;

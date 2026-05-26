@@ -77,23 +77,9 @@ pub struct EvmSpammer {
     busy_wallets: Arc<Mutex<HashSet<usize>>>,
 }
 
-fn get_task_weight(_name: &str) -> u32 {
-    // All tasks have equal weight - native token already distributed evenly
-    1
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-    #[test]
-    fn test_get_task_weight_always_one() {
-        assert_eq!(get_task_weight("check_balance"), 1);
-        assert_eq!(get_task_weight("transfer"), 1);
-        assert_eq!(get_task_weight(""), 1);
-        assert_eq!(get_task_weight("anything"), 1);
-    }
-}
+
 
 impl EvmSpammer {
     // Modified constructor to accept proxy pool, health manager, and rate limiter
@@ -180,7 +166,7 @@ impl EvmSpammer {
         let weights: Vec<u32> = tasks
             .iter()
             .map(|t| {
-                let w = get_task_weight(t.name());
+                let w = t.weight();
                 info!("Task '{}': Weight {}", t.name(), w);
                 w
             })

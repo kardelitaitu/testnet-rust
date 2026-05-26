@@ -48,32 +48,6 @@ pub struct EvmSpammer {
     busy_wallets: Arc<Mutex<HashSet<usize>>>,
 }
 
-fn get_task_weight(_name: &str) -> u32 {
-    1
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_get_task_weight_always_one() {
-        assert_eq!(get_task_weight("01_checkBalance"), 1);
-        assert_eq!(get_task_weight("02_faucetUsdc"), 1);
-        assert_eq!(get_task_weight(""), 1);
-        assert_eq!(get_task_weight("anything"), 1);
-    }
-
-    #[test]
-    fn test_get_task_weight_extreme_names() {
-        let long = "a".repeat(10_000);
-        assert_eq!(get_task_weight(&long), 1);
-        assert_eq!(get_task_weight("🔥🔥🔥"), 1);
-        assert_eq!(get_task_weight("ñøñçé_ßüşîñéšš"), 1);
-        assert_eq!(get_task_weight("  spaced  "), 1);
-    }
-}
-
 impl EvmSpammer {
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_signer(
@@ -127,7 +101,7 @@ impl EvmSpammer {
         let weights: Vec<u32> = tasks
             .iter()
             .map(|t| {
-                let w = get_task_weight(t.name());
+                let w = t.weight();
                 info!("Task '{}': Weight {}", t.name(), w);
                 w
             })
