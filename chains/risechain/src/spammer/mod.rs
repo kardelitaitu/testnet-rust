@@ -52,6 +52,10 @@ use crate::task::t52_calldata_size::CalldataSizeTask;
 use crate::task::t53_gas_stipend::GasStipendTask;
 use crate::task::t54_gas_price_zero::GasPriceZeroTask;
 use crate::task::t55_block_hash::BlockHashUsageTask;
+use crate::task::t57_eip7702_explore::Eip7702ExploreTask;
+use crate::task::t58_verify_create2::VerifyCreate2Task;
+use crate::task::t59_deploy_factory::DeployFactoryTask;
+use crate::task::t60_rise_to_weth::RiseToWethTask;
 use crate::task::{RiseTask, TaskContext};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -167,6 +171,10 @@ impl EvmSpammer {
             Box::new(GasStipendTask),
             Box::new(GasPriceZeroTask),
             Box::new(BlockHashUsageTask),
+            Box::new(Eip7702ExploreTask),
+            Box::new(VerifyCreate2Task),
+            Box::new(DeployFactoryTask),
+            Box::new(RiseToWethTask),
         ];
 
         let gas_manager = Arc::new(crate::utils::gas::GasManager::new(Arc::new(
