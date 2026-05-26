@@ -339,6 +339,7 @@ impl Spammer for EvmSpammer {
                         }
                         // Wallet is busy, try another
                         drop(busy);
+                        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
                     };
 
                     let wallet = match self

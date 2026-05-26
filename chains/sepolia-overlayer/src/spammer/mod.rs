@@ -371,6 +371,7 @@ impl Spammer for EvmSpammer {
                             break idx;
                         }
                         drop(busy);
+                        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
                     };
 
                     let wallet = match self
