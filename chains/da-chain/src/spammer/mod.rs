@@ -2,7 +2,7 @@ use crate::config::DaChainConfig;
 use crate::task::t01_check_balance::DaChainCheckBalanceTask;
 use crate::task::t02_simple_native_transfer::SimpleNativeTransferTask;
 use crate::task::{DaChainTask, TaskContext};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use colored::Colorize;
 use core_logic::config::SpamConfig;
@@ -204,7 +204,7 @@ impl EvmSpammer {
     async fn create_provider_with_proxy(
         &self,
         proxy_config: &Option<core_logic::config::ProxyConfig>,
-    ) -> Provider<Http> {
+    ) -> Result<Provider<Http>> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::USER_AGENT,
@@ -219,19 +219,22 @@ impl EvmSpammer {
             .tcp_keepalive(std::time::Duration::from_secs(30));
 
         if let Some(proxy_conf) = proxy_config {
-            let mut proxy = reqwest::Proxy::all(&proxy_conf.url).unwrap();
+            let mut proxy = reqwest::Proxy::all(&proxy_conf.url)
+                .context("Invalid proxy URL")?;
             if let (Some(u), Some(p)) = (&proxy_conf.username, &proxy_conf.password) {
                 proxy = proxy.basic_auth(u, p);
             }
             client_builder = client_builder.proxy(proxy);
         }
 
-        let client = client_builder.build().expect("Failed to build HTTP client");
+        let client = client_builder
+            .build()
+            .context("Failed to build HTTP client")?;
 
-        Provider::new(Http::new_with_client(
-            reqwest::Url::parse(&self.config.rpc_url).expect("Invalid RPC URL"),
+        Ok(Provider::new(Http::new_with_client(
+            reqwest::Url::parse(&self.config.rpc_url).context("Invalid RPC URL")?,
             client,
-        ))
+        )))
     }
 }
 
@@ -297,7 +300,7 @@ impl Spammer for EvmSpammer {
                             .await;
                     }
 
-                    let provider = self.create_provider_with_proxy(&proxy_config).await;
+                    let provider = self.create_provider_with_proxy(&proxy_config).await?;
 
                     let mut rng = OsRng;
                     let wallet_idx = loop {

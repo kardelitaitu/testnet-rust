@@ -22,7 +22,7 @@ use crate::task::t20_aave_wbtc_faucet::AaveWbtcFaucetTask;
 use crate::task::t21_redeem_to_ausdt::RedeemToAusdtTask;
 use crate::task::t22_redeem_to_ausdc::RedeemToAusdcTask;
 use crate::task::{SepoliaTask, TaskContext};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use colored::Colorize;
 use core_logic::config::SpamConfig;
@@ -253,7 +253,7 @@ impl EvmSpammer {
         &self,
         proxy_config: &Option<core_logic::config::ProxyConfig>,
         rpc_url: &str,
-    ) -> Provider<Http> {
+    ) -> Result<Provider<Http>> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::USER_AGENT,
@@ -265,19 +265,22 @@ impl EvmSpammer {
         let mut client_builder = Client::builder().default_headers(headers);
 
         if let Some(proxy_conf) = proxy_config {
-            let mut proxy = reqwest::Proxy::all(&proxy_conf.url).unwrap();
+            let mut proxy = reqwest::Proxy::all(&proxy_conf.url)
+                .context("Invalid proxy URL")?;
             if let (Some(u), Some(p)) = (&proxy_conf.username, &proxy_conf.password) {
                 proxy = proxy.basic_auth(u, p);
             }
             client_builder = client_builder.proxy(proxy);
         }
 
-        let client = client_builder.build().expect("Failed to build HTTP client");
+        let client = client_builder
+            .build()
+            .context("Failed to build HTTP client")?;
 
-        Provider::new(Http::new_with_client(
-            reqwest::Url::parse(rpc_url).expect("Invalid RPC URL"),
+        Ok(Provider::new(Http::new_with_client(
+            reqwest::Url::parse(rpc_url).context("Invalid RPC URL")?,
             client,
-        ))
+        )))
     }
 }
 
@@ -358,7 +361,7 @@ impl Spammer for EvmSpammer {
 
                     let provider = self
                         .create_provider_with_proxy(&proxy_config, rpc_url)
-                        .await;
+                        .await?;
 
                     let mut rng = OsRng;
                     let wallet_idx = loop {

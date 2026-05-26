@@ -35,7 +35,7 @@ use crate::task::t61_mint_meme::MintMemeTask;
 use crate::task::t62_batch_send_meme::BatchSendCreatedMemeTask;
 use crate::task::t63_burn_meme::BurnMemeTask;
 use crate::task::{TaskContext, XeneaTask};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use core_logic::config::SpamConfig;
 use core_logic::traits::Spammer;
@@ -228,7 +228,7 @@ impl EvmSpammer {
     async fn create_provider_with_proxy(
         &self,
         proxy_config: &Option<core_logic::config::ProxyConfig>,
-    ) -> Provider<Http> {
+    ) -> Result<Provider<Http>> {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::USER_AGENT,
@@ -246,19 +246,19 @@ impl EvmSpammer {
         let mut client_builder = Client::builder().default_headers(headers);
 
         if let Some(proxy_conf) = proxy_config {
-            let mut proxy = reqwest::Proxy::all(&proxy_conf.url).unwrap();
+            let mut proxy = reqwest::Proxy::all(&proxy_conf.url).context("Invalid proxy URL")?;
             if let (Some(u), Some(p)) = (&proxy_conf.username, &proxy_conf.password) {
                 proxy = proxy.basic_auth(u, p);
             }
             client_builder = client_builder.proxy(proxy);
         }
 
-        let client = client_builder.build().expect("Failed to build HTTP client");
+        let client = client_builder.build().context("Failed to build HTTP client")?;
 
-        Provider::new(Http::new_with_client(
-            reqwest::Url::parse(&self.config.rpc_url).expect("Invalid RPC URL"),
+        Ok(Provider::new(Http::new_with_client(
+            reqwest::Url::parse(&self.config.rpc_url).context("Invalid RPC URL")?,
             client,
-        ))
+        )))
     }
 }
 
@@ -327,7 +327,7 @@ impl Spammer for EvmSpammer {
                     }
 
                     // Create provider with selected proxy
-                    let provider = self.create_provider_with_proxy(&proxy_config).await;
+                    let provider = self.create_provider_with_proxy(&proxy_config).await?;
 
                     // Pick random wallet for this task (with lock to prevent nonce conflicts)
                     let mut rng = OsRng;
