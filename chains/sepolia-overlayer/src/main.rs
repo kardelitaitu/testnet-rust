@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::Parser;
 use config::SepoliaConfig;
 use core_logic::metrics::MetricsCollector;
-use core_logic::{setup_logger, WorkerRunner};
+use core_logic::{exit_with_error, setup_logger, WorkerRunner};
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use ethers::prelude::*;
 use rand::seq::SliceRandom;
@@ -31,9 +31,9 @@ struct Args {
     no_proxy: bool,
     #[arg(long, default_value = "10")]
     max_tps: u32,
-    #[arg(long, default_value_t = 0.01)]
+    #[arg(long, default_value_t = 1.0)]
     min_gwei: f64,
-    #[arg(long, default_value_t = 1.2)]
+    #[arg(long, default_value_t = 2.0)]
     max_gwei: f64,
     #[arg(long)]
     workers: Option<usize>,
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to load config: {}", e);
-            return Ok(());
+            exit_with_error(format!("Failed to load config: {}", e));
         }
     };
 
@@ -103,7 +103,7 @@ async fn main() -> Result<()> {
                     password = Some(input);
                     if let Err(e) = manager.as_ref().get_wallet(0, password.as_deref()).await {
                         error!("Interactive password also failed: {}", e);
-                        return Ok(());
+                        exit_with_error(format!("Interactive password also failed: {}", e));
                     }
                     info!("Interactive password validated successfully.");
                 }
@@ -112,7 +112,7 @@ async fn main() -> Result<()> {
                     error!("Please set WALLET_PASSWORD environment variable:");
                     error!("  PowerShell: $env:WALLET_PASSWORD='your_password'");
                     error!("  CMD: set WALLET_PASSWORD=your_password");
-                    return Ok(());
+                    exit_with_error("Cannot prompt for password. Set WALLET_PASSWORD env var.");
                 }
             }
         } else {
@@ -210,7 +210,7 @@ async fn main() -> Result<()> {
                 Ok(cfg) => (Some(cfg.rpc_url.clone()), Some(cfg)),
                 Err(e) => {
                     error!("Failed to load base config: {}", e);
-                    return Ok(());
+                    exit_with_error(format!("Failed to load base config: {}", e));
                 }
             }
         } else {
