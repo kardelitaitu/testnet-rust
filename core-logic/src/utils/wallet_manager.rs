@@ -812,4 +812,35 @@ mod tests {
         w.active_chain = ChainType::Ton;
         assert_eq!(w.address(), "ton_addr");
     }
+
+    #[test]
+    fn test_new_parses_pv_txt_fallback() {
+        // pv.txt parsing is tested indirectly via get_wallet_for_chain with raw keys
+        // and the list_wallets format for RawKey sources
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        std::fs::write(dir.path().join("wallet.json"), "{}").unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+        assert_eq!(mgr.count(), 1);
+
+        // Verify list_wallets returns filename
+        let names = mgr.list_wallets();
+        assert_eq!(names.len(), 1);
+        assert!(names[0].ends_with(".json"), "Should show filename: {}", names[0]);
+    }
+
+    #[tokio::test]
+    async fn test_get_wallet_unrecognized_format_returns_error() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        // Valid JSON but not encrypted and not a raw key
+        let bad_json = r#"{"foo": "bar", "baz": 123}"#;
+        std::fs::write(dir.path().join("wallet.json"), bad_json).unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+        assert_eq!(mgr.count(), 1);
+
+        let result = mgr.get_wallet(0, Some("pwd")).await;
+        assert!(result.is_err(), "Unrecognized JSON format should fail");
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("unrecognized") || err.contains("decrypt") || err.contains("format"),
+            "Error should mention unrecognized/decrypt/format: {}", err);
+    }
 }

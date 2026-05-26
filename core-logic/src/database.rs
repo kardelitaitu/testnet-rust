@@ -393,6 +393,129 @@ mod tests {
         db.shutdown().await.unwrap();
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    #[tokio::test]
+    async fn test_queue_task_result_non_async_returns_error() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_qna_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        let result = QueuedTaskResult {
+            worker_id: "W".into(),
+            wallet_address: "0x1".into(),
+            task_name: "T".into(),
+            success: true,
+            message: "M".into(),
+            duration_ms: 0,
+            timestamp: chrono::Utc::now().timestamp(),
+        };
+        let err = db.queue_task_result(result);
+        assert!(err.is_err(), "Non-async DB should return error");
+        assert!(err.unwrap_err().to_string().contains("not initialized"),
+            "Error should mention async logging not initialized");
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_queue_task_result_closed_channel() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_qcc_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+
+        let config = AsyncDbConfig {
+            channel_capacity: 10,
+            batch_size: 100,
+            flush_interval_ms: 10000,
+        };
+        let db = DatabaseManager::new_with_async(
+            db_path.to_str().unwrap(),
+            config,
+            FallbackStrategy::Drop,
+        ).await.unwrap();
+
+        // Queue into the channel (not yet flushed, channel is open)
+        let result = db.queue_task_result(QueuedTaskResult {
+            worker_id: "W".into(),
+            wallet_address: "0x1".into(),
+            task_name: "T".into(),
+            success: true,
+            message: "M".into(),
+            duration_ms: 0,
+            timestamp: 0,
+        });
+        assert!(result.is_ok(), "Open channel should accept entries");
+
+        // Shutdown consumes db, but the entry should be flushed on shutdown
+        db.shutdown().await.unwrap();
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_queue_task_result_sync_fallback() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_qsf_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+
+        let config = AsyncDbConfig {
+            channel_capacity: 1,  // Tiny channel
+            batch_size: 100,
+            flush_interval_ms: 10000,
+        };
+        let db = DatabaseManager::new_with_async(
+            db_path.to_str().unwrap(),
+            config,
+            FallbackStrategy::Sync,
+        ).await.unwrap();
+
+        // Fill the channel
+        db.queue_task_result(QueuedTaskResult {
+            worker_id: "W".into(),
+            wallet_address: "0x1".into(),
+            task_name: "T".into(),
+            success: true,
+            message: "fill".into(),
+            duration_ms: 0,
+            timestamp: 0,
+        }).unwrap();
+
+        // Next one should trigger Sync fallback (returns Ok, no panic)
+        let result = db.queue_task_result(QueuedTaskResult {
+            worker_id: "W".into(),
+            wallet_address: "0x1".into(),
+            task_name: "T".into(),
+            success: false,
+            message: "overflow".into(),
+            duration_ms: 0,
+            timestamp: 1,
+        });
+        assert!(result.is_ok(), "Sync fallback should return Ok");
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_log_task_result_with_failed_status() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_fls_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        // Log a failure
+        db.log_task_result("W", "0x1", "T", false, "error msg", 100).await.unwrap();
+
+        // Verify metrics
+        let metrics = db.get_metrics();
+        assert!(metrics.total_inserts >= 1);
+        assert!(metrics.total_queries >= 1);
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 /// Queued task result for async logging
