@@ -85,6 +85,36 @@ mod tests {
         assert!(report.contains("Cleanups performed"));
         assert!(report.contains("Last cleanup"));
     }
+
+    #[tokio::test]
+    async fn test_memory_optimizer_hook_execution() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let counter = Arc::new(AtomicUsize::new(0));
+        let counter_clone = counter.clone();
+        
+        let mut optimizer = MemoryOptimizer::new(MemoryOptimizerConfig::default());
+        optimizer.register_hook(move |emergency| {
+            let c = counter_clone.clone();
+            async move {
+                if emergency {
+                    c.fetch_add(10, Ordering::SeqCst);
+                } else {
+                    c.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        });
+        
+        // Normal cleanup
+        optimizer.perform_cleanup_forced().await.unwrap();
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
+        assert_eq!(optimizer.cleanup_count, 1);
+        
+        // Emergency cleanup
+        optimizer.is_emergency_cleaning = true;
+        optimizer.perform_cleanup_forced().await.unwrap();
+        assert_eq!(counter.load(Ordering::SeqCst), 11);
+        assert_eq!(optimizer.cleanup_count, 2);
+    }
 }
 
 pub type AsyncCleanupHook =

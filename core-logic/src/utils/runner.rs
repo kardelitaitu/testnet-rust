@@ -268,8 +268,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_spammers_cancellation() {
-        use tokio::time::{sleep, Duration};
-        
         // One spammer cancels immediately
         let s1 = MockSpammer {
             stats: SpammerStats { success: 1, failed: 0 },
@@ -287,7 +285,7 @@ mod tests {
         let elapsed = start.elapsed();
         
         // Should finish quickly — use generous tolerance for CI/coverage overhead
-        assert!(elapsed < Duration::from_millis(200), "Should have cancelled s1 quickly, got {:?}", elapsed);
+        assert!(elapsed < std::time::Duration::from_millis(200), "Should have cancelled s1 quickly, got {:?}", elapsed);
     }
 
     #[tokio::test]

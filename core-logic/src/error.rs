@@ -116,6 +116,12 @@ pub enum WalletError {
     AddressMismatch { expected: String, actual: String },
 }
 
+impl WalletError {
+    pub fn not_found(index: usize, total: usize) -> Self {
+        Self::NotFound { index, total }
+    }
+}
+
 /// Database operation errors
 #[derive(Error, Debug)]
 pub enum DatabaseError {

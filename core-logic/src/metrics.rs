@@ -327,4 +327,32 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    #[tokio::test]
+    async fn test_metrics_zero_duration_and_high_volume() {
+        let metrics = MetricsCollector::default();
+        
+        // Record 1000 tasks with 0 duration
+        for _ in 0..1000 {
+            metrics.record_task("zero", Duration::from_millis(0), true);
+        }
+        
+        let snapshot = metrics.snapshot();
+        assert_eq!(snapshot.tasks.total, 1000);
+        assert_eq!(snapshot.performance.avg_task_duration_ms, 0.0);
+        assert_eq!(snapshot.performance.min_task_duration_ms, 0);
+        assert_eq!(snapshot.performance.max_task_duration_ms, 0);
+    }
+
+    #[tokio::test]
+    async fn test_metrics_large_duration_handling() {
+        let metrics = MetricsCollector::default();
+        
+        // Large duration: 1 hour
+        metrics.record_task("long", Duration::from_secs(3600), true);
+        
+        let snapshot = metrics.snapshot();
+        assert_eq!(snapshot.performance.total_duration_ms, 3600 * 1000);
+        assert_eq!(snapshot.performance.avg_task_duration_ms, 3600000.0);
+    }
 }

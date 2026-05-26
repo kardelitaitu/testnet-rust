@@ -310,4 +310,30 @@ mod tests {
             duration.as_millis()
         );
     }
+
+    #[tokio::test]
+    async fn test_rate_limiter_concurrent_contention() {
+        // High TPS but many concurrent workers
+        let limiter = Arc::new(ProxyRateLimiter::new(100)); 
+        let proxy = "http://heavy-contention";
+        
+        let mut handles = Vec::new();
+        for _ in 0..50 {
+            let l = limiter.clone();
+            handles.push(tokio::spawn(async move {
+                for _ in 0..10 {
+                    l.acquire(proxy).await;
+                }
+            }));
+        }
+        
+        for h in handles {
+            h.await.unwrap();
+        }
+        
+        // Final state should be consistent
+        let stats = limiter.get_stats(proxy).await.unwrap();
+        // Format is "used/total (remaining)"
+        assert!(stats.contains("/100"), "Final stats should reflect total capacity, got {}", stats);
+    }
 }
