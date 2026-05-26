@@ -43,7 +43,7 @@ pub use traits::{Spammer as SpammerTrait, SpammerStats, Task, TaskResult, Wallet
 pub use utils::{
     generate_random_address, setup_logger, ExplorerGasSnapshot, ExplorerGasTracker,
     ExplorerGasTrackerPayload, GasConfig, ProxyHealthManager, ProxyManager, ProxyRateLimiter,
-    RpcManager, WalletManager, WorkerRunner,
+    RpcManager, WalletManager, ChainType, WorkerRunner,
 };
 
 // Export memory optimization utilities

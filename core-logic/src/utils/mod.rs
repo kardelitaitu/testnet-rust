@@ -19,6 +19,7 @@ pub(crate) mod retry;
 pub(crate) mod rpc_manager;
 pub(crate) mod runner;
 pub(crate) mod wallet_manager;
+pub use wallet_manager::ChainType;
 
 // Selective exports - only public utilities
 pub use address_gen::generate_random_address;
