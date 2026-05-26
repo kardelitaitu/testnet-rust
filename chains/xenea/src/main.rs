@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::Parser;
 use config::XeneaConfig;
 use core_logic::metrics::MetricsCollector;
-use core_logic::{setup_logger, WorkerRunner};
+use core_logic::{exit_with_error, setup_logger, WorkerRunner};
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use dotenv::dotenv;
 use ethers::prelude::*;
@@ -44,8 +44,7 @@ async fn main() -> Result<()> {
     let config = match XeneaConfig::load(&args.config) {
         Ok(c) => c,
         Err(e) => {
-            error!("Failed to load config: {}", e);
-            return Ok(());
+            exit_with_error(format!("Failed to load config: {}", e));
         }
     };
 
@@ -87,18 +86,13 @@ async fn main() -> Result<()> {
                     password = Some(input);
                     // Validate interactive password
                     if let Err(e) = manager.as_ref().get_wallet(0, password.as_deref()).await {
-                        error!("Interactive password also failed: {}", e);
-                        return Ok(());
+                        exit_with_error(format!("Interactive password also failed: {}", e));
                     }
                     info!("Interactive password validated successfully.");
                 }
                 Err(_) => {
                     // Non-interactive mode - show helpful error
-                    error!("Cannot prompt for password (not a terminal).");
-                    error!("Please set WALLET_PASSWORD environment variable:");
-                    error!("  PowerShell: $env:WALLET_PASSWORD='your_password'");
-                    error!("  CMD: set WALLET_PASSWORD=your_password");
-                    return Ok(());
+                    exit_with_error("Cannot prompt for password. Set WALLET_PASSWORD env var.");
                 }
             }
         } else {

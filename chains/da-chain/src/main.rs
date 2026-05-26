@@ -4,6 +4,7 @@ use da_chain_project::spammer;
 use anyhow::Result;
 use clap::Parser;
 use config::DaChainConfig;
+use core_logic::exit_with_error;
 use core_logic::metrics::MetricsCollector;
 use core_logic::{setup_logger, WorkerRunner};
 use dialoguer::{theme::ColorfulTheme, Input, Password};
@@ -50,8 +51,7 @@ async fn main() -> Result<()> {
     let config = match DaChainConfig::load(&args.config) {
         Ok(c) => c,
         Err(e) => {
-            error!("Failed to load config: {}", e);
-            return Ok(());
+            exit_with_error(format!("Failed to load config: {}", e));
         }
     };
 
@@ -97,8 +97,7 @@ async fn main() -> Result<()> {
                     password = Some(input);
                     // Validate interactive password
                     if let Err(e) = manager.as_ref().get_wallet(0, password.as_deref()).await {
-                        error!("Interactive password also failed: {}", e);
-                        return Ok(());
+                        exit_with_error(format!("Interactive password also failed: {}", e));
                     }
                     info!("Interactive password validated successfully.");
                 }
