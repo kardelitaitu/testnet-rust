@@ -161,6 +161,9 @@ pub enum NetworkError {
 
     #[error("Invalid response from {endpoint}: {reason}")]
     InvalidResponse { endpoint: String, reason: String },
+
+    #[error("No RPC endpoints configured for chain_id={0}")]
+    NoEndpoints(u64),
 }
 
 /// Security-related errors

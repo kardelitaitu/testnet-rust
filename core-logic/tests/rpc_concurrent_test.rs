@@ -17,7 +17,7 @@ fn test_rpc_manager_concurrent_get_endpoint() {
         let urls_clone = urls.clone();
         handles.push(thread::spawn(move || {
             for _ in 0..100 {
-                let ep = mgr_clone.get_endpoint();
+                let ep = mgr_clone.get_endpoint().unwrap();
                 assert!(urls_clone.contains(&ep.url));
             }
         }));

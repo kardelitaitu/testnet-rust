@@ -5,6 +5,7 @@
 
 #![allow(dead_code)]
 
+use crate::error::{CoreError, NetworkError};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -90,20 +91,15 @@ impl RpcManager {
 
     /// Get the next endpoint using round-robin selection
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if there are no endpoints configured. This is a configuration error
-    /// that should be caught during initialization.
-    #[track_caller]
-    pub fn get_endpoint(&self) -> &RpcEndpoint {
+    /// Returns `Err(CoreError::Network(NetworkError::NoEndpoints(chain_id)))` if no endpoints are configured.
+    pub fn get_endpoint(&self) -> Result<&RpcEndpoint, CoreError> {
         if self.endpoints.is_empty() {
-            panic!(
-                "RpcManager has no endpoints configured for chain_id={}",
-                self.chain_id
-            );
+            return Err(CoreError::Network(NetworkError::NoEndpoints(self.chain_id)));
         }
         let idx = self.current_index.fetch_add(1, Ordering::SeqCst);
-        &self.endpoints[idx % self.endpoints.len()]
+        Ok(&self.endpoints[idx % self.endpoints.len()])
     }
 
     /// Get the fastest (lowest latency) healthy endpoint
@@ -295,9 +291,9 @@ mod tests {
     fn test_rpc_manager_get_endpoint_round_robin() {
         let urls = vec!["https://rpc1.com".into(), "https://rpc2.com".into()];
         let mgr = RpcManager::new(1, &urls);
-        assert_eq!(mgr.get_endpoint().url, "https://rpc1.com");
-        assert_eq!(mgr.get_endpoint().url, "https://rpc2.com");
-        assert_eq!(mgr.get_endpoint().url, "https://rpc1.com");
+        assert_eq!(mgr.get_endpoint().unwrap().url, "https://rpc1.com");
+        assert_eq!(mgr.get_endpoint().unwrap().url, "https://rpc2.com");
+        assert_eq!(mgr.get_endpoint().unwrap().url, "https://rpc1.com");
     }
 
     #[test]
@@ -350,16 +346,16 @@ mod tests {
     fn test_record_failure_threshold_marks_unhealthy() {
         let urls = vec!["http://rpc.com".into()];
         let mgr = RpcManager::new(1, &urls);
-        assert!(mgr.get_endpoint().is_healthy());
+        assert!(mgr.get_endpoint().unwrap().is_healthy());
         mgr.record_failure("http://rpc.com");
         mgr.record_failure("http://rpc.com");
         assert!(
-            mgr.get_endpoint().is_healthy(),
+            mgr.get_endpoint().unwrap().is_healthy(),
             "2 failures should still be healthy"
         );
         mgr.record_failure("http://rpc.com");
         assert!(
-            !mgr.get_endpoint().is_healthy(),
+            !mgr.get_endpoint().unwrap().is_healthy(),
             "3 failures should mark unhealthy"
         );
     }
@@ -371,10 +367,10 @@ mod tests {
         mgr.record_failure("http://rpc.com");
         mgr.record_failure("http://rpc.com");
         mgr.record_failure("http://rpc.com");
-        assert!(!mgr.get_endpoint().is_healthy());
+        assert!(!mgr.get_endpoint().unwrap().is_healthy());
         mgr.record_success("http://rpc.com");
-        assert!(mgr.get_endpoint().is_healthy());
-        assert_eq!(mgr.get_endpoint().failures(), 0);
+        assert!(mgr.get_endpoint().unwrap().is_healthy());
+        assert_eq!(mgr.get_endpoint().unwrap().failures(), 0);
     }
 
     #[test]
@@ -419,7 +415,7 @@ mod tests {
         let urls = vec!["http://rpc.com".into()];
         let mgr = RpcManager::new(1, &urls);
         mgr.record_latency("http://rpc.com", 200);
-        assert_eq!(mgr.get_endpoint().latency_ms(), 200);
+        assert_eq!(mgr.get_endpoint().unwrap().latency_ms(), 200);
     }
 
     #[test]
@@ -444,10 +440,25 @@ mod tests {
         let urls = vec!["http://rpc.com".into()];
         let mgr = RpcManager::new(1, &urls);
         mgr.update_health("http://rpc.com", false, 500);
-        assert!(!mgr.get_endpoint().is_healthy());
-        assert_eq!(mgr.get_endpoint().latency_ms(), 500);
+        assert!(!mgr.get_endpoint().unwrap().is_healthy());
+        assert_eq!(mgr.get_endpoint().unwrap().latency_ms(), 500);
         mgr.update_health("http://rpc.com", true, 0);
-        assert!(mgr.get_endpoint().is_healthy());
+        assert!(mgr.get_endpoint().unwrap().is_healthy());
+    }
+
+    #[test]
+    fn test_get_endpoint_empty_returns_error() {
+        let urls: Vec<String> = vec![];
+        let mgr = RpcManager::new(1, &urls);
+        let result = mgr.get_endpoint();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        match err {
+            CoreError::Network(NetworkError::NoEndpoints(chain_id)) => {
+                assert_eq!(chain_id, 1);
+            }
+            _ => panic!("Expected NetworkError::NoEndpoints variant"),
+        }
     }
 
     #[tokio::test]
@@ -467,7 +478,7 @@ mod tests {
             handles.push(tokio::spawn(async move {
                 let mut seen = Vec::new();
                 for _ in 0..calls_per_task {
-                    seen.push(mgr_clone.get_endpoint().url.clone());
+                    seen.push(mgr_clone.get_endpoint().unwrap().url.clone());
                 }
                 seen
             }));
