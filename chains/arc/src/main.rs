@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::Parser;
 use config::ArcConfig;
 use core_logic::metrics::MetricsCollector;
-use core_logic::{setup_logger, WorkerRunner};
+use core_logic::{exit_with_error, setup_logger, WorkerRunner};
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use ethers::prelude::*;
 use rand::seq::SliceRandom;
@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to load config: {}", e);
-            return Ok(());
+            exit_with_error(format!("Failed to load config: {}", e));
         }
     };
 
@@ -104,7 +104,7 @@ async fn main() -> Result<()> {
                     // Validate interactive password
                     if let Err(e) = manager.as_ref().get_wallet(0, password.as_deref()).await {
                         error!("Interactive password also failed: {}", e);
-                        return Ok(());
+                        exit_with_error(format!("Interactive password also failed: {}", e));
                     }
                     info!("Interactive password validated successfully.");
                 }
@@ -114,7 +114,7 @@ async fn main() -> Result<()> {
                     error!("Please set WALLET_PASSWORD environment variable:");
                     error!("  PowerShell: $env:WALLET_PASSWORD='your_password'");
                     error!("  CMD: set WALLET_PASSWORD=your_password");
-                    return Ok(());
+                    exit_with_error("Cannot prompt for password. Set WALLET_PASSWORD env var.");
                 }
             }
         } else {

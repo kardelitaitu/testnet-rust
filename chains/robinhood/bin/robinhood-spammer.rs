@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use core_logic::database::{AsyncDbConfig, DatabaseManager, FallbackStrategy, QueuedTaskResult};
+use core_logic::exit_with_error;
 use core_logic::setup_logger;
 use core_logic::WalletManager;
 use dialoguer::{theme::ColorfulTheme, Password};
@@ -45,7 +46,7 @@ async fn main() -> Result<()> {
 
     if total_wallets == 0 {
         error!("No wallets found");
-        return Ok(());
+        exit_with_error("No wallets found. Cannot proceed.");
     }
 
     let password_input = Password::with_theme(&ColorfulTheme::default())
