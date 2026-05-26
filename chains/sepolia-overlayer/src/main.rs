@@ -259,9 +259,15 @@ async fn main() -> Result<()> {
     };
 
     WorkerRunner::run_spammers(spammers).await?;
-
+    // Cancel metrics task (check for panic first)
     if let Some(task) = metrics_task {
-        task.abort();
+        if task.is_finished() {
+            if let Err(e) = task.await {
+                tracing::error!("Metrics task panicked: {:?}", e);
+            }
+        } else {
+            task.abort();
+        }
     }
 
     if let Some(metrics_path) = args.export_metrics {
