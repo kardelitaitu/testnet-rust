@@ -3,13 +3,12 @@
 //! Generic RPC endpoint management utilities that can be used across different
 //! blockchain implementations.
 
-#![allow(dead_code)]
-
 use crate::error::{CoreError, NetworkError};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::Mutex;
-use std::time::Duration;
 use tracing::warn;
+
+#[cfg(test)]
+use std::time::Duration;
 
 /// RPC endpoint information
 #[derive(Debug)]
@@ -65,7 +64,6 @@ pub struct RpcManager {
     chain_id: u64,
     endpoints: Vec<RpcEndpoint>,
     current_index: AtomicUsize,
-    _latency_history: Mutex<Vec<(String, u64)>>,
 }
 
 impl RpcManager {
@@ -80,7 +78,6 @@ impl RpcManager {
             chain_id,
             endpoints,
             current_index: AtomicUsize::new(0),
-            _latency_history: Mutex::new(Vec::new()),
         }
     }
 
@@ -202,10 +199,12 @@ impl RpcManager {
 }
 
 /// Simple health checker that can be extended for different chain types
+#[cfg(test)]
 pub struct RpcHealthChecker {
     request_timeout: Duration,
 }
 
+#[cfg(test)]
 impl RpcHealthChecker {
     /// Create a new health checker with timeout
     pub fn new(timeout_ms: u64) -> Self {
@@ -220,6 +219,7 @@ impl RpcHealthChecker {
     }
 }
 
+#[cfg(test)]
 impl Default for RpcHealthChecker {
     fn default() -> Self {
         Self::new(30000) // 30 seconds default timeout
