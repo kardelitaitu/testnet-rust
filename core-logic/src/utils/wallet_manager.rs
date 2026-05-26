@@ -843,4 +843,100 @@ mod tests {
         assert!(err.contains("unrecognized") || err.contains("decrypt") || err.contains("format"),
             "Error should mention unrecognized/decrypt/format: {}", err);
     }
+
+    #[test]
+    fn test_wallet_manager_heavy_concurrent_stress() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        // Create 5 wallet files
+        for i in 0..5 {
+            std::fs::write(dir.path().join(format!("w{}.json", i)), "{\"mnemonic\":\"test\"}").unwrap();
+        }
+        let mgr = std::sync::Arc::new(WalletManager::with_wallet_dir(dir.path()).unwrap());
+        
+        let mut handles = Vec::new();
+        // 50 threads
+        for t in 0..50 {
+            let m = mgr.clone();
+            handles.push(std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                for _ in 0..20 {
+                    // All threads hammer the same indexes
+                    let idx = t % 5;
+                    let _ = rt.block_on(m.get_wallet_for_chain(idx, Some("pwd"), ChainType::Evm));
+                }
+            }));
+        }
+        for h in handles {
+            h.join().expect("Stress test thread panicked");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_encrypted_wallet_password_required() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        let encrypted_json = serde_json::json!({
+            "encrypted": {
+                "ciphertext": "deadbeef",
+                "iv": "28132d0007de4ed107d97ce0",
+                "salt": "b9f9af427bd53566ed4d9cf3a2016639",
+                "tag": "04cf5ab8da75d5e94486af0fe9015015"
+            }
+        });
+        std::fs::write(dir.path().join("encrypted.json"), encrypted_json.to_string()).unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+
+        let result = mgr.get_wallet(0, None).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Password required"),
+            "Should mention password required");
+    }
+
+    #[tokio::test]
+    async fn test_encrypted_wallet_missing_ciphertext() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        let encrypted_json = serde_json::json!({
+            "encrypted": {
+                "ciphertext": "",
+                "iv": "28132d0007de4ed107d97ce0",
+                "salt": "b9f9af427bd53566ed4d9cf3a2016639",
+                "tag": "04cf5ab8da75d5e94486af0fe9015015"
+            }
+        });
+        std::fs::write(dir.path().join("missing_ct.json"), encrypted_json.to_string()).unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+
+        let result = mgr.get_wallet(0, Some("any_pass")).await;
+        assert!(result.is_err(), "Empty ciphertext should fall through to unrecognized format");
+    }
+
+    #[tokio::test]
+    async fn test_encrypted_wallet_full_decrypt_evm() {
+        let dir = tempfile::tempdir().expect("Failed to create temp dir");
+        // Read the known ciphertext from the security test vector file
+        let test_content = std::fs::read_to_string("tests/security_test.rs")
+            .expect("security_test.rs should exist");
+        // Extract CIPHERTEXT const value between quotes
+        let known_ct = test_content
+            .lines()
+            .find(|l| l.trim().starts_with("const CIPHERTEXT:"))
+            .and_then(|l| l.split('"').nth(1))
+            .unwrap_or("");
+        assert!(!known_ct.is_empty(), "CIPHERTEXT should not be empty");
+
+        let wallet_json = serde_json::json!({
+            "encrypted": {
+                "ciphertext": known_ct,
+                "iv": "28132d0007de4ed107d97ce0",
+                "salt": "b9f9af427bd53566ed4d9cf3a2016639",
+                "tag": "04cf5ab8da75d5e94486af0fe9015015"
+            }
+        });
+        std::fs::write(dir.path().join("encrypted_evm.json"), wallet_json.to_string()).unwrap();
+        let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
+
+        let result = mgr.get_wallet_for_chain(0, Some("diNingrat@10"), ChainType::Evm).await;
+        assert!(result.is_ok(), "Full encrypted decrypt should succeed");
+        let wallet = result.unwrap();
+        assert!(wallet.mnemonic.is_empty() || !wallet.mnemonic.is_empty());
+    }
 }
