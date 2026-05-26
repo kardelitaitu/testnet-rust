@@ -1,0 +1,30 @@
+# Rustfmt configuration for testnet-framework
+
+# Match workspace resolver style
+edition = "2021"
+
+# Line width — 120 fits well on modern editors and side-by-side diff
+max_width = 120
+
+# Use 4-space indentation (consistent with existing code)
+tab_spaces = 4
+
+# Hard tabs are not used
+hard_tabs = false
+
+# Single-line expressions stay compact
+use_small_heuristics = "Default"
+
+# Import ordering: group by std → external → crate
+group_imports = "StdExternalCrate"
+imports_granularity = "Preserve"
+
+# Normalize doc comments
+normalize_comments = true
+normalize_doc_attributes = true
+
+# Format generated code (e.g., abigen! macros)
+format_code_in_doc_comments = true
+
+# Wrap match arms
+match_block_trailing_comma = true
