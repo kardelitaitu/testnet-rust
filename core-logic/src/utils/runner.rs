@@ -292,7 +292,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_spammers_one_hangs_others_succeed() {
-        use tokio::time::Duration;
         
         let s1 = MockSpammer {
             stats: SpammerStats { success: 10, failed: 0 },

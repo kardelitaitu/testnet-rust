@@ -766,4 +766,50 @@ mod tests {
             h.join().expect("Thread should not panic");
         }
     }
+
+    #[test]
+    fn test_decrypted_wallet_private_key_sui() {
+        let mut w = DecryptedWallet::default();
+        w.sui_private_key = "sui_key".into();
+        w.active_chain = ChainType::Sui;
+        assert_eq!(w.private_key(), "sui_key");
+    }
+
+    #[test]
+    fn test_decrypted_wallet_private_key_aptos() {
+        let mut w = DecryptedWallet::default();
+        w.aptos_private_key = "aptos_key".into();
+        w.active_chain = ChainType::Aptos;
+        assert_eq!(w.private_key(), "aptos_key");
+    }
+
+    #[test]
+    fn test_decrypted_wallet_private_key_tron() {
+        let mut w = DecryptedWallet::default();
+        w.tron_private_key = "tron_key".into();
+        w.active_chain = ChainType::Tron;
+        assert_eq!(w.private_key(), "tron_key");
+    }
+
+    #[test]
+    fn test_decrypted_wallet_private_key_ton() {
+        let mut w = DecryptedWallet::default();
+        w.ton_private_key = "ton_key".into();
+        w.active_chain = ChainType::Ton;
+        assert_eq!(w.private_key(), "ton_key");
+    }
+
+    #[test]
+    fn test_decrypted_wallet_address_sui_aptos_tron_ton() {
+        let mut w = DecryptedWallet::default();
+        w.sui_address = "sui_addr".into();
+        w.aptos_address = "aptos_addr".into();
+        w.tron_address = "tron_addr".into();
+        w.ton_address = "ton_addr".into();
+
+        w.active_chain = ChainType::Sui;
+        assert_eq!(w.address(), "sui_addr");
+        w.active_chain = ChainType::Ton;
+        assert_eq!(w.address(), "ton_addr");
+    }
 }

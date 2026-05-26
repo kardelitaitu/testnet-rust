@@ -81,7 +81,9 @@ impl TokenBucket {
 }
 
 fn now_ms() -> u64 {
-    Instant::now().elapsed().as_millis() as u64
+    static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+    let start = START.get_or_init(|| Instant::now());
+    start.elapsed().as_millis() as u64
 }
 
 /// Configuration for rate limiting
@@ -406,5 +408,30 @@ mod tests {
         })
         .await
         .expect("acquire_with_wait should not time out at 100 TPS");
+    }
+
+    #[tokio::test]
+    async fn test_token_bucket_refill_after_drain() {
+        // Create a bucket with fast refill rate
+        let bucket = TokenBucket::new(10, 1000); // 1000 tokens/sec
+        // Drain it
+        bucket.try_acquire(10);
+        assert_eq!(bucket.available(), 0);
+        // Wait for refill (1000/sec = 1 token/ms)
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        // Should have some tokens now (20ms × 1000/sec = 20, capped at 10)
+        assert!(bucket.available() > 0, "Should have refilled after delay");
+        assert_eq!(bucket.available(), 10, "Should refill to capacity");
+    }
+
+    #[tokio::test]
+    async fn test_per_wallet_limiter_acquire_global_exhausted() {
+        // 1 TPS with burst=2 means global capacity is 2
+        let limiter = Arc::new(PerWalletRateLimiter::new(1));
+        // Drain the global bucket
+        assert!(limiter.acquire("wallet_a").await);
+        assert!(limiter.acquire("wallet_b").await);
+        // Third acquire should fail (global exhausted)
+        assert!(!limiter.acquire("wallet_c").await);
     }
 }
