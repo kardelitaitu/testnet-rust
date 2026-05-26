@@ -1,22 +1,11 @@
 # Clippy configuration for testnet-framework
 
-# Allow too_many_arguments — many spammers have legitimate 12+ param constructors
-# that will be refactored to builders separately
+# Allow many arguments — spammers have legit 12+ param constructors
+# (will be refactored to builders separately)
 too-many-arguments-threshold = 15
 
 # Allow modules with many functions — task registries are inherently large
 too-many-lines-threshold = 600
 
-# Disallow the worst offenders
+# Cap cognitive complexity to keep functions readable
 cognitive-complexity-threshold = 30
-
-# Warn on public items missing docs
-# (currently off — many modules lack docs, gradual enablement)
-# missing-docs-in-crate-items = "deny"
-
-# Warn on items that could be const
-warn-on-all-wildcard-imports = true
-
-# Don't flag module name repetitions in use statements
-# e.g., `use task::task::Foo` is fine with our task module nesting
-allow-excessive-nesting = true
