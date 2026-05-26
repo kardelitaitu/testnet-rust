@@ -498,10 +498,171 @@ mod concurrent_circuit_breaker_tests {
 mod transient_error_tests {
     use super::*;
 
-    #[test]
+#[test]
     fn test_is_transient() {
         assert!(is_transient_error(&anyhow::anyhow!("timeout")));
         assert!(is_transient_error(&anyhow::anyhow!("rate limited")));
         assert!(!is_transient_error(&anyhow::anyhow!("fatal error")));
+    }
+}
+
+#[cfg(test)]
+mod with_retry_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_with_retry_success_first_try() {
+        let attempts = Arc::new(AtomicU32::new(0));
+        let a = attempts.clone();
+        let result = with_retry(
+            RetryConfig::new(3, 5).without_jitter(),
+            "test",
+            move || {
+                let a = a.clone();
+                async move {
+                    a.fetch_add(1, Ordering::SeqCst);
+                    Ok::<_, anyhow::Error>(42)
+                }
+            },
+        )
+        .await;
+        assert!(result.is_ok());
+        assert_eq!(*result.as_ref().unwrap(), 42);
+        assert_eq!(attempts.load(Ordering::SeqCst), 1, "Should succeed on first try");
+    }
+
+    #[tokio::test]
+    async fn test_with_retry_fail_then_succeed() {
+        let attempts = Arc::new(AtomicU32::new(0));
+        let a = attempts.clone();
+        let result = with_retry(
+            RetryConfig::new(3, 5).without_jitter(),
+            "test",
+            move || {
+                let a = a.clone();
+                async move {
+                    let count = a.fetch_add(1, Ordering::SeqCst);
+                    if count < 2 {
+                        Err(anyhow::anyhow!("transient timeout"))
+                    } else {
+                        Ok::<_, anyhow::Error>(99)
+                    }
+                }
+            },
+        )
+        .await;
+        assert!(result.is_ok(), "Should succeed after 2 failures");
+        assert_eq!(*result.as_ref().unwrap(), 99);
+    }
+
+    #[tokio::test]
+    async fn test_with_retry_max_retries_exceeded() {
+        let attempts = Arc::new(AtomicU32::new(0));
+        let a = attempts.clone();
+        let result = with_retry(
+            RetryConfig::new(2, 5).without_jitter(),
+            "test",
+            move || {
+                let a = a.clone();
+                async move {
+                    a.fetch_add(1, Ordering::SeqCst);
+                    Err::<i32, _>(anyhow::anyhow!("persistent error"))
+                }
+            },
+        )
+        .await;
+        assert!(result.is_err());
+        assert_eq!(attempts.load(Ordering::SeqCst), 3, "Should try 3 times total");
+    }
+
+    #[tokio::test]
+    async fn test_with_retry_async_success() {
+        let attempts = Arc::new(AtomicU32::new(0));
+        let a = attempts.clone();
+        let result = with_retry_async(
+            RetryConfig::new(3, 5).without_jitter(),
+            "test",
+            move || {
+                let a = a.clone();
+                async move {
+                    a.fetch_add(1, Ordering::SeqCst);
+                    Ok::<_, anyhow::Error>(42)
+                }
+            },
+        )
+        .await;
+        assert!(result.is_ok());
+        assert_eq!(*result.as_ref().unwrap(), 42);
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn test_with_retry_async_fail_then_succeed() {
+        let attempts = Arc::new(AtomicU32::new(0));
+        let a = attempts.clone();
+        let result = with_retry_async(
+            RetryConfig::new(3, 5).without_jitter(),
+            "test",
+            move || {
+                let a = a.clone();
+                async move {
+                    let count = a.fetch_add(1, Ordering::SeqCst);
+                    if count < 1 {
+                        Err(anyhow::anyhow!("transient timeout"))
+                    } else {
+                        Ok::<_, anyhow::Error>(42)
+                    }
+                }
+            },
+        )
+        .await;
+        assert!(result.is_ok(), "Should succeed after failure");
+    }
+
+    #[tokio::test]
+    async fn test_execute_half_open_success_closes() {
+        let cb = CircuitBreaker::new(
+            "half_open_test",
+            CircuitBreakerConfig {
+                failure_threshold: 1,
+                success_threshold: 1,
+                reset_timeout_ms: 200,
+            },
+        );
+        cb.on_failure();
+        assert_eq!(cb.state(), "OPEN");
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        cb.last_failure.store(0, std::sync::atomic::Ordering::SeqCst);
+
+        let result = cb.execute(|| async { Ok::<_, anyhow::Error>(42) }).await;
+        assert!(result.is_ok());
+        assert_eq!(*result.as_ref().unwrap(), 42);
+        assert_eq!(cb.state(), "CLOSED");
+    }
+
+    #[tokio::test]
+    async fn test_execute_half_open_failure_reopens() {
+        let cb = CircuitBreaker::new(
+            "reopen_test",
+            CircuitBreakerConfig {
+                failure_threshold: 1,
+                success_threshold: 1,
+                reset_timeout_ms: 200,
+            },
+        );
+        cb.on_failure();
+        assert_eq!(cb.state(), "OPEN");
+
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        cb.last_failure.store(0, std::sync::atomic::Ordering::SeqCst);
+
+        let result = cb
+            .execute(|| async { Err::<i32, _>(anyhow::anyhow!("fail")) })
+            .await;
+        assert!(result.is_err());
+        assert_eq!(cb.state(), "OPEN");
     }
 }

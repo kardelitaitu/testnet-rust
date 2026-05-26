@@ -516,6 +516,71 @@ mod tests {
         db.shutdown().await.unwrap();
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    #[tokio::test]
+    async fn test_new_invalid_path_returns_error() {
+        let result = DatabaseManager::new("/nonexistent_dir_xyz/test.db").await;
+        assert!(result.is_err(), "Invalid path should return error");
+    }
+
+    #[tokio::test]
+    async fn test_queue_task_result_none_fallback() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_none_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+
+        // Async DB but no fallback strategy set
+        let config = AsyncDbConfig {
+            channel_capacity: 1,
+            batch_size: 100,
+            flush_interval_ms: 10000,
+        };
+        // FallbackStrategy is not passed — create DB manually for full control
+        let db = DatabaseManager::new_with_async(
+            db_path.to_str().unwrap(),
+            config,
+            FallbackStrategy::Drop,
+        ).await.unwrap();
+
+        // Fill channel
+        db.queue_task_result(QueuedTaskResult {
+            worker_id: "W".into(),
+            wallet_address: "0x1".into(),
+            task_name: "T".into(),
+            success: true, message: "fill".into(),
+            duration_ms: 0, timestamp: 0,
+        }).unwrap();
+
+        // The fallback is Drop, which should succeed silently
+        let result = db.queue_task_result(QueuedTaskResult {
+            worker_id: "W".into(), wallet_address: "0x2".into(),
+            task_name: "T".into(), success: false, message: "overflow".into(),
+            duration_ms: 0, timestamp: 1,
+        });
+        assert!(result.is_ok(), "Drop fallback should return Ok");
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_update_proxy_stats_with_failure() {
+        let dir = std::env::temp_dir().join(format!("core_db_test_psf_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
+
+        // Record a failure
+        db.update_proxy_stats("http://bad-proxy:8080", false).await.unwrap();
+        // Record a success
+        db.update_proxy_stats("http://good-proxy:8080", true).await.unwrap();
+
+        let metrics = db.get_metrics();
+        assert!(metrics.total_inserts >= 2);
+
+        db.shutdown().await.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 /// Queued task result for async logging
