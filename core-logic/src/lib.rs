@@ -65,3 +65,18 @@ pub use utils::{
     is_transient_error, with_retry, CircuitBreaker, CircuitBreakerConfig, RetryConfig,
     TokenBucket,
 };
+
+/// Log an error message and immediately exit the process with code 1.
+///
+/// Use this in binary entry points where a failure should terminate the process
+/// with a non-zero exit code. Library code should return `Result` instead.
+///
+/// # Example
+///
+/// ```no_run
+/// exit_with_error("Failed to load config: {}", "file not found");
+/// ```
+pub fn exit_with_error(msg: impl std::fmt::Display) -> ! {
+    tracing::error!("{}", msg);
+    std::process::exit(1);
+}
