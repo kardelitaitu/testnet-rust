@@ -3,8 +3,8 @@ use clap::Parser;
 use core_logic::setup_logger;
 use da_chain_project::config::DaChainConfig;
 use da_chain_project::task::{
-    t01_check_balance::DaChainCheckBalanceTask,
-    t02_simple_native_transfer::SimpleNativeTransferTask, DaChainTask, TaskContext,
+    t01_check_balance::DaChainCheckBalanceTask, t02_simple_native_transfer::SimpleNativeTransferTask, DaChainTask,
+    TaskContext,
 };
 use dialoguer::{theme::ColorfulTheme, Select};
 use dotenv::dotenv;
@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
         Err(e) => {
             error!("Failed to load config: {}", e);
             return Ok(());
-        }
+        },
     };
     info!("Loaded config for chain ID: {}", cfg.chain_id);
 
@@ -130,18 +130,13 @@ async fn main() -> Result<()> {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::USER_AGENT,
-        reqwest::header::HeaderValue::from_static(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        ),
+        reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
     );
     let client_builder = reqwest::Client::builder()
         .default_headers(headers)
         .timeout(std::time::Duration::from_secs(30));
     let client = if let Some(ref proxy_str) = proxy_url {
-        println!(
-            "Using proxy: {}",
-            proxy_str.split('@').next_back().unwrap_or("...")
-        );
+        println!("Using proxy: {}", proxy_str.split('@').next_back().unwrap_or("..."));
         match reqwest::Proxy::all(proxy_str) {
             Ok(p) => client_builder.proxy(p).build().unwrap_or_default(),
             Err(_) => client_builder.build().unwrap_or_default(),
@@ -153,10 +148,7 @@ async fn main() -> Result<()> {
     let provider = Provider::new(Http::new_with_client(Url::parse(&cfg.rpc_url)?, client));
 
     // 6. Create task list
-    let tasks: Vec<Box<dyn DaChainTask>> = vec![
-        Box::new(DaChainCheckBalanceTask),
-        Box::new(SimpleNativeTransferTask),
-    ];
+    let tasks: Vec<Box<dyn DaChainTask>> = vec![Box::new(DaChainCheckBalanceTask), Box::new(SimpleNativeTransferTask)];
     let items: Vec<&str> = tasks.iter().map(|t| t.name()).collect();
 
     // 7. Select task
@@ -169,10 +161,7 @@ async fn main() -> Result<()> {
         {
             pos
         } else if t_id < tasks.len() {
-            println!(
-                "??  Warning: Task ID {} not found by name, using index {}",
-                t_id, t_id
-            );
+            println!("??  Warning: Task ID {} not found by name, using index {}", t_id, t_id);
             t_id
         } else {
             error!("Invalid task ID: {}", t_id);
@@ -224,10 +213,10 @@ async fn main() -> Result<()> {
                 println!("\n? Failed:");
                 println!("{}", res.message);
             }
-        }
+        },
         Err(e) => {
             println!("\n?? Task Error: {:?}", e);
-        }
+        },
     }
     println!("\n? Duration: {:?}", start.elapsed());
 

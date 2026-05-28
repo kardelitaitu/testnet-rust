@@ -238,11 +238,7 @@ impl Transaction for AASigned {
     #[inline]
     fn kind(&self) -> TxKind {
         // Return first call's `to` or Create if empty
-        self.tx
-            .calls
-            .first()
-            .map(|c| c.to)
-            .unwrap_or(TxKind::Create)
+        self.tx.calls.first().map(|c| c.to).unwrap_or(TxKind::Create)
     }
 
     #[inline]
@@ -253,21 +249,14 @@ impl Transaction for AASigned {
     #[inline]
     fn value(&self) -> U256 {
         // Return sum of all call values
-        self.tx
-            .calls
-            .iter()
-            .fold(U256::ZERO, |acc, call| acc + call.value)
+        self.tx.calls.iter().fold(U256::ZERO, |acc, call| acc + call.value)
     }
 
     #[inline]
     fn input(&self) -> &Bytes {
         // Return first call's input or empty
         static EMPTY_BYTES: Bytes = Bytes::new();
-        self.tx
-            .calls
-            .first()
-            .map(|c| &c.input)
-            .unwrap_or(&EMPTY_BYTES)
+        self.tx.calls.first().map(|c| &c.input).unwrap_or(&EMPTY_BYTES)
     }
 
     #[inline]
@@ -310,16 +299,12 @@ impl reth_primitives_traits::InMemorySize for AASigned {
 }
 
 impl alloy_consensus::transaction::SignerRecoverable for AASigned {
-    fn recover_signer(
-        &self,
-    ) -> Result<alloy_primitives::Address, alloy_consensus::crypto::RecoveryError> {
+    fn recover_signer(&self) -> Result<alloy_primitives::Address, alloy_consensus::crypto::RecoveryError> {
         let sig_hash = self.signature_hash();
         self.signature.recover_signer(&sig_hash)
     }
 
-    fn recover_signer_unchecked(
-        &self,
-    ) -> Result<alloy_primitives::Address, alloy_consensus::crypto::RecoveryError> {
+    fn recover_signer_unchecked(&self) -> Result<alloy_primitives::Address, alloy_consensus::crypto::RecoveryError> {
         // For Tempo transactions, verified and unverified recovery are the same
         // since signature verification happens during recover_signer
         self.recover_signer()
@@ -437,9 +422,7 @@ mod serde_impl {
             };
 
             // Create a secp256k1 signature
-            let signature = TempoSignature::Primitive(PrimitiveSignature::Secp256k1(
-                Signature::test_signature(),
-            ));
+            let signature = TempoSignature::Primitive(PrimitiveSignature::Secp256k1(Signature::test_signature()));
 
             let aa_signed = super::super::AASigned::new_unhashed(tx, signature);
 
@@ -484,8 +467,7 @@ mod tests {
     #[test]
     fn test_hash_and_transaction_trait() {
         let tx = make_tx();
-        let sig =
-            TempoSignature::Primitive(PrimitiveSignature::Secp256k1(Signature::test_signature()));
+        let sig = TempoSignature::Primitive(PrimitiveSignature::Secp256k1(Signature::test_signature()));
 
         // new_unhashed: hash not computed yet
         let signed = AASigned::new_unhashed(tx.clone(), sig.clone());
@@ -519,8 +501,7 @@ mod tests {
         use alloy_eips::eip2718::Encodable2718;
 
         let tx = make_tx();
-        let sig =
-            TempoSignature::Primitive(PrimitiveSignature::Secp256k1(Signature::test_signature()));
+        let sig = TempoSignature::Primitive(PrimitiveSignature::Secp256k1(Signature::test_signature()));
         let signed = AASigned::new_unhashed(tx, sig);
 
         // Encode
@@ -537,8 +518,7 @@ mod tests {
         signed.eip2718_encode(&mut eip_buf);
         assert_eq!(eip_buf[0], TEMPO_TX_TYPE_ID);
 
-        let decoded_2718 =
-            AASigned::typed_decode(TEMPO_TX_TYPE_ID, &mut eip_buf[1..].as_ref()).unwrap();
+        let decoded_2718 = AASigned::typed_decode(TEMPO_TX_TYPE_ID, &mut eip_buf[1..].as_ref()).unwrap();
         assert_eq!(decoded_2718.tx(), signed.tx());
 
         // trie_hash equals hash
@@ -578,8 +558,7 @@ mod tests {
         let tx = make_tx();
 
         // Create signed transaction with placeholder sig to get sig_hash
-        let placeholder =
-            TempoSignature::Primitive(PrimitiveSignature::Secp256k1(Signature::test_signature()));
+        let placeholder = TempoSignature::Primitive(PrimitiveSignature::Secp256k1(Signature::test_signature()));
         let temp_signed = AASigned::new_unhashed(tx.clone(), placeholder);
         let sig_hash = temp_signed.signature_hash();
 

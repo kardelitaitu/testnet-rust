@@ -54,10 +54,8 @@ impl Task<TaskContext> for MulticallTask {
         let multicall_abi: abi::Abi = serde_json::from_str(multicall_abi_json)?;
         let erc20_abi: abi::Abi = serde_json::from_str(erc20_abi_json)?;
 
-        let multicall_contract =
-            Contract::new(multicall_address, multicall_abi, Arc::new(provider.clone()));
-        let usdc_contract =
-            Contract::new(usdc_address, erc20_abi.clone(), Arc::new(provider.clone()));
+        let multicall_contract = Contract::new(multicall_address, multicall_abi, Arc::new(provider.clone()));
+        let usdc_contract = Contract::new(usdc_address, erc20_abi.clone(), Arc::new(provider.clone()));
         let weth_contract = Contract::new(weth_address, erc20_abi, Arc::new(provider.clone()));
 
         let usdc_data = usdc_contract.encode("balanceOf", address)?;
@@ -85,9 +83,7 @@ impl Task<TaskContext> for MulticallTask {
         use ethers::middleware::SignerMiddleware;
         let client = Arc::new(SignerMiddleware::new(provider.clone(), wallet.clone()));
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         let success = receipt.status == Some(U64::from(1));
 
@@ -97,10 +93,7 @@ impl Task<TaskContext> for MulticallTask {
 
         Ok(TaskResult {
             success,
-            message: format!(
-                "Multicall aggregation executed successfully for {:?}",
-                address
-            ),
+            message: format!("Multicall aggregation executed successfully for {:?}", address),
             tx_hash: Some(format!("{:?}", receipt.transaction_hash)),
         })
     }

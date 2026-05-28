@@ -1,8 +1,8 @@
 use super::tt_signed::AASigned;
 use crate::{TempoTransaction, subblock::PartialValidatorKey};
 use alloy_consensus::{
-    EthereumTxEnvelope, SignableTransaction, Signed, Transaction, TxEip1559, TxEip2930, TxEip7702,
-    TxLegacy, TxType, TypedTransaction,
+    EthereumTxEnvelope, SignableTransaction, Signed, Transaction, TxEip1559, TxEip2930, TxEip7702, TxLegacy, TxType,
+    TypedTransaction,
     crypto::RecoveryError,
     error::{UnsupportedTransactionType, ValueError},
     transaction::Either,
@@ -35,10 +35,7 @@ pub const TEMPO_SYSTEM_TX_SENDER: Address = Address::ZERO;
     arbitrary_cfg(any(test, feature = "arbitrary")),
     serde_cfg(feature = "serde")
 )]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(compact, rlp)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
 #[expect(clippy::large_enum_variant)]
 pub enum TempoTxEnvelope {
     /// Legacy transaction (type 0x00)
@@ -87,7 +84,7 @@ impl TryFrom<TempoTxType> for TxType {
             TempoTxType::Eip7702 => Self::Eip7702,
             TempoTxType::AA => {
                 return Err(UnsupportedTransactionType::new(TempoTxType::AA));
-            }
+            },
         })
     }
 }
@@ -134,9 +131,7 @@ impl TempoTxEnvelope {
     }
 
     /// Returns the Tempo authorization list if present (for Tempo transactions)
-    pub fn tempo_authorization_list(
-        &self,
-    ) -> Option<&[crate::transaction::TempoSignedAuthorization]> {
+    pub fn tempo_authorization_list(&self) -> Option<&[crate::transaction::TempoSignedAuthorization]> {
         match self {
             Self::AA(tx) => Some(&tx.tx().tempo_authorization_list),
             _ => None,
@@ -162,27 +157,15 @@ impl TempoTxEnvelope {
     /// Currently uses classifier v1: transaction is a payment if the `to` address has the TIP20 prefix.
     pub fn is_payment(&self) -> bool {
         match self {
-            Self::Legacy(tx) => tx
-                .tx()
-                .to
-                .to()
-                .is_some_and(|to| to.starts_with(&TIP20_PAYMENT_PREFIX)),
-            Self::Eip2930(tx) => tx
-                .tx()
-                .to
-                .to()
-                .is_some_and(|to| to.starts_with(&TIP20_PAYMENT_PREFIX)),
-            Self::Eip1559(tx) => tx
-                .tx()
-                .to
-                .to()
-                .is_some_and(|to| to.starts_with(&TIP20_PAYMENT_PREFIX)),
+            Self::Legacy(tx) => tx.tx().to.to().is_some_and(|to| to.starts_with(&TIP20_PAYMENT_PREFIX)),
+            Self::Eip2930(tx) => tx.tx().to.to().is_some_and(|to| to.starts_with(&TIP20_PAYMENT_PREFIX)),
+            Self::Eip1559(tx) => tx.tx().to.to().is_some_and(|to| to.starts_with(&TIP20_PAYMENT_PREFIX)),
             Self::Eip7702(tx) => tx.tx().to.starts_with(&TIP20_PAYMENT_PREFIX),
-            Self::AA(tx) => tx.tx().calls.iter().all(|call| {
-                call.to
-                    .to()
-                    .is_some_and(|to| to.starts_with(&TIP20_PAYMENT_PREFIX))
-            }),
+            Self::AA(tx) => tx
+                .tx()
+                .calls
+                .iter()
+                .all(|call| call.to.to().is_some_and(|to| to.starts_with(&TIP20_PAYMENT_PREFIX))),
         }
     }
 
@@ -221,45 +204,25 @@ impl TempoTxEnvelope {
 }
 
 impl alloy_consensus::transaction::SignerRecoverable for TempoTxEnvelope {
-    fn recover_signer(
-        &self,
-    ) -> Result<alloy_primitives::Address, alloy_consensus::crypto::RecoveryError> {
+    fn recover_signer(&self) -> Result<alloy_primitives::Address, alloy_consensus::crypto::RecoveryError> {
         match self {
             Self::Legacy(tx) if tx.signature() == &TEMPO_SYSTEM_TX_SIGNATURE => Ok(Address::ZERO),
             Self::Legacy(tx) => alloy_consensus::transaction::SignerRecoverable::recover_signer(tx),
-            Self::Eip2930(tx) => {
-                alloy_consensus::transaction::SignerRecoverable::recover_signer(tx)
-            }
-            Self::Eip1559(tx) => {
-                alloy_consensus::transaction::SignerRecoverable::recover_signer(tx)
-            }
-            Self::Eip7702(tx) => {
-                alloy_consensus::transaction::SignerRecoverable::recover_signer(tx)
-            }
+            Self::Eip2930(tx) => alloy_consensus::transaction::SignerRecoverable::recover_signer(tx),
+            Self::Eip1559(tx) => alloy_consensus::transaction::SignerRecoverable::recover_signer(tx),
+            Self::Eip7702(tx) => alloy_consensus::transaction::SignerRecoverable::recover_signer(tx),
             Self::AA(tx) => alloy_consensus::transaction::SignerRecoverable::recover_signer(tx),
         }
     }
 
-    fn recover_signer_unchecked(
-        &self,
-    ) -> Result<alloy_primitives::Address, alloy_consensus::crypto::RecoveryError> {
+    fn recover_signer_unchecked(&self) -> Result<alloy_primitives::Address, alloy_consensus::crypto::RecoveryError> {
         match self {
             Self::Legacy(tx) if tx.signature() == &TEMPO_SYSTEM_TX_SIGNATURE => Ok(Address::ZERO),
-            Self::Legacy(tx) => {
-                alloy_consensus::transaction::SignerRecoverable::recover_signer_unchecked(tx)
-            }
-            Self::Eip2930(tx) => {
-                alloy_consensus::transaction::SignerRecoverable::recover_signer_unchecked(tx)
-            }
-            Self::Eip1559(tx) => {
-                alloy_consensus::transaction::SignerRecoverable::recover_signer_unchecked(tx)
-            }
-            Self::Eip7702(tx) => {
-                alloy_consensus::transaction::SignerRecoverable::recover_signer_unchecked(tx)
-            }
-            Self::AA(tx) => {
-                alloy_consensus::transaction::SignerRecoverable::recover_signer_unchecked(tx)
-            }
+            Self::Legacy(tx) => alloy_consensus::transaction::SignerRecoverable::recover_signer_unchecked(tx),
+            Self::Eip2930(tx) => alloy_consensus::transaction::SignerRecoverable::recover_signer_unchecked(tx),
+            Self::Eip1559(tx) => alloy_consensus::transaction::SignerRecoverable::recover_signer_unchecked(tx),
+            Self::Eip7702(tx) => alloy_consensus::transaction::SignerRecoverable::recover_signer_unchecked(tx),
+            Self::AA(tx) => alloy_consensus::transaction::SignerRecoverable::recover_signer_unchecked(tx),
         }
     }
 }
@@ -318,10 +281,9 @@ impl<Eip4844> TryFrom<EthereumTxEnvelope<Eip4844>> for TempoTxEnvelope {
         match value {
             EthereumTxEnvelope::Legacy(tx) => Ok(Self::Legacy(tx)),
             EthereumTxEnvelope::Eip2930(tx) => Ok(Self::Eip2930(tx)),
-            tx @ EthereumTxEnvelope::Eip4844(_) => Err(ValueError::new_static(
-                tx,
-                "EIP-4844 transactions are not supported",
-            )),
+            tx @ EthereumTxEnvelope::Eip4844(_) => {
+                Err(ValueError::new_static(tx, "EIP-4844 transactions are not supported"))
+            },
             EthereumTxEnvelope::Eip1559(tx) => Ok(Self::Eip1559(tx)),
             EthereumTxEnvelope::Eip7702(tx) => Ok(Self::Eip7702(tx)),
         }
@@ -392,7 +354,7 @@ impl TryFrom<TypedTransaction> for TempoTypedTransaction {
             TypedTransaction::Eip1559(tx) => Self::Eip1559(tx),
             TypedTransaction::Eip4844(..) => {
                 return Err(UnsupportedTransactionType::new(TxType::Eip4844));
-            }
+            },
             TypedTransaction::Eip7702(tx) => Self::Eip7702(tx),
         })
     }
@@ -417,16 +379,14 @@ impl From<TempoTransaction> for TempoTypedTransaction {
 }
 
 #[cfg(feature = "rpc")]
-impl reth_rpc_convert::SignableTxRequest<TempoTxEnvelope>
-    for alloy_rpc_types_eth::TransactionRequest
-{
+impl reth_rpc_convert::SignableTxRequest<TempoTxEnvelope> for alloy_rpc_types_eth::TransactionRequest {
     async fn try_build_and_sign(
         self,
         signer: impl alloy_network::TxSigner<alloy_primitives::Signature> + Send,
     ) -> Result<TempoTxEnvelope, reth_rpc_convert::SignTxRequestError> {
-        reth_rpc_convert::SignableTxRequest::<
-            EthereumTxEnvelope<alloy_consensus::TxEip4844>,
-        >::try_build_and_sign(self, signer)
+        reth_rpc_convert::SignableTxRequest::<EthereumTxEnvelope<alloy_consensus::TxEip4844>>::try_build_and_sign(
+            self, signer,
+        )
         .await
         .and_then(|tx| {
             tx.try_into()
@@ -461,19 +421,15 @@ mod codec {
         Compact,
         alloy::transaction::{CompactEnvelope, Envelope},
         txtype::{
-            COMPACT_EXTENDED_IDENTIFIER_FLAG, COMPACT_IDENTIFIER_EIP1559,
-            COMPACT_IDENTIFIER_EIP2930, COMPACT_IDENTIFIER_LEGACY,
+            COMPACT_EXTENDED_IDENTIFIER_FLAG, COMPACT_IDENTIFIER_EIP1559, COMPACT_IDENTIFIER_EIP2930,
+            COMPACT_IDENTIFIER_LEGACY,
         },
     };
 
     impl reth_codecs::alloy::transaction::FromTxCompact for TempoTxEnvelope {
         type TxType = TempoTxType;
 
-        fn from_tx_compact(
-            buf: &[u8],
-            tx_type: Self::TxType,
-            signature: Signature,
-        ) -> (Self, &[u8]) {
+        fn from_tx_compact(buf: &[u8], tx_type: Self::TxType, signature: Signature) -> (Self, &[u8]) {
             use alloy_consensus::Signed;
             use reth_codecs::Compact;
 
@@ -482,22 +438,22 @@ mod codec {
                     let (tx, buf) = TxLegacy::from_compact(buf, buf.len());
                     let tx = Signed::new_unhashed(tx, signature);
                     (Self::Legacy(tx), buf)
-                }
+                },
                 TempoTxType::Eip2930 => {
                     let (tx, buf) = TxEip2930::from_compact(buf, buf.len());
                     let tx = Signed::new_unhashed(tx, signature);
                     (Self::Eip2930(tx), buf)
-                }
+                },
                 TempoTxType::Eip1559 => {
                     let (tx, buf) = TxEip1559::from_compact(buf, buf.len());
                     let tx = Signed::new_unhashed(tx, signature);
                     (Self::Eip1559(tx), buf)
-                }
+                },
                 TempoTxType::Eip7702 => {
                     let (tx, buf) = TxEip7702::from_compact(buf, buf.len());
                     let tx = Signed::new_unhashed(tx, signature);
                     (Self::Eip7702(tx), buf)
-                }
+                },
                 TempoTxType::AA => {
                     let (tx, buf) = TempoTransaction::from_compact(buf, buf.len());
                     // For Tempo transactions, we need to decode the signature bytes as TempoSignature
@@ -507,7 +463,7 @@ mod codec {
                         .unwrap();
                     let tx = AASigned::new_unhashed(tx, aa_sig);
                     (Self::AA(tx), buf)
-                }
+                },
             }
         }
     }
@@ -524,7 +480,7 @@ mod codec {
                     // Also encode the TempoSignature as Bytes
                     len += tx.signature().to_bytes().to_compact(buf);
                     len
-                }
+                },
             };
         }
     }
@@ -539,7 +495,7 @@ mod codec {
                 Self::AA(_tx) => {
                     // TODO: Will this work?
                     &TEMPO_SYSTEM_TX_SIGNATURE
-                }
+                },
             }
         }
 
@@ -560,11 +516,11 @@ mod codec {
                 Self::Eip7702 => {
                     buf.put_u8(EIP7702_TX_TYPE_ID);
                     COMPACT_EXTENDED_IDENTIFIER_FLAG
-                }
+                },
                 Self::AA => {
                     buf.put_u8(crate::transaction::TEMPO_TX_TYPE_ID);
                     COMPACT_EXTENDED_IDENTIFIER_FLAG
-                }
+                },
             }
         }
 
@@ -585,7 +541,7 @@ mod codec {
                             crate::transaction::TEMPO_TX_TYPE_ID => Self::AA,
                             _ => panic!("Unsupported TxType identifier: {extended_identifier}"),
                         }
-                    }
+                    },
                     _ => panic!("Unknown identifier for TxType: {identifier}"),
                 },
                 buf,
@@ -633,11 +589,7 @@ mod tests {
     #[test]
     fn test_non_fee_token_access() {
         let legacy_tx = TxLegacy::default();
-        let signature = Signature::new(
-            alloy_primitives::U256::ZERO,
-            alloy_primitives::U256::ZERO,
-            false,
-        );
+        let signature = Signature::new(alloy_primitives::U256::ZERO, alloy_primitives::U256::ZERO, false);
         let signed = Signed::new_unhashed(legacy_tx, signature);
         let envelope = TempoTxEnvelope::Legacy(signed);
 
@@ -754,8 +706,7 @@ mod tests {
             to: TxKind::Call(PAYMENT_TKN),
             ..Default::default()
         };
-        let envelope =
-            TempoTxEnvelope::Eip2930(Signed::new_unhashed(tx, Signature::test_signature()));
+        let envelope = TempoTxEnvelope::Eip2930(Signed::new_unhashed(tx, Signature::test_signature()));
         assert!(envelope.is_payment());
 
         // Eip2930 non-payment
@@ -763,8 +714,7 @@ mod tests {
             to: TxKind::Call(address!("1234567890123456789012345678901234567890")),
             ..Default::default()
         };
-        let envelope =
-            TempoTxEnvelope::Eip2930(Signed::new_unhashed(tx, Signature::test_signature()));
+        let envelope = TempoTxEnvelope::Eip2930(Signed::new_unhashed(tx, Signature::test_signature()));
         assert!(!envelope.is_payment());
 
         // Eip1559 payment
@@ -772,8 +722,7 @@ mod tests {
             to: TxKind::Call(PAYMENT_TKN),
             ..Default::default()
         };
-        let envelope =
-            TempoTxEnvelope::Eip1559(Signed::new_unhashed(tx, Signature::test_signature()));
+        let envelope = TempoTxEnvelope::Eip1559(Signed::new_unhashed(tx, Signature::test_signature()));
         assert!(envelope.is_payment());
 
         // Eip1559 non-payment
@@ -781,8 +730,7 @@ mod tests {
             to: TxKind::Call(address!("1234567890123456789012345678901234567890")),
             ..Default::default()
         };
-        let envelope =
-            TempoTxEnvelope::Eip1559(Signed::new_unhashed(tx, Signature::test_signature()));
+        let envelope = TempoTxEnvelope::Eip1559(Signed::new_unhashed(tx, Signature::test_signature()));
         assert!(!envelope.is_payment());
 
         // Eip7702 payment (note: Eip7702 has direct `to` address, not TxKind)
@@ -790,8 +738,7 @@ mod tests {
             to: PAYMENT_TKN,
             ..Default::default()
         };
-        let envelope =
-            TempoTxEnvelope::Eip7702(Signed::new_unhashed(tx, Signature::test_signature()));
+        let envelope = TempoTxEnvelope::Eip7702(Signed::new_unhashed(tx, Signature::test_signature()));
         assert!(envelope.is_payment());
 
         // Eip7702 non-payment
@@ -799,8 +746,7 @@ mod tests {
             to: address!("1234567890123456789012345678901234567890"),
             ..Default::default()
         };
-        let envelope =
-            TempoTxEnvelope::Eip7702(Signed::new_unhashed(tx, Signature::test_signature()));
+        let envelope = TempoTxEnvelope::Eip7702(Signed::new_unhashed(tx, Signature::test_signature()));
         assert!(!envelope.is_payment());
     }
 
@@ -820,28 +766,17 @@ mod tests {
             value: U256::ZERO,
             input: Bytes::new(),
         };
-        let system_tx =
-            TempoTxEnvelope::Legacy(Signed::new_unhashed(tx, TEMPO_SYSTEM_TX_SIGNATURE));
+        let system_tx = TempoTxEnvelope::Legacy(Signed::new_unhashed(tx, TEMPO_SYSTEM_TX_SIGNATURE));
 
         assert!(system_tx.is_system_tx(), "Should detect system signature");
-        assert!(
-            system_tx.is_valid_system_tx(chain_id),
-            "Should be valid system tx"
-        );
+        assert!(system_tx.is_valid_system_tx(chain_id), "Should be valid system tx");
 
         // recover_signer returns ZERO for system tx
         let signer = system_tx.recover_signer().unwrap();
-        assert_eq!(
-            signer,
-            Address::ZERO,
-            "System tx signer should be Address::ZERO"
-        );
+        assert_eq!(signer, Address::ZERO, "System tx signer should be Address::ZERO");
 
         // Invalid: wrong chain_id
-        assert!(
-            !system_tx.is_valid_system_tx(2),
-            "Wrong chain_id should fail"
-        );
+        assert!(!system_tx.is_valid_system_tx(2), "Wrong chain_id should fail");
 
         // Invalid: non-zero gas_limit
         let tx = TxLegacy {
@@ -850,10 +785,7 @@ mod tests {
             ..Default::default()
         };
         let envelope = TempoTxEnvelope::Legacy(Signed::new_unhashed(tx, TEMPO_SYSTEM_TX_SIGNATURE));
-        assert!(
-            !envelope.is_valid_system_tx(chain_id),
-            "Non-zero gas_limit should fail"
-        );
+        assert!(!envelope.is_valid_system_tx(chain_id), "Non-zero gas_limit should fail");
 
         // Invalid: non-zero value
         let tx = TxLegacy {
@@ -862,10 +794,7 @@ mod tests {
             ..Default::default()
         };
         let envelope = TempoTxEnvelope::Legacy(Signed::new_unhashed(tx, TEMPO_SYSTEM_TX_SIGNATURE));
-        assert!(
-            !envelope.is_valid_system_tx(chain_id),
-            "Non-zero value should fail"
-        );
+        assert!(!envelope.is_valid_system_tx(chain_id), "Non-zero value should fail");
 
         // Invalid: non-zero nonce
         let tx = TxLegacy {
@@ -874,19 +803,12 @@ mod tests {
             ..Default::default()
         };
         let envelope = TempoTxEnvelope::Legacy(Signed::new_unhashed(tx, TEMPO_SYSTEM_TX_SIGNATURE));
-        assert!(
-            !envelope.is_valid_system_tx(chain_id),
-            "Non-zero nonce should fail"
-        );
+        assert!(!envelope.is_valid_system_tx(chain_id), "Non-zero nonce should fail");
 
         // Non-system tx with regular signature should recover normally
         let tx = TxLegacy::default();
-        let regular_tx =
-            TempoTxEnvelope::Legacy(Signed::new_unhashed(tx, Signature::test_signature()));
-        assert!(
-            !regular_tx.is_system_tx(),
-            "Regular tx should not be system tx"
-        );
+        let regular_tx = TempoTxEnvelope::Legacy(Signed::new_unhashed(tx, Signature::test_signature()));
+        assert!(!regular_tx.is_system_tx(), "Regular tx should not be system tx");
 
         // fee_payer() for non-AA returns sender
         let sender = Address::random();
@@ -921,18 +843,16 @@ mod tests {
 
         // EIP-4844 should be rejected
         let eip4844_tx = TxEip4844::default();
-        let eth_envelope: EthereumTxEnvelope<TxEip4844> = EthereumTxEnvelope::Eip4844(
-            Signed::new_unhashed(eip4844_tx, Signature::test_signature()),
-        );
+        let eth_envelope: EthereumTxEnvelope<TxEip4844> =
+            EthereumTxEnvelope::Eip4844(Signed::new_unhashed(eip4844_tx, Signature::test_signature()));
 
         let result = TempoTxEnvelope::try_from(eth_envelope);
         assert!(result.is_err(), "EIP-4844 should be rejected");
 
         // Other types should be accepted
         let legacy_tx = TxLegacy::default();
-        let eth_envelope: EthereumTxEnvelope<TxEip4844> = EthereumTxEnvelope::Legacy(
-            Signed::new_unhashed(legacy_tx, Signature::test_signature()),
-        );
+        let eth_envelope: EthereumTxEnvelope<TxEip4844> =
+            EthereumTxEnvelope::Legacy(Signed::new_unhashed(legacy_tx, Signature::test_signature()));
         assert!(TempoTxEnvelope::try_from(eth_envelope).is_ok());
     }
 

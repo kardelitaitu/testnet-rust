@@ -37,16 +37,10 @@ impl Task<TaskContext> for ERC721MintTask {
             match db.get_all_assets_by_type("ERC721").await {
                 Ok(contracts) if !contracts.is_empty() => {
                     let mut rng = OsRng;
-                    let addr_str = contracts
-                        .choose(&mut rng)
-                        .context("Failed to pick contract")?;
+                    let addr_str = contracts.choose(&mut rng).context("Failed to pick contract")?;
                     debug!("Using existing ERC721: {}", addr_str);
-                    Some(
-                        addr_str
-                            .parse::<Address>()
-                            .context("Invalid address in DB")?,
-                    )
-                }
+                    Some(addr_str.parse::<Address>().context("Invalid address in DB")?)
+                },
                 _ => None,
             }
         } else {
@@ -73,10 +67,7 @@ impl Task<TaskContext> for ERC721MintTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
@@ -89,8 +80,7 @@ impl Task<TaskContext> for ERC721MintTask {
             Some(addr) => addr,
             None => {
                 let bytecode_str = include_str!("../../contracts/TestNFT_bytecode.txt").trim();
-                let mut bytecode =
-                    hex::decode(bytecode_str).context("Failed to decode bytecode")?;
+                let mut bytecode = hex::decode(bytecode_str).context("Failed to decode bytecode")?;
 
                 let encoded_args = ethers::abi::encode(&[
                     ethers::abi::Token::String("TestNFT".to_string()),
@@ -112,9 +102,7 @@ impl Task<TaskContext> for ERC721MintTask {
                         let tx_hash = format!("{:?}", pending.tx_hash());
                         match timeout(Duration::from_secs(90), pending).await {
                             Ok(Ok(Some(receipt))) if receipt.status == Some(U64::from(1)) => {
-                                let addr = receipt
-                                    .contract_address
-                                    .context("No contract address in receipt")?;
+                                let addr = receipt.contract_address.context("No contract address in receipt")?;
                                 if let Some(db) = &ctx.db {
                                     let _ = db
                                         .log_asset_creation(
@@ -127,7 +115,7 @@ impl Task<TaskContext> for ERC721MintTask {
                                         .await;
                                 }
                                 addr
-                            }
+                            },
                             Ok(Ok(Some(_))) => {
                                 let _ = nonce_manager.resync().await;
                                 return Ok(TaskResult {
@@ -135,7 +123,7 @@ impl Task<TaskContext> for ERC721MintTask {
                                     message: format!("ERC721 deploy reverted (tx: {})", tx_hash),
                                     tx_hash: Some(tx_hash),
                                 });
-                            }
+                            },
                             Ok(Ok(None)) | Err(_) => {
                                 let _ = nonce_manager.resync().await;
                                 return Ok(TaskResult {
@@ -143,20 +131,17 @@ impl Task<TaskContext> for ERC721MintTask {
                                     message: format!("ERC721 deploy timed out (tx: {})", tx_hash),
                                     tx_hash: Some(tx_hash),
                                 });
-                            }
+                            },
                             Ok(Err(e)) => {
                                 let _ = nonce_manager.resync().await;
                                 return Ok(TaskResult {
                                     success: false,
-                                    message: format!(
-                                        "ERC721 deploy receipt failed (tx: {}): {}",
-                                        tx_hash, e
-                                    ),
+                                    message: format!("ERC721 deploy receipt failed (tx: {}): {}", tx_hash, e),
                                     tx_hash: Some(tx_hash),
                                 });
-                            }
+                            },
                         }
-                    }
+                    },
                     Err(e) => {
                         debug!("ERC721Mint deploy submit failed, resyncing nonce: {}", e);
                         let _ = nonce_manager.resync().await;
@@ -165,9 +150,9 @@ impl Task<TaskContext> for ERC721MintTask {
                             message: format!("Failed to submit ERC721 deploy tx: {}", e),
                             tx_hash: None,
                         });
-                    }
+                    },
                 }
-            }
+            },
         };
 
         debug!("Using ERC721 at {:?}", nft_address);
@@ -217,7 +202,7 @@ impl Task<TaskContext> for ERC721MintTask {
                     message: format!("Failed to submit ERC721 mint tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

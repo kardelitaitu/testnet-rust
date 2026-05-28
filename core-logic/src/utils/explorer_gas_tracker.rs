@@ -107,12 +107,7 @@ impl ExplorerGasTracker {
             .await
             .with_context(|| format!("Failed to request gas tracker page: {}", self.payload.url))?
             .error_for_status()
-            .with_context(|| {
-                format!(
-                    "Gas tracker returned non-success status: {}",
-                    self.payload.url
-                )
-            })?;
+            .with_context(|| format!("Gas tracker returned non-success status: {}", self.payload.url))?;
 
         let html = response
             .text()
@@ -127,10 +122,7 @@ impl ExplorerGasTracker {
         Ok(self.fetch_snapshot().await?.normal_gwei)
     }
 
-    pub fn parse_snapshot(
-        html: &str,
-        payload: &ExplorerGasTrackerPayload,
-    ) -> Result<ExplorerGasSnapshot> {
+    pub fn parse_snapshot(html: &str, payload: &ExplorerGasTrackerPayload) -> Result<ExplorerGasSnapshot> {
         let document = Html::parse_document(html);
         let li_selector = Selector::parse("li").expect("valid selector");
 
@@ -216,8 +208,7 @@ mod tests {
     #[test]
     fn rejects_missing_row() {
         let payload = ExplorerGasTrackerPayload::new("https://exptest.dachain.tech/gas-tracker");
-        let err =
-            ExplorerGasTracker::parse_snapshot("<div>Nothing here</div>", &payload).unwrap_err();
+        let err = ExplorerGasTracker::parse_snapshot("<div>Nothing here</div>", &payload).unwrap_err();
         assert!(err.to_string().contains("No tracker row found"));
     }
 
@@ -335,13 +326,11 @@ mod tests {
 
     #[test]
     fn test_build_client_rejects_invalid_proxy_url() {
-        let payload = ExplorerGasTrackerPayload::new("https://example.com/gas").with_proxies(vec![
-            ProxyConfig {
-                url: ":::invalid:::".into(),
-                username: None,
-                password: None,
-            },
-        ]);
+        let payload = ExplorerGasTrackerPayload::new("https://example.com/gas").with_proxies(vec![ProxyConfig {
+            url: ":::invalid:::".into(),
+            username: None,
+            password: None,
+        }]);
         let err = ExplorerGasTracker::new(payload).unwrap_err();
         assert!(
             err.to_string().contains("Invalid proxy URL"),

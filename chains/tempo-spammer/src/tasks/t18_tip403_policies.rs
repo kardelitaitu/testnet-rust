@@ -43,8 +43,7 @@ impl TempoTask for Tip403PoliciesTask {
         let client = &ctx.client;
         let address = ctx.address();
 
-        let registry_addr =
-            Address::from_str(TIP403_REGISTRY_ADDRESS).context("Invalid TIP403 registry")?;
+        let registry_addr = Address::from_str(TIP403_REGISTRY_ADDRESS).context("Invalid TIP403 registry")?;
 
         tracing::debug!("Creating TIP-403 Whitelist Policy...");
 
@@ -70,9 +69,7 @@ impl TempoTask for Tip403PoliciesTask {
             Err(e) => {
                 let err_str = e.to_string().to_lowercase();
                 if err_str.contains("nonce too low") || err_str.contains("already known") {
-                    tracing::warn!(
-                        "Nonce error on tip403_policies, resetting cache and retrying..."
-                    );
+                    tracing::warn!("Nonce error on tip403_policies, resetting cache and retrying...");
                     client.reset_nonce_cache().await;
                     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                     client
@@ -83,14 +80,11 @@ impl TempoTask for Tip403PoliciesTask {
                 } else {
                     return Err(e).context("Failed to send createPolicy");
                 }
-            }
+            },
         };
 
         let tx_hash = *pending.tx_hash();
-        let receipt = pending
-            .get_receipt()
-            .await
-            .context("Failed to get receipt")?;
+        let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
         if !receipt.inner.status() {
             return Ok(TaskResult {

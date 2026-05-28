@@ -37,7 +37,7 @@ mod tests {
             WalletSource::File { path, encrypted } => {
                 assert_eq!(path, "wallet.json");
                 assert!(encrypted);
-            }
+            },
             _ => panic!("Expected File variant"),
         }
     }
@@ -53,7 +53,7 @@ mod tests {
         match wallet_source {
             WalletSource::Env { key } => {
                 assert_eq!(key, "PRIVATE_KEY");
-            }
+            },
             _ => panic!("Expected Env variant"),
         }
     }
@@ -124,7 +124,7 @@ mod tests {
             WalletSource::File { path, encrypted } => {
                 assert_eq!(path, "test.json");
                 assert!(encrypted);
-            }
+            },
             _ => panic!("Clone failed"),
         }
     }
@@ -136,9 +136,7 @@ mod tests {
             chain_id: 1,
             target_tps: 50,
             duration_seconds: Some(3600),
-            wallet_source: WalletSource::Env {
-                key: "KEY".to_string(),
-            },
+            wallet_source: WalletSource::Env { key: "KEY".to_string() },
         };
         let cloned = config.clone();
 

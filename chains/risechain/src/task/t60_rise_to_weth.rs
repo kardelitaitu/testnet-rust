@@ -49,18 +49,17 @@ impl Task<TaskContext> for RiseToWethTask {
         let pair_check_abi_parsed: abi::Abi = serde_json::from_str(pair_check_abi)?;
         let pair_check = Contract::new(target_address, pair_check_abi_parsed, client.clone());
 
-        let identity_check: Result<Address, _> =
-            pair_check.method("token0", ()).unwrap().call().await;
+        let identity_check: Result<Address, _> = pair_check.method("token0", ()).unwrap().call().await;
 
         let is_pair = match identity_check {
             Ok(t0) => {
                 debug!("Target has token0 ({:?}) -> IT IS A PAIR", t0);
                 true
-            }
+            },
             Err(_) => {
                 debug!("Target verification failed -> Likely a Router");
                 false
-            }
+            },
         };
 
         // Get RISE Balance
@@ -116,24 +115,15 @@ impl Task<TaskContext> for RiseToWethTask {
             debug!("Calculated Amount Out: {}", amount_out);
 
             // 3. Swap Call
-            let amount0_out = if t0 == rise_address {
-                U256::zero()
-            } else {
-                amount_out
-            };
-            let amount1_out = if t0 == rise_address {
-                amount_out
-            } else {
-                U256::zero()
-            };
+            let amount0_out = if t0 == rise_address { U256::zero() } else { amount_out };
+            let amount1_out = if t0 == rise_address { amount_out } else { U256::zero() };
 
             debug!("Calling swap({}, {})", amount0_out, amount1_out);
 
             let swap_abi = r#"[{"constant":false,"inputs":[{"name":"amount0Out","type":"uint256"},{"name":"amount1Out","type":"uint256"},{"name":"to","type":"address"},{"name":"data","type":"bytes"}],"name":"swap","outputs":[],"type":"function"}]"#;
             let swap_abi_parsed: abi::Abi = serde_json::from_str(swap_abi)?;
             let swap_contract = Contract::new(target_address, swap_abi_parsed, client.clone());
-            let swap_data =
-                swap_contract.encode("swap", (amount0_out, amount1_out, address, Bytes::new()))?;
+            let swap_data = swap_contract.encode("swap", (amount0_out, amount1_out, address, Bytes::new()))?;
 
             let tx_swap = Eip1559TransactionRequest::new()
                 .to(target_address)

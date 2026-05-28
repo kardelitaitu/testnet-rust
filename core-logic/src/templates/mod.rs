@@ -53,15 +53,8 @@ pub trait TransactionSigner: Send + Sync {
     type Signature;
 
     fn address(&self) -> &Self::Address;
-    async fn sign_transaction(
-        &self,
-        to: &str,
-        data: &[u8],
-        value: u64,
-        gas_limit: u64,
-    ) -> Result<Vec<u8>, String>;
-    async fn send_raw_transaction(&self, signed_tx: &[u8])
-        -> Result<Self::TransactionHash, String>;
+    async fn sign_transaction(&self, to: &str, data: &[u8], value: u64, gas_limit: u64) -> Result<Vec<u8>, String>;
+    async fn send_raw_transaction(&self, signed_tx: &[u8]) -> Result<Self::TransactionHash, String>;
 }
 
 /// Trait for RPC provider - chains implement this based on their RPC API
@@ -72,10 +65,7 @@ pub trait RpcProvider: Send + Sync {
 
     async fn get_latest_block_number(&self) -> Result<u64, String>;
     async fn get_block_by_number(&self, number: u64) -> Result<Option<Self::Block>, String>;
-    async fn get_transaction_receipt(
-        &self,
-        tx_hash: &str,
-    ) -> Result<Option<Self::Transaction>, String>;
+    async fn get_transaction_receipt(&self, tx_hash: &str) -> Result<Option<Self::Transaction>, String>;
     async fn call(&self, to: &str, data: &[u8]) -> Result<Vec<u8>, String>;
 }
 

@@ -33,8 +33,7 @@ impl Task<TaskContext> for PermitTokenTask {
             .as_secs();
 
         let amount: u128 = 1_000_000_000_000_000_000; // 1 ETH worth
-        let amount_formatted =
-            ethers::utils::format_units(amount, 18u32).unwrap_or_else(|_| amount.to_string());
+        let amount_formatted = ethers::utils::format_units(amount, 18u32).unwrap_or_else(|_| amount.to_string());
 
         let (max_fee, priority_fee) = ctx.gas_manager.get_fees().await?;
         let client = Arc::new(SignerMiddleware::new(provider.clone(), wallet.clone()));
@@ -53,18 +52,11 @@ impl Task<TaskContext> for PermitTokenTask {
             .from(address);
 
         let pending_deploy = client.send_transaction(tx, None).await?;
-        let deploy_receipt = pending_deploy
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = pending_deploy.await?.context("Failed to get deploy receipt")?;
         if deploy_receipt.status != Some(U64::from(1)) {
-            return Err(anyhow::anyhow!(
-                "Deployment failed. Receipt: {:?}",
-                deploy_receipt
-            ));
+            return Err(anyhow::anyhow!("Deployment failed. Receipt: {:?}", deploy_receipt));
         }
-        let token_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let token_address = deploy_receipt.contract_address.context("No contract address")?;
         let contract = Contract::new(token_address, abi, client.clone());
         debug!("Deployed TestERC20Permit at {:?}", token_address);
 
@@ -102,13 +94,7 @@ impl Task<TaskContext> for PermitTokenTask {
         let contract_struct_hash: H256 = contract
             .method(
                 "getStructHash",
-                (
-                    address,
-                    address,
-                    U256::from(amount),
-                    token_nonce,
-                    U256::from(deadline),
-                ),
+                (address, address, U256::from(amount), token_nonce, U256::from(deadline)),
             )?
             .call()
             .await
@@ -125,9 +111,7 @@ impl Task<TaskContext> for PermitTokenTask {
         let digest = ethers::utils::keccak256(&digest_input);
 
         let message_hash = H256::from(digest);
-        let signature = wallet
-            .sign_hash(message_hash)
-            .context("Failed to sign permit")?;
+        let signature = wallet.sign_hash(message_hash).context("Failed to sign permit")?;
 
         let (v, r, s) = {
             let sig = signature.to_vec();
@@ -163,15 +147,7 @@ impl Task<TaskContext> for PermitTokenTask {
         // We can call `permit` directly.
         let permit_data = contract.encode(
             "permit",
-            (
-                address,
-                address,
-                U256::from(amount),
-                U256::from(deadline),
-                v,
-                r,
-                s,
-            ),
+            (address, address, U256::from(amount), U256::from(deadline), v, r, s),
         )?;
         let permit_tx = Eip1559TransactionRequest::new()
             .to(token_address)
@@ -182,9 +158,7 @@ impl Task<TaskContext> for PermitTokenTask {
             .from(address);
 
         let pending_tx = client.send_transaction(permit_tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         Ok(TaskResult {
             success: receipt.status == Some(U64::from(1)),

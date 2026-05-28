@@ -74,11 +74,7 @@ impl TempoTask for MultiSendConcurrentStableTask {
             (token_info.address, token_info.symbol)
         };
 
-        tracing::debug!(
-            "Selected Stable Token for Concurrent: {} ({})",
-            symbol,
-            token_addr
-        );
+        tracing::debug!("Selected Stable Token for Concurrent: {} ({})", symbol, token_addr);
 
         let count = 2;
         let decimals = TempoTokens::get_token_decimals(client, token_addr).await?;
@@ -112,14 +108,13 @@ impl TempoTask for MultiSendConcurrentStableTask {
                     balance = TempoTokens::get_token_balance(client, token_addr, address).await?;
                     total_impact = balance * U256::from(3) / U256::from(100);
                     amount_per_recipient = total_impact / U256::from(count);
-                }
-                Err(e) => {} // println!("Minting failed: {:?}", e),
+                },
+                Err(e) => {}, // println!("Minting failed: {:?}", e),
             }
         } else if is_system_token && (balance.is_zero() || amount_per_recipient.is_zero()) {
             // Try faucet if balance is zero or too low for system token
             // Use Faucet Logic (similar to t02/t17)
-            let faucet_address =
-                Address::from_str("0x4200000000000000000000000000000000000019").unwrap();
+            let faucet_address = Address::from_str("0x4200000000000000000000000000000000000019").unwrap();
             // Selector 0x4f9828f6 + address padded
             let mut data = hex::decode("4f9828f6000000000000000000000000").unwrap();
             data.extend_from_slice(address.as_slice());
@@ -142,10 +137,7 @@ impl TempoTask for MultiSendConcurrentStableTask {
         if amount_per_recipient.is_zero() {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Insufficient balance for {} even after mint attempt",
-                    symbol
-                ),
+                message: format!("Insufficient balance for {} even after mint attempt", symbol),
                 tx_hash: None,
             });
         }
@@ -244,13 +236,13 @@ impl TempoTask for MultiSendConcurrentStableTask {
                                 results_status.push(false);
                                 errors.push(format!("transaction reverted {:?}", tx_hash));
                             }
-                        }
+                        },
                         Err(e) => {
                             results_status.push(false);
                             errors.push(e.to_string());
-                        }
+                        },
                     }
-                }
+                },
                 Err(e) => {
                     results_status.push(false);
                     let err_str = e.to_string();
@@ -259,7 +251,7 @@ impl TempoTask for MultiSendConcurrentStableTask {
                     if lower_err.contains("nonce too low") || lower_err.contains("already known") {
                         failed_nonces.push(nonces[i]);
                     }
-                }
+                },
             }
         }
 
@@ -290,15 +282,8 @@ impl TempoTask for MultiSendConcurrentStableTask {
         // Return result immediately
         return Ok(TaskResult {
             success: success_count > 0,
-            message: format!(
-                "Completed {}/{} concurrent {} transfers.",
-                success_count, count, symbol
-            ),
-            tx_hash: if last_hash.is_empty() {
-                None
-            } else {
-                Some(last_hash)
-            },
+            message: format!("Completed {}/{} concurrent {} transfers.", success_count, count, symbol),
+            tx_hash: if last_hash.is_empty() { None } else { Some(last_hash) },
         });
     }
 }

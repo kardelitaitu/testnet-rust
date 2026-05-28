@@ -46,10 +46,7 @@ impl Task<TaskContext> for SimpleEthTransferTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         // 3. Transfer 1.00%-2.00% of balance (fire-and-forget)
@@ -73,8 +70,8 @@ impl Task<TaskContext> for SimpleEthTransferTask {
 
         match pending_tx {
             Ok(pending) => {
-                let amount_native = ethers::utils::format_units(amount_wei, "ether")
-                    .unwrap_or_else(|_| amount_wei.to_string());
+                let amount_native =
+                    ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
                 let amount_pct = pct_basis_points as f64 / 100.0;
                 Ok(TaskResult {
                     success: true,
@@ -87,7 +84,7 @@ impl Task<TaskContext> for SimpleEthTransferTask {
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })
-            }
+            },
             Err(e) => {
                 debug!("SimpleEthTransfer tx submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -96,7 +93,7 @@ impl Task<TaskContext> for SimpleEthTransferTask {
                     message: format!("Failed to submit native transfer tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

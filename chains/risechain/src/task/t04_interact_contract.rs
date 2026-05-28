@@ -17,8 +17,7 @@ impl Task<TaskContext> for InteractContractTask {
 
         // 1. Get contracts from DB
         let contracts = if let Some(db) = &ctx.db {
-            db.get_deployed_counter_contracts(&wallet_addr, chain_id)
-                .await?
+            db.get_deployed_counter_contracts(&wallet_addr, chain_id).await?
         } else {
             return Ok(TaskResult {
                 success: false,
@@ -44,10 +43,7 @@ impl Task<TaskContext> for InteractContractTask {
         let contract_addr = contract_addr_str.parse::<Address>()?;
 
         // 3. Interact (increment)
-        let client = Arc::new(SignerMiddleware::new(
-            ctx.provider.clone(),
-            ctx.wallet.clone(),
-        ));
+        let client = Arc::new(SignerMiddleware::new(ctx.provider.clone(), ctx.wallet.clone()));
         let abi: abi::Abi = serde_json::from_str(COUNTER_ABI)?;
         let contract = Contract::new(contract_addr, abi, client);
 
@@ -62,10 +58,7 @@ impl Task<TaskContext> for InteractContractTask {
         if balance < required {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Insufficient funds: have {} wei, want {} wei",
-                    balance, required
-                ),
+                message: format!("Insufficient funds: have {} wei, want {} wei", balance, required),
                 tx_hash: None,
             });
         }

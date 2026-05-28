@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
         Err(e) => {
             error!("Failed to load config: {}", e);
             exit_with_error(format!("Failed to load config: {}", e));
-        }
+        },
     };
 
     info!(
@@ -82,13 +82,7 @@ async fn main() -> Result<()> {
     let wallet_password = if total_wallets > 0 {
         let mut password = env::var("WALLET_PASSWORD").ok();
 
-        if password.is_none()
-            || manager
-                .as_ref()
-                .get_wallet(0, password.as_deref())
-                .await
-                .is_err()
-        {
+        if password.is_none() || manager.as_ref().get_wallet(0, password.as_deref()).await.is_err() {
             if password.is_none() {
                 error!("WALLET_PASSWORD environment variable is not set.");
             } else {
@@ -106,14 +100,14 @@ async fn main() -> Result<()> {
                         exit_with_error(format!("Interactive password also failed: {}", e));
                     }
                     info!("Interactive password validated successfully.");
-                }
+                },
                 Err(_) => {
                     error!("Cannot prompt for password (not a terminal).");
                     error!("Please set WALLET_PASSWORD environment variable:");
                     error!("  PowerShell: $env:WALLET_PASSWORD='your_password'");
                     error!("  CMD: set WALLET_PASSWORD=your_password");
                     exit_with_error("Cannot prompt for password. Set WALLET_PASSWORD env var.");
-                }
+                },
             }
         } else {
             info!("Wallet password validated successfully.");
@@ -125,17 +119,16 @@ async fn main() -> Result<()> {
     };
 
     // Load proxies unless explicitly disabled
-    let proxy_pool: Arc<tokio::sync::RwLock<Vec<core_logic::config::ProxyConfig>>> =
-        if args.no_proxy {
-            info!("Proxy loading disabled by --no-proxy");
-            Arc::new(tokio::sync::RwLock::new(Vec::new()))
-        } else {
-            let proxies = core_logic::ProxyManager::load_proxies()?;
-            if !proxies.is_empty() {
-                info!("Loaded {} proxies for rotation.", proxies.len());
-            }
-            Arc::new(tokio::sync::RwLock::new(proxies))
-        };
+    let proxy_pool: Arc<tokio::sync::RwLock<Vec<core_logic::config::ProxyConfig>>> = if args.no_proxy {
+        info!("Proxy loading disabled by --no-proxy");
+        Arc::new(tokio::sync::RwLock::new(Vec::new()))
+    } else {
+        let proxies = core_logic::ProxyManager::load_proxies()?;
+        if !proxies.is_empty() {
+            info!("Loaded {} proxies for rotation.", proxies.len());
+        }
+        Arc::new(tokio::sync::RwLock::new(proxies))
+    };
 
     let proxy_health = Arc::new(core_logic::ProxyHealthManager::new(3, 5));
 
@@ -157,7 +150,7 @@ async fn main() -> Result<()> {
             Err(_) => {
                 info!("Non-interactive mode: using default 5 workers");
                 5
-            }
+            },
         }
     };
 
@@ -189,7 +182,7 @@ async fn main() -> Result<()> {
             Err(e) => {
                 error!("Failed to decrypt wallet {}: {}", wallet_idx, e);
                 continue;
-            }
+            },
         };
 
         let key = decrypted.evm_private_key.clone();
@@ -211,7 +204,7 @@ async fn main() -> Result<()> {
                 Err(e) => {
                     error!("Failed to load base config: {}", e);
                     exit_with_error(format!("Failed to load base config: {}", e));
-                }
+                },
             }
         } else {
             (None, None)

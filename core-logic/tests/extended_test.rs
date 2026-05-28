@@ -14,8 +14,7 @@ fn test_chain_builder_default() {
 
 #[test]
 fn test_chain_builder_with_rpc_urls() {
-    let builder = ChainBuilder::new()
-        .with_rpc_urls(vec!["https://rpc1.com".into(), "https://rpc2.com".into()]);
+    let builder = ChainBuilder::new().with_rpc_urls(vec!["https://rpc1.com".into(), "https://rpc2.com".into()]);
     let debug = format!("{:?}", builder);
     assert!(debug.contains("rpc1.com"));
 }
@@ -106,9 +105,7 @@ async fn test_database_batch_logging() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
 
     let items = vec![
         TaskMetricBatchItem {
@@ -143,9 +140,7 @@ async fn test_database_empty_batch() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
 
     let count = db.batch_log_task_results(&[]).await;
     assert!(count.is_ok());
@@ -161,9 +156,7 @@ async fn test_database_transaction_count() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
 
     db.log_task_result("w1", "0xaaa", "mint", true, "ok", 100)
         .await
@@ -186,9 +179,7 @@ async fn test_database_success_count() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
 
     db.log_task_result("w1", "0xaaa", "mint", true, "ok", 100)
         .await
@@ -214,9 +205,7 @@ async fn test_database_has_task_succeeded() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
 
     db.log_task_result("w1", "0xaaa", "mint", true, "ok", 100)
         .await
@@ -236,9 +225,7 @@ async fn test_database_asset_creation_and_query() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
 
     db.log_asset_creation("w1", "0xaaa", "Counter", "0x1234", "CounterV1")
         .await
@@ -260,13 +247,9 @@ async fn test_database_counter_deployment() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
 
-    db.log_counter_contract_creation("w1", "0xdead", 21894)
-        .await
-        .unwrap();
+    db.log_counter_contract_creation("w1", "0xdead", 21894).await.unwrap();
 
     let contracts = db.get_deployed_counter_contracts("w1", 21894).await;
     assert!(contracts.is_ok());
@@ -283,16 +266,10 @@ async fn test_database_proxy_stats() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
 
-    db.update_proxy_stats("http://proxy1:8080", true)
-        .await
-        .unwrap();
-    db.update_proxy_stats("http://proxy1:8080", false)
-        .await
-        .unwrap();
+    db.update_proxy_stats("http://proxy1:8080", true).await.unwrap();
+    db.update_proxy_stats("http://proxy1:8080", false).await.unwrap();
 
     let _ = std::fs::remove_dir_all(&dir);
 }

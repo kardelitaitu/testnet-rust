@@ -77,10 +77,10 @@ impl TempoTask for DeployStormTask {
                     success_count += 1;
                     last_hash = format!("{:?}", pending.tx_hash());
                     // We don't wait for receipts in a storm, just broadcast
-                }
+                },
                 Err(_e) => {
                     // println!("  X Missile {} failed: {:?}", i+1, _e);
-                }
+                },
             }
         }
 
@@ -91,15 +91,8 @@ impl TempoTask for DeployStormTask {
 
         Ok(TaskResult {
             success: success_count > 0,
-            message: format!(
-                "Deploy Storm: {}/{} launched successfully.",
-                success_count, storm_size
-            ),
-            tx_hash: if last_hash.is_empty() {
-                None
-            } else {
-                Some(last_hash)
-            },
+            message: format!("Deploy Storm: {}/{} launched successfully.", success_count, storm_size),
+            tx_hash: if last_hash.is_empty() { None } else { Some(last_hash) },
         })
     }
 }

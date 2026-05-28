@@ -46,11 +46,11 @@ struct Args {
     workers: Option<usize>,
 
     /// Minimum gas fee in gwei
-    #[arg(long, default_value_t = 0.01)]
+    #[arg(long, default_value_t = 1.0)]
     min_gwei: f64,
 
     /// Maximum gas fee cap in gwei
-    #[arg(long, default_value_t = 1.2)]
+    #[arg(long, default_value_t = 2.0)]
     max_gwei: f64,
 
     /// Disable proxy loading
@@ -84,10 +84,7 @@ async fn main() -> Result<()> {
 
     // Load config
     let mut config = SepoliaConfig::load(&args.config).context("Failed to load config")?;
-    println!(
-        "Config loaded: chain_id={}, symbol={}",
-        config.chain_id, config.symbol
-    );
+    println!("Config loaded: chain_id={}, symbol={}", config.chain_id, config.symbol);
 
     // Load base config if provided
     let (base_rpc_url, base_config) = if let Some(ref base_path) = args.base_config {
@@ -146,7 +143,7 @@ async fn main() -> Result<()> {
     let proxy_rate_limiter = Arc::new(core_logic::ProxyRateLimiter::new(config.tps));
 
     // Daily database
-    let db = sepolia_overlayer::daily_runner::database::DailyDb::new(&args.db_path).await?;
+    let db = Arc::new(core_logic::DatabaseManager::new(&args.db_path).await?);
     println!("Daily database ready: {}", args.db_path);
 
     // Worker count
@@ -159,7 +156,10 @@ async fn main() -> Result<()> {
     println!("Task timeout: {}s", task_timeout_secs);
 
     // Resolve wallet addresses by decrypting each wallet once
-    eprintln!("[Daily] Decrypting {} wallets for address resolution (this may take a while in debug mode)...", total_wallets);
+    eprintln!(
+        "[Daily] Decrypting {} wallets for address resolution (this may take a while in debug mode)...",
+        total_wallets
+    );
     let mut wallet_addresses: Vec<String> = Vec::with_capacity(total_wallets);
     for idx in 0..total_wallets {
         if idx % 25 == 0 {
@@ -177,11 +177,7 @@ async fn main() -> Result<()> {
         reqwest::Url::parse(&config.rpc_url)?,
         client,
     ));
-    let gas_manager = Arc::new(GasManager::with_max(
-        Arc::new(provider),
-        args.min_gwei,
-        args.max_gwei,
-    ));
+    let gas_manager = Arc::new(GasManager::with_max(Arc::new(provider), args.min_gwei, args.max_gwei));
 
     let base_gas_manager = base_config.as_ref().map(|_| {
         let base_provider = ethers::providers::Provider::new(ethers::providers::Http::new(
@@ -275,10 +271,7 @@ mod tests {
     #[test]
     fn test_format_password_error_msg_contains_keyword() {
         let msg = format_password_error_msg();
-        assert!(
-            msg.contains("WALLET_PASSWORD"),
-            "Error should mention WALLET_PASSWORD"
-        );
+        assert!(msg.contains("WALLET_PASSWORD"), "Error should mention WALLET_PASSWORD");
     }
 
     #[test]
@@ -314,10 +307,7 @@ mod tests {
     async fn test_resolve_password_without_manager_arg() {
         let _ = unsafe { std::env::remove_var("WALLET_PASSWORD") };
         let result = resolve_password().await;
-        assert!(
-            result.is_err(),
-            "Should error when WALLET_PASSWORD is not set"
-        );
+        assert!(result.is_err(), "Should error when WALLET_PASSWORD is not set");
         let err = result.unwrap_err().to_string();
         assert!(
             err.contains("WALLET_PASSWORD"),

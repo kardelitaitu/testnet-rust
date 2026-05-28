@@ -52,10 +52,7 @@ impl Task<TaskContext> for HighGasLimitTask {
         let amount_wei = available / U256::from(100u64);
 
         // 3. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         let tx = TransactionRequest::new()
@@ -72,17 +69,14 @@ impl Task<TaskContext> for HighGasLimitTask {
 
         match pending_tx {
             Ok(pending) => {
-                let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-                    .unwrap_or_else(|_| amount_wei.to_string());
+                let amount_eth =
+                    ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
                 Ok(TaskResult {
                     success: true,
-                    message: format!(
-                        "High gas limit (1M): sent {} TXENE to {:?}",
-                        amount_eth, recipient
-                    ),
+                    message: format!("High gas limit (1M): sent {} TXENE to {:?}", amount_eth, recipient),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })
-            }
+            },
             Err(e) => {
                 debug!("HighGasLimit tx submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -91,7 +85,7 @@ impl Task<TaskContext> for HighGasLimitTask {
                     message: format!("Failed to submit high gas limit tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

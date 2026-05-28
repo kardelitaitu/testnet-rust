@@ -161,6 +161,7 @@ Need external app integration (GitHub, Slack)?
   - `chains/tempo-spammer`
   - `chains/robinhood`
   - `chains/sepolia-overlayer`
+  - `chains/arc`
 - Chain templates exist as folders only: `_template_evm`, `_template_solana`.
 
 ## 3) Fast command reference
@@ -208,6 +209,24 @@ $env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer -- --config chai
 
 # Sepolia debugger
 $env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin sepolia-debug_task -- --config chains/sepolia-overlayer/config.toml --all
+
+# ARC
+$env:WALLET_PASSWORD="password"; cargo run -p arc-project -- --config chains/arc/config.toml
+
+# ARC debugger
+$env:WALLET_PASSWORD="password"; cargo run -p arc-project --bin arc-debug_task -- --config chains/arc/config.toml
+
+# ARC wallet balance dump
+$env:WALLET_PASSWORD="password"; cargo run -p arc-project --bin arc-balance-dump -- --config chains/arc/config.toml
+
+# Sepolia funder (multi-hop obfuscated ETH funding)
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin sepolia-funder -- --config chains/sepolia-overlayer/config.toml
+
+# Sepolia daily runner (scheduled task execution)
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin sepolia-daily -- --config chains/sepolia-overlayer/config.toml --base-config chains/sepolia-overlayer/config-base.toml
+
+# Sepolia wallet balance dump
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin wallet-balance-dump -- --config chains/sepolia-overlayer/config.toml --output wallet-balances.txt
 ```
 
 Alternative execution path if `cargo run` is slow:
@@ -256,15 +275,37 @@ Tempo:
 - bins in `chains/tempo-spammer/bin/`
 - task catalog in `chains/tempo-spammer/src/tasks/`
 
-Sepolia:
+Sepolia (`sepolia-overlayer`):
 - Main: `chains/sepolia-overlayer/src/main.rs`
 - Spammer: `chains/sepolia-overlayer/src/spammer/mod.rs`
 - Task registry/context: `chains/sepolia-overlayer/src/task/mod.rs`
 - Debug tool: `chains/sepolia-overlayer/src/bin/debug_task.rs`
-- Funder binary (`sepolia-funder`): `chains/sepolia-overlayer/src/bin/fund.rs`
+- Daily runner: `chains/sepolia-overlayer/src/bin/daily.rs` (`sepolia-daily`)
+  - Scheduled task execution with hot-reloadable per-task limits, gas bounds, pause window logic, proxy health tracking, and per-task timeout overrides.
+- Funder: `chains/sepolia-overlayer/src/bin/fund.rs` (`sepolia-funder`)
+  - Multi-hop obfuscated ETH funding: routes ETH through N ephemeral proxy wallets to obscure on-chain source.
   - Strongly TDD'd for fast/safe iteration: pure helpers for filtering, `generate_dry_run_plan`, gas selection (`choose_gas_price_mgwei`), hop math (`calculate_seed_amount`, etc.), and injectable confirmation (`confirm_funding` taking BufRead).
-  - 47 unit tests + CLI integration tests (`tests/fund_cli.rs` using assert_cmd).
-  - See `sepolia-funder.md` for usage and `src/bin/fund.rs` tests for the testable surface.
+  - 58 unit tests (inline) + 4 CLI integration tests (`tests/fund_cli.rs` using assert_cmd).
+  - See `sepolia-funder.md` for full usage docs.
+- Wallet balance dump: `chains/sepolia-overlayer/src/bin/wallet-balance-dump.rs`
+  - Parallel wallet balance scan with progress display; outputs CSV to file or stdout.
+
+Core internals:
+- `chains/sepolia-overlayer/src/daily_runner/mod.rs` — daily execution loop, task dispatch, pause logic, busy-wallet locking, confirm_with_retry helper
+- `chains/sepolia-overlayer/src/task/t*.rs` — 22 task modules (t01–t22) for mint, redeem, stake, unstake, bridge, send, AAVE faucet, receive, and redeem-to-aToken flows
+- `chains/sepolia-overlayer/src/config.rs` — `SepoliaConfig` loader
+
+ARC:
+- Main: `chains/arc/src/main.rs`
+- Spammer: `chains/arc/src/spammer/mod.rs`
+- Task registry/context: `chains/arc/src/task/mod.rs`
+- Debug tool: `chains/arc/src/bin/debug_task.rs`
+- Gas helper: `chains/arc/src/utils/gas.rs`
+- Address cache: `chains/arc/src/utils/address_cache.rs`
+- Faucet (headless Chrome): `chains/arc/src/utils/faucet.rs`, `chains/arc/src/bin/faucet.rs`
+- Balance dump: `chains/arc/src/bin/balance_dump.rs`
+- Wallet dir: `chains/arc/wallet-json-arc/`
+- Startup scripts: `_start-arc-checkbalance.bat`, `_start-arc-faucet.bat`
 
 ## 5) RISE task wiring (important)
 

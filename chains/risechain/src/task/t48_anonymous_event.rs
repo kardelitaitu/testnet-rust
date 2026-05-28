@@ -50,13 +50,9 @@ impl Task<TaskContext> for AnonymousEventTask {
             .from(address);
 
         let deploy_pending = client.send_transaction(deploy_tx, None).await?;
-        let deploy_receipt = deploy_pending
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = deploy_pending.await?.context("Failed to get deploy receipt")?;
 
-        let contract_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let contract_address = deploy_receipt.contract_address.context("No contract address")?;
 
         let event_abi: abi::Abi = serde_json::from_str(event_abi_json)?;
         let event_contract = Contract::new(contract_address, event_abi, Arc::new(provider.clone()));

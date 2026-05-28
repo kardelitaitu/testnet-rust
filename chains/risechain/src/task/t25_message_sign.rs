@@ -26,13 +26,9 @@ impl Task<TaskContext> for MessageSignTask {
         let message = format!("Hello RISE from {:?}", address);
         let message_hash = ethers::utils::hash_message(&message);
 
-        let signature = wallet
-            .sign_hash(message_hash)
-            .context("Failed to sign message")?;
+        let signature = wallet.sign_hash(message_hash).context("Failed to sign message")?;
 
-        let recovered = signature
-            .recover(message_hash)
-            .context("Failed to recover signer")?;
+        let recovered = signature.recover(message_hash).context("Failed to recover signer")?;
 
         let is_valid = recovered == address;
 

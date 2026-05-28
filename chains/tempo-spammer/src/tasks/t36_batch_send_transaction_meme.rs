@@ -67,7 +67,7 @@ impl BatchSendTransactionMemeTask {
                             anyhow::bail!("Mint transaction reverted on-chain.");
                         }
                     }
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("aa4bc69a") {
@@ -78,17 +78,14 @@ impl BatchSendTransactionMemeTask {
                         });
                     }
                     anyhow::bail!("Mint submission failed: {}", e);
-                }
+                },
             }
         }
 
         if balance < total_needed {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Insufficient balance for {} batch after mint attempt",
-                    symbol
-                ),
+                message: format!("Insufficient balance for {} batch after mint attempt", symbol),
                 tx_hash: None,
             });
         }
@@ -133,7 +130,7 @@ impl BatchSendTransactionMemeTask {
                     last_hash = pending.tx_hash().to_string();
                     last_submitted_nonce = tx_nonce;
                     submission_count += 1;
-                }
+                },
                 Err(e) => {
                     tracing::error!("Pipelined Tx at nonce {} failure: {}", tx_nonce, e);
                     if first_error.is_none() {
@@ -143,7 +140,7 @@ impl BatchSendTransactionMemeTask {
                     //    anyhow::bail!("Proxy TunnelUnsuccessful during burst: {}", e);
                     // }
                     break; // CRITICAL: Stop on first failure
-                }
+                },
             }
         }
 
@@ -237,11 +234,9 @@ impl TempoTask for BatchSendTransactionMemeTask {
                         amount_wei
                     );
                     return self
-                        .execute_batch(
-                            ctx, token_addr, symbol, decimals, balance, count, amount_wei,
-                        )
+                        .execute_batch(ctx, token_addr, symbol, decimals, balance, count, amount_wei)
                         .await;
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("aa4bc69a") {
@@ -256,13 +251,9 @@ impl TempoTask for BatchSendTransactionMemeTask {
                     if attempts >= max_attempts {
                         anyhow::bail!("Failed batch setup after {} attempts: {}", attempts, e);
                     }
-                    tracing::warn!(
-                        "Proxy/Network error on attempt {}: {}. Retrying...",
-                        attempts,
-                        e
-                    );
+                    tracing::warn!("Proxy/Network error on attempt {}: {}. Retrying...", attempts, e);
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                }
+                },
             }
         }
     }

@@ -53,18 +53,11 @@ impl Task<TaskContext> for Erc1155TransferTask {
             .from(address);
 
         let pending_deploy = client.send_transaction(tx, None).await?;
-        let deploy_receipt = pending_deploy
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = pending_deploy.await?.context("Failed to get deploy receipt")?;
         if deploy_receipt.status != Some(U64::from(1)) {
-            return Err(anyhow::anyhow!(
-                "Deployment failed. Receipt: {:?}",
-                deploy_receipt
-            ));
+            return Err(anyhow::anyhow!("Deployment failed. Receipt: {:?}", deploy_receipt));
         }
-        let contract_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let contract_address = deploy_receipt.contract_address.context("No contract address")?;
         debug!("Deployed TestERC1155 at {:?}", contract_address);
 
         let contract = Contract::new(contract_address, abi, client.clone());
@@ -73,12 +66,7 @@ impl Task<TaskContext> for Erc1155TransferTask {
         // Mint to self first
         let mint_data = contract.encode(
             "mint",
-            (
-                address,
-                U256::from(token_id),
-                U256::from(amount),
-                Bytes::from(vec![]),
-            ),
+            (address, U256::from(token_id), U256::from(amount), Bytes::from(vec![])),
         )?;
         let mint_tx = Eip1559TransactionRequest::new()
             .to(contract_address)
@@ -113,16 +101,11 @@ impl Task<TaskContext> for Erc1155TransferTask {
             .from(address);
 
         let pending_tx = client.send_transaction(transfer_tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transfer receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transfer receipt")?;
 
         Ok(TaskResult {
             success: receipt.status == Some(U64::from(1)),
-            message: format!(
-                "Transferred {} of ERC1155 #{} to {:?}",
-                amount, token_id, recipient
-            ),
+            message: format!("Transferred {} of ERC1155 #{} to {:?}", amount, token_id, recipient),
             tx_hash: Some(format!("{:?}", receipt.transaction_hash)),
         })
     }

@@ -39,8 +39,8 @@ impl Task<TaskContext> for NftMintTask {
 
         let bytecode_hex = std::fs::read_to_string(bytecode_path)
             .with_context(|| format!("Failed to read bytecode from {}", bytecode_path))?;
-        let abi_json = std::fs::read_to_string(abi_path)
-            .with_context(|| format!("Failed to read ABI from {}", abi_path))?;
+        let abi_json =
+            std::fs::read_to_string(abi_path).with_context(|| format!("Failed to read ABI from {}", abi_path))?;
 
         // Read mnemonic file and pick random words
         let mnemonic_content = std::fs::read_to_string(mnemonic_path)
@@ -87,15 +87,10 @@ impl Task<TaskContext> for NftMintTask {
 
         // Use wallet for deployment
         use ethers::middleware::SignerMiddleware;
-        let client = Arc::new(SignerMiddleware::new(
-            ctx.provider.clone(),
-            ctx.wallet.clone(),
-        ));
+        let client = Arc::new(SignerMiddleware::new(ctx.provider.clone(), ctx.wallet.clone()));
         let pending_tx = client.send_transaction(tx, None).await?;
 
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get deployment receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get deployment receipt")?;
 
         let nft_address = receipt
             .contract_address
@@ -164,8 +159,7 @@ impl Task<TaskContext> for NftMintTask {
 
         // Find Transfer event to get actual Token ID
         // Event signature: Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
-        let transfer_event_sig =
-            ethers::utils::keccak256("Transfer(address,address,uint256)".as_bytes());
+        let transfer_event_sig = ethers::utils::keccak256("Transfer(address,address,uint256)".as_bytes());
 
         let mut actual_token_id = U256::zero();
         let mut found_event = false;
@@ -192,10 +186,7 @@ impl Task<TaskContext> for NftMintTask {
                 .context("Failed to call ownerOf")?;
 
             if owner == recipient {
-                debug!(
-                    "✅ Verified on-chain: Owner of #{} is {:?}",
-                    actual_token_id, owner
-                );
+                debug!("✅ Verified on-chain: Owner of #{} is {:?}", actual_token_id, owner);
 
                 // Deep verify TokenURI from contract
                 let retrieved_uri: String = contract
@@ -207,7 +198,11 @@ impl Task<TaskContext> for NftMintTask {
                 if retrieved_uri == token_uri {
                     debug!("✅ Verified on-chain: tokenURI matches perfectly");
                 } else {
-                    debug!("❌ Mismatch: Contract returned different URI length (Retrieved: {}, Expected: {})", retrieved_uri.len(), token_uri.len());
+                    debug!(
+                        "❌ Mismatch: Contract returned different URI length (Retrieved: {}, Expected: {})",
+                        retrieved_uri.len(),
+                        token_uri.len()
+                    );
                     if retrieved_uri.is_empty() {
                         debug!("⚠️  CRITICAL: Contract returned EMPTY tokenURI!");
                     }

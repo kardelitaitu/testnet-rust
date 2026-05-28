@@ -102,13 +102,10 @@ impl TempoTask for BatchEip7702Task {
                         } else {
                             return Err(e).context("Failed to send faucet claim tx");
                         }
-                    }
+                    },
                 }
             };
-            let _receipt = pending
-                .get_receipt()
-                .await
-                .context("Faucet claim receipt failed")?;
+            let _receipt = pending.get_receipt().await.context("Faucet claim receipt failed")?;
 
             // Update balance
             balance = TempoTokens::get_token_balance(client, pathusd_addr, address).await?;
@@ -137,8 +134,7 @@ impl TempoTask for BatchEip7702Task {
                     let err_str = e.to_string().to_lowercase();
                     attempt += 1;
 
-                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
-                        && attempt < max_retries
+                    if (err_str.contains("nonce too low") || err_str.contains("already known")) && attempt < max_retries
                     {
                         tracing::warn!(
                             "Nonce error on approval (batch), attempt {}/{}, resetting...",
@@ -151,7 +147,7 @@ impl TempoTask for BatchEip7702Task {
                     } else {
                         return Err(e).context("Failed to send approve transaction");
                     }
-                }
+                },
             }
         };
 
@@ -205,8 +201,7 @@ impl TempoTask for BatchEip7702Task {
                     let err_str = e.to_string().to_lowercase();
                     attempt += 1;
 
-                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
-                        && attempt < max_retries
+                    if (err_str.contains("nonce too low") || err_str.contains("already known")) && attempt < max_retries
                     {
                         tracing::warn!(
                             "Nonce error on swap (batch), attempt {}/{}, resetting...",
@@ -219,15 +214,12 @@ impl TempoTask for BatchEip7702Task {
                     } else {
                         return Err(e).context("Failed to send swap transaction");
                     }
-                }
+                },
             }
         };
 
         let tx_hash = *pending_swap.tx_hash();
-        let receipt = pending_swap
-            .get_receipt()
-            .await
-            .context("Failed to get swap receipt")?;
+        let receipt = pending_swap.get_receipt().await.context("Failed to get swap receipt")?;
 
         if !receipt.inner.status() {
             return Ok(TaskResult {
@@ -242,10 +234,7 @@ impl TempoTask for BatchEip7702Task {
 
         Ok(TaskResult {
             success: true,
-            message: format!(
-                "Executed EIP-7702 Batch Simulation (Approve + Swap). Tx: {}",
-                hash_str
-            ),
+            message: format!("Executed EIP-7702 Batch Simulation (Approve + Swap). Tx: {}", hash_str),
             tx_hash: Some(hash_str),
         })
     }

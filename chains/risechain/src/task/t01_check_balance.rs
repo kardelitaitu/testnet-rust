@@ -34,19 +34,11 @@ impl Task<TaskContext> for CheckBalanceTask {
 
         let mut balances_str = format!("ETH: {:.5}", balance_f64);
 
-        let tokens = vec![
-            ("WETH", weth_addr),
-            ("WBTC", wbtc_addr),
-            ("RISE", rise_addr),
-        ];
+        let tokens = vec![("WETH", weth_addr), ("WBTC", wbtc_addr), ("RISE", rise_addr)];
 
         for (name, addr) in tokens {
             let contract = Contract::new(addr, p_abi.clone(), client.clone());
-            let bal: U256 = contract
-                .method("balanceOf", address)?
-                .call()
-                .await
-                .unwrap_or_default();
+            let bal: U256 = contract.method("balanceOf", address)?.call().await.unwrap_or_default();
             let dec: u8 = contract.method("decimals", ())?.call().await.unwrap_or(18);
             let raw_fmt = ethers::utils::format_units(bal, dec as u32).unwrap_or("0".into());
             let val_f64: f64 = raw_fmt.parse().unwrap_or(0.0);

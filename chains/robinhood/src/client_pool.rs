@@ -40,11 +40,7 @@ impl Drop for ClientLease {
 }
 
 impl ClientPool {
-    pub fn new(
-        config: EvmConfig,
-        wallet_manager: Arc<WalletManager>,
-        wallet_password: Option<String>,
-    ) -> Result<Self> {
+    pub fn new(config: EvmConfig, wallet_manager: Arc<WalletManager>, wallet_password: Option<String>) -> Result<Self> {
         let proxies = load_proxies("proxies.txt").unwrap_or_default();
         Ok(Self {
             wallet_manager,
@@ -66,8 +62,7 @@ impl ClientPool {
 
         let selected_idx = {
             let mut locked = self.locked_wallets.lock();
-            let available: Vec<usize> =
-                (0..total_wallets).filter(|i| !locked.contains(i)).collect();
+            let available: Vec<usize> = (0..total_wallets).filter(|i| !locked.contains(i)).collect();
             if available.is_empty() {
                 return None;
             }
@@ -86,7 +81,7 @@ impl ClientPool {
             Err(_) => {
                 self.release_wallet(selected_idx);
                 None
-            }
+            },
         }
     }
 
@@ -111,10 +106,7 @@ impl ClientPool {
         let proxy_conf = if self.proxies.is_empty() {
             None
         } else {
-            Some(
-                &self.proxies[self.proxy_rotation_counter.fetch_add(1, Ordering::SeqCst)
-                    % self.proxies.len()],
-            )
+            Some(&self.proxies[self.proxy_rotation_counter.fetch_add(1, Ordering::SeqCst) % self.proxies.len()])
         };
 
         let proxy_url = proxy_conf.map(|p| p.url.clone());
@@ -142,10 +134,7 @@ impl ClientPool {
         Ok(client)
     }
 
-    async fn get_or_create_http_client(
-        &self,
-        proxy_url: Option<String>,
-    ) -> Result<reqwest::Client> {
+    async fn get_or_create_http_client(&self, proxy_url: Option<String>) -> Result<reqwest::Client> {
         if let Some((client, _)) = self.http_clients.read().get(&proxy_url) {
             return Ok(client.clone());
         }

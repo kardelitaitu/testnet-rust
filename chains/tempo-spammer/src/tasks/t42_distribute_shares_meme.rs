@@ -100,8 +100,7 @@ impl TempoTask for DistributeSharesMemeTask {
         let selected_count = rng.gen_range(5..=count.min(15));
         let mut selected_payees = payees.into_iter().collect::<Vec<_>>();
         selected_payees.shuffle(&mut rng);
-        let selected_payees: Vec<Address> =
-            selected_payees.into_iter().take(selected_count).collect();
+        let selected_payees: Vec<Address> = selected_payees.into_iter().take(selected_count).collect();
 
         // 3. Generate random shares summing to 10000
         let shares = generate_random_shares(selected_count, 10000);
@@ -161,11 +160,7 @@ impl TempoTask for DistributeSharesMemeTask {
             .gas_limit(4_000_000);
 
         // 8. Execute concurrently with retry logic for Deploy tx
-        tracing::debug!(
-            "Bursting 3 Transactions (Nonce {}..{})",
-            start_nonce,
-            start_nonce + 2
-        );
+        tracing::debug!("Bursting 3 Transactions (Nonce {}..{})", start_nonce, start_nonce + 2);
 
         let deploy_fut = async {
             let mut attempt = 0;
@@ -193,7 +188,7 @@ impl TempoTask for DistributeSharesMemeTask {
                         }
 
                         return Err(e).context("Failed to send deploy tx");
-                    }
+                    },
                 }
             }
         };

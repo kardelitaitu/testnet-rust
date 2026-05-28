@@ -73,23 +73,18 @@ impl Task<TaskContext> for TransparentProxyTask {
 
         let impl_pending = client.send_transaction(impl_tx, None).await?;
         debug!("Tx sent, waiting for receipt...");
-        let impl_receipt = impl_pending
-            .await?
-            .context("Failed to get implementation receipt")?;
+        let impl_receipt = impl_pending.await?.context("Failed to get implementation receipt")?;
 
         debug!(
             "Receipt obtained. Status: {:?}, Contract Address: {:?}",
             impl_receipt.status, impl_receipt.contract_address
         );
 
-        let implementation_address = impl_receipt
-            .contract_address
-            .context("No implementation address")?;
+        let implementation_address = impl_receipt.contract_address.context("No implementation address")?;
 
         let impl_abi: abi::Abi = serde_json::from_str(impl_abi_json)?;
 
-        let impl_contract =
-            Contract::new(implementation_address, impl_abi, Arc::new(provider.clone()));
+        let impl_contract = Contract::new(implementation_address, impl_abi, Arc::new(provider.clone()));
 
         let current_value: U256 = impl_contract
             .method("getValue", ())?

@@ -77,10 +77,6 @@ pub struct EvmSpammer {
     busy_wallets: Arc<Mutex<HashSet<usize>>>,
 }
 
-
-
-
-
 impl EvmSpammer {
     // Modified constructor to accept proxy pool, health manager, and rate limiter
     #[allow(clippy::too_many_arguments)]
@@ -158,9 +154,7 @@ impl EvmSpammer {
             Box::new(BurnMemeTask),
         ];
 
-        let gas_manager = Arc::new(crate::utils::gas::GasManager::new(Arc::new(
-            provider.clone(),
-        )));
+        let gas_manager = Arc::new(crate::utils::gas::GasManager::new(Arc::new(provider.clone())));
 
         // Calculate weights
         let weights: Vec<u32> = tasks
@@ -188,7 +182,7 @@ impl EvmSpammer {
                     tracing::error!(target: "smart_main", "Critical error creating distribution: {}", e);
                     WeightedIndex::new(vec![1]).expect("Failed to create fallback distribution")
                 })
-            }
+            },
         };
 
         Ok(Self {
@@ -254,10 +248,7 @@ impl Spammer for EvmSpammer {
         Err(anyhow::anyhow!("Use new_with_signer construction"))
     }
 
-    async fn start(
-        &self,
-        cancellation_token: CancellationToken,
-    ) -> Result<core_logic::traits::SpammerStats> {
+    async fn start(&self, cancellation_token: CancellationToken) -> Result<core_logic::traits::SpammerStats> {
         // Create context span
         let span = tracing::info_span!("spammer_context", wallet_id = self.wallet_id.as_str());
 
@@ -307,9 +298,7 @@ impl Spammer for EvmSpammer {
 
                     // Apply rate limit before executing task
                     if let Some(ref proxy) = proxy_config {
-                        self.proxy_rate_limiter
-                            .wait_until_available(&proxy.url)
-                            .await;
+                        self.proxy_rate_limiter.wait_until_available(&proxy.url).await;
                     }
 
                     // Create provider with selected proxy
@@ -341,14 +330,14 @@ impl Spammer for EvmSpammer {
                                     self.busy_wallets.lock().await.remove(&wallet_idx);
                                     warn!("Failed to parse wallet {}: {}", wallet_idx, e);
                                     continue;
-                                }
+                                },
                             }
-                        }
+                        },
                         Err(e) => {
                             self.busy_wallets.lock().await.remove(&wallet_idx);
                             warn!("Failed to decrypt wallet {}: {}", wallet_idx, e);
                             continue;
-                        }
+                        },
                     };
 
                     let wallet_address = wallet.address();
@@ -416,8 +405,7 @@ impl Spammer for EvmSpammer {
                                 // 2. Identify numbers that are NOT inside addresses and color them.
                                 // This is hard to do in two passes on string.
                                 // One pass regex: (0x[a-fA-F0-9]+)|(\d+(\.\d+)?)
-                                let token_regex =
-                                    Regex::new(r"(0x[a-fA-F0-9]+)|(\d+(\.\d+)?)").unwrap();
+                                let token_regex = Regex::new(r"(0x[a-fA-F0-9]+)|(\d+(\.\d+)?)").unwrap();
 
                                 let final_str = token_regex
                                     .replace_all(msg, |caps: &regex::Captures| {
@@ -439,8 +427,7 @@ impl Spammer for EvmSpammer {
                             let raw_msg = res.message.replace("\n", " | ");
                             let msg_limit = 125;
                             let clipped_msg = if raw_msg.chars().count() > msg_limit {
-                                let truncated: String =
-                                    raw_msg.chars().take(msg_limit - 3).collect();
+                                let truncated: String = raw_msg.chars().take(msg_limit - 3).collect();
                                 format!("{}...", truncated)
                             } else {
                                 raw_msg
@@ -493,7 +480,7 @@ impl Spammer for EvmSpammer {
                                     )
                                     .await;
                             }
-                        }
+                        },
                         Err(e) => {
                             // Track proxy health for errors too
                             if let Some(ref proxy) = proxy_config {
@@ -506,8 +493,7 @@ impl Spammer for EvmSpammer {
                             let raw_err = format!("{:#}", e).replace("\n", " | ");
                             let msg_limit = 125;
                             let clipped_err = if raw_err.chars().count() > msg_limit {
-                                let truncated: String =
-                                    raw_err.chars().take(msg_limit - 3).collect();
+                                let truncated: String = raw_err.chars().take(msg_limit - 3).collect();
                                 format!("{}...", truncated)
                             } else {
                                 raw_err
@@ -541,22 +527,20 @@ impl Spammer for EvmSpammer {
                                     )
                                     .await;
                             }
-                        }
+                        },
                     }
                     // Release wallet lock so another worker can use it
                     self.busy_wallets.lock().await.remove(&wallet_idx);
                 }
 
                 // Rate limit logic
-                let sleep_ms = if let (Some(min), Some(max)) = (
-                    self.xenea_config.min_delay_ms,
-                    self.xenea_config.max_delay_ms,
-                ) {
-                    let mut rng = OsRng;
-                    rng.gen_range(min..=max)
-                } else {
-                    1000 / self.config.target_tps.max(1) as u64
-                };
+                let sleep_ms =
+                    if let (Some(min), Some(max)) = (self.xenea_config.min_delay_ms, self.xenea_config.max_delay_ms) {
+                        let mut rng = OsRng;
+                        rng.gen_range(min..=max)
+                    } else {
+                        1000 / self.config.target_tps.max(1) as u64
+                    };
 
                 // Use tokio::select! to listen for cancellation DURING sleep
                 tokio::select! {

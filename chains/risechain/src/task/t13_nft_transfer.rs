@@ -41,8 +41,8 @@ impl Task<TaskContext> for NftTransferTask {
         // 2. Prepare NFT Details (Random Name/Symbol)
         let bytecode_hex = std::fs::read_to_string(bytecode_path)
             .with_context(|| format!("Failed to read bytecode from {}", bytecode_path))?;
-        let abi_json = std::fs::read_to_string(abi_path)
-            .with_context(|| format!("Failed to read ABI from {}", abi_path))?;
+        let abi_json =
+            std::fs::read_to_string(abi_path).with_context(|| format!("Failed to read ABI from {}", abi_path))?;
         let abi: abi::Abi = serde_json::from_str(&abi_json)?;
 
         let mnemonic_content = std::fs::read_to_string(mnemonic_path)
@@ -89,23 +89,15 @@ impl Task<TaskContext> for NftTransferTask {
             .await?
             .await?
             .context("Failed to get deployment receipt")?;
-        let nft_address = receipt
-            .contract_address
-            .context("No contract address in receipt")?;
+        let nft_address = receipt.contract_address.context("No contract address in receipt")?;
         debug!("✅ Deployed NFT at {:?}", nft_address);
 
         let contract = Contract::new(nft_address, abi, client.clone());
 
         // 4. Mint Token to Sender
         use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-        let metadata_json = format!(
-            r#"{{"name":"{}","description":"Transfer Test"}}"#,
-            capitalized_word
-        );
-        let metadata_uri = format!(
-            "data:application/json;base64,{}",
-            BASE64.encode(metadata_json)
-        );
+        let metadata_json = format!(r#"{{"name":"{}","description":"Transfer Test"}}"#, capitalized_word);
+        let metadata_uri = format!("data:application/json;base64,{}", BASE64.encode(metadata_json));
 
         let mint_data = contract.encode("mint", (address, metadata_uri))?;
         let mint_tx = Eip1559TransactionRequest::new()
@@ -122,8 +114,7 @@ impl Task<TaskContext> for NftTransferTask {
             .await?
             .context("Failed to get mint receipt")?;
 
-        let transfer_event_sig =
-            ethers::utils::keccak256("Transfer(address,address,uint256)".as_bytes());
+        let transfer_event_sig = ethers::utils::keccak256("Transfer(address,address,uint256)".as_bytes());
         let mut token_id = U256::zero();
         for log in &mint_receipt.logs {
             if log.topics.len() == 4 && log.topics[0] == H256::from(transfer_event_sig) {
@@ -154,10 +145,7 @@ impl Task<TaskContext> for NftTransferTask {
         if success {
             let owner: Address = contract.method("ownerOf", token_id)?.call().await?;
             if owner == recipient {
-                debug!(
-                    "✅ Verified on-chain: New owner of #{} is {:?}",
-                    token_id, owner
-                );
+                debug!("✅ Verified on-chain: New owner of #{} is {:?}", token_id, owner);
             } else {
                 debug!(
                     "❌ Mismatch: New owner of #{} is {:?}, expected {:?}",

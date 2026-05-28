@@ -54,9 +54,7 @@ impl TempoTask for WalletAnalyticsTask {
             calldata.extend_from_slice(&[0u8; 12]);
             calldata.extend_from_slice(address.as_slice());
 
-            let balance_data = TransactionRequest::default()
-                .to(token_addr)
-                .input(calldata.into());
+            let balance_data = TransactionRequest::default().to(token_addr).input(calldata.into());
 
             if let Ok(data) = client.provider.call(balance_data).await {
                 let bytes = data.as_ref();
@@ -111,9 +109,7 @@ impl TempoTask for WalletAnalyticsTask {
                     calldata.extend_from_slice(&[0u8; 12]);
                     calldata.extend_from_slice(address.as_slice());
 
-                    let balance_data = TransactionRequest::default()
-                        .to(addr)
-                        .input(calldata.into());
+                    let balance_data = TransactionRequest::default().to(addr).input(calldata.into());
 
                     if let Ok(data) = client.provider.call(balance_data).await {
                         let bytes = data.as_ref();
@@ -133,33 +129,26 @@ impl TempoTask for WalletAnalyticsTask {
         }
 
         // 4. Get created assets count
-        let (created_stables, created_memes, total_transactions, success_rate) =
-            if let Some(db) = &ctx.db {
-                let stables = db
-                    .get_asset_count_by_address(&address.to_string(), "stablecoin")
-                    .await
-                    .unwrap_or(0);
-                let memes = db
-                    .get_asset_count_by_address(&address.to_string(), "meme")
-                    .await
-                    .unwrap_or(0);
-                let tx_count = db
-                    .get_transaction_count(&address.to_string())
-                    .await
-                    .unwrap_or(0);
-                let success_count = db
-                    .get_success_count(&address.to_string())
-                    .await
-                    .unwrap_or(0);
-                let rate = if tx_count > 0 {
-                    (success_count as f64 / tx_count as f64) * 100.0
-                } else {
-                    0.0
-                };
-                (stables, memes, tx_count, rate)
+        let (created_stables, created_memes, total_transactions, success_rate) = if let Some(db) = &ctx.db {
+            let stables = db
+                .get_asset_count_by_address(&address.to_string(), "stablecoin")
+                .await
+                .unwrap_or(0);
+            let memes = db
+                .get_asset_count_by_address(&address.to_string(), "meme")
+                .await
+                .unwrap_or(0);
+            let tx_count = db.get_transaction_count(&address.to_string()).await.unwrap_or(0);
+            let success_count = db.get_success_count(&address.to_string()).await.unwrap_or(0);
+            let rate = if tx_count > 0 {
+                (success_count as f64 / tx_count as f64) * 100.0
             } else {
-                (0, 0, 0, 0.0)
+                0.0
             };
+            (stables, memes, tx_count, rate)
+        } else {
+            (0, 0, 0, 0.0)
+        };
 
         // Format balances with compact notation using TempoTokens helper
         let balances_summary = if system_balances.is_empty() {
@@ -181,12 +170,7 @@ impl TempoTask for WalletAnalyticsTask {
             success: true,
             message: format!(
                 "Analytics for {:?}: Native Balances: ({}), Assets: (Stables: {}, Memes: {}), TXs: {} (Success: {:.1}%)",
-                address,
-                balances_summary,
-                created_stables,
-                created_memes,
-                total_transactions,
-                success_rate
+                address, balances_summary, created_stables, created_memes, total_transactions, success_rate
             ),
             tx_hash: None,
         })

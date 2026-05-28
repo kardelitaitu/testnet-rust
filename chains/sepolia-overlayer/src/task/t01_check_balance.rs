@@ -19,11 +19,7 @@ const ERC20_ABI: &str = r#"[
     {"constant":true,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint8"}],"type":"function"}
 ]"#;
 
-async fn get_token_balance(
-    provider: &Provider<Http>,
-    token_addr: &str,
-    wallet: Address,
-) -> Result<(String, String)> {
+async fn get_token_balance(provider: &Provider<Http>, token_addr: &str, wallet: Address) -> Result<(String, String)> {
     let addr: Address = token_addr.parse()?;
     let contract = Contract::new(
         addr,
@@ -31,10 +27,7 @@ async fn get_token_balance(
         Arc::new(provider.clone()),
     );
 
-    let raw_balance: U256 = contract
-        .method::<_, U256>("balanceOf", wallet)?
-        .call()
-        .await?;
+    let raw_balance: U256 = contract.method::<_, U256>("balanceOf", wallet)?.call().await?;
 
     let decimals: u8 = contract.method::<_, u8>("decimals", ())?.call().await?; // Format as integer (no decimals — truncate/floored)
     let divisor = 10u128.pow(decimals as u32);
@@ -57,11 +50,7 @@ fn format_eth_5dec(raw: U256) -> String {
     if display_fraction == 0 {
         integer.to_string()
     } else {
-        let frac_str = format!(
-            "{:0width$}",
-            display_fraction,
-            width = DISPLAY_DECIMALS as usize
-        );
+        let frac_str = format!("{:0width$}", display_fraction, width = DISPLAY_DECIMALS as usize);
         let trimmed = frac_str.trim_end_matches('0');
         format!("{}.{}", integer, trimmed)
     }
@@ -143,10 +132,10 @@ impl SepoliaTask for SepoliaCheckBalanceTask {
             match get_token_balance(&ctx.provider, token_addr, address).await {
                 Ok((formatted, _raw)) => {
                     token_lines.push(format!("{}: {}", token_name, formatted));
-                }
+                },
                 Err(_e) => {
                     token_lines.push(format!("{}: error", token_name));
-                }
+                },
             }
         }
 
@@ -156,10 +145,7 @@ impl SepoliaTask for SepoliaCheckBalanceTask {
         let token_str = token_lines.join(" | ");
         Ok(TaskResult {
             success: true,
-            message: format!(
-                "ETH: {} | {} | Gas: {:.2}",
-                eth_display, token_str, max_fee_gwei,
-            ),
+            message: format!("ETH: {} | {} | Gas: {:.2}", eth_display, token_str, max_fee_gwei,),
         })
     }
 }

@@ -51,17 +51,12 @@ impl Task<TaskContext> for RevertWithReasonTask {
             .from(address);
 
         let deploy_pending = client.send_transaction(deploy_tx, None).await?;
-        let deploy_receipt = deploy_pending
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = deploy_pending.await?.context("Failed to get deploy receipt")?;
 
-        let contract_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let contract_address = deploy_receipt.contract_address.context("No contract address")?;
 
         let revert_abi: abi::Abi = serde_json::from_str(revert_abi_json)?;
-        let revert_contract =
-            Contract::new(contract_address, revert_abi, Arc::new(provider.clone()));
+        let revert_contract = Contract::new(contract_address, revert_abi, Arc::new(provider.clone()));
 
         let state: U256 = revert_contract
             .method("getState", ())?

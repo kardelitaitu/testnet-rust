@@ -45,9 +45,7 @@ impl TempoTask for TransferTokenTask {
         let mut available_tokens: Vec<TokenInfo> = TempoTokens::get_system_tokens();
 
         if let Some(db) = &ctx.db {
-            if let Ok(created_addresses) =
-                db.get_assets_by_type(&wallet_addr_str, "stablecoin").await
-            {
+            if let Ok(created_addresses) = db.get_assets_by_type(&wallet_addr_str, "stablecoin").await {
                 for addr in created_addresses {
                     if let Ok(token_addr) = Address::from_str(&addr) {
                         let symbol = addr.get(..8).unwrap_or("Unknown").to_string();
@@ -80,12 +78,7 @@ impl TempoTask for TransferTokenTask {
             // token_decimals = TempoTokens::get_token_decimals(client, token.address).await?; // Optimization: only fetch if needed or just fetch now for debug
 
             // Debug prints
-            tracing::debug!(
-                "Checking {} ({}) Balance: {}",
-                token.symbol,
-                token.address,
-                balance
-            );
+            tracing::debug!("Checking {} ({}) Balance: {}", token.symbol, token.address, balance);
 
             if balance > U256::from(100_000u64) {
                 token_decimals = TempoTokens::get_token_decimals(client, token.address).await?;
@@ -159,9 +152,7 @@ impl TempoTask for TransferTokenTask {
             Err(e) => {
                 let err_str = e.to_string().to_lowercase();
                 if err_str.contains("nonce too low") || err_str.contains("already known") {
-                    tracing::warn!(
-                        "Nonce error on transfer_token, resetting cache and retrying..."
-                    );
+                    tracing::warn!("Nonce error on transfer_token, resetting cache and retrying...");
                     client.reset_nonce_cache().await;
                     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                     client
@@ -172,15 +163,12 @@ impl TempoTask for TransferTokenTask {
                 } else {
                     return Err(e).context("Failed to send transfer");
                 }
-            }
+            },
         };
 
         let tx_hash = *pending.tx_hash();
 
-        let receipt = pending
-            .get_receipt()
-            .await
-            .context("Failed to get receipt")?;
+        let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
         if !receipt.inner.status() {
             return Ok(TaskResult {

@@ -24,17 +24,15 @@
 
 use crate::config::{SepoliaConfig, TaskLimits};
 use crate::task::{
-    AaveUsdcFaucetTask, AaveUsdtFaucetTask, AaveWbtcFaucetTask, BridgeBackCplusTask,
-    BridgeBackTplusTask, BridgeCplusTask, BridgeTplusTask, MintUsdcPlusTask, MintUsdtPlusTask,
-    ReceiveCplusTask, ReceiveTplusTask, RedeemUsdcPlusTask, RedeemUsdtPlusTask,
-    SendRandomUsdcPlusTask, SendRandomUsdtPlusTask, SepoliaCheckBalanceTask, SepoliaTask,
-    StakeUsdcPlusTask, StakeUsdtPlusTask, TaskContext, UnstakeCplusTask, UnstakeTplusTask,
+    AaveUsdcFaucetTask, AaveUsdtFaucetTask, AaveWbtcFaucetTask, BridgeBackCplusTask, BridgeBackTplusTask,
+    BridgeCplusTask, BridgeTplusTask, MintUsdcPlusTask, MintUsdtPlusTask, ReceiveCplusTask, ReceiveTplusTask,
+    RedeemUsdcPlusTask, RedeemUsdtPlusTask, SendRandomUsdcPlusTask, SendRandomUsdtPlusTask, SepoliaCheckBalanceTask,
+    SepoliaTask, StakeUsdcPlusTask, StakeUsdtPlusTask, TaskContext, UnstakeCplusTask, UnstakeTplusTask,
 };
 use crate::utils::gas::GasManager;
 
 use anyhow::Result;
-use chrono::{Local, Timelike};
-use database::DailyDb;
+use chrono::Timelike;
 use ethers::signers::Signer;
 use rand::Rng;
 use std::collections::HashMap;
@@ -47,9 +45,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
 
 use core_logic::config::ProxyConfig;
+use core_logic::database::DatabaseManager;
 use core_logic::{ProxyHealthManager, ProxyRateLimiter, WalletManager};
-
-pub mod database;
 
 // -----------------------------------------------------------------------
 // Constants
@@ -235,10 +232,7 @@ pub fn wallet_usage_pct(counts: &HashMap<String, usize>, limits: &TaskLimits) ->
 }
 
 /// Get the remaining tasks that still have capacity for this wallet.
-pub fn get_remaining_tasks(
-    task_counts: &HashMap<String, usize>,
-    limits: &TaskLimits,
-) -> Vec<&'static str> {
+pub fn get_remaining_tasks(task_counts: &HashMap<String, usize>, limits: &TaskLimits) -> Vec<&'static str> {
     ALL_TASK_NAMES
         .iter()
         .copied()
@@ -267,7 +261,7 @@ pub fn get_remaining_tasks(
 /// - **Retry on failure**: failed tasks stay in the pool and are not counted
 ///   toward daily limits.
 pub struct DailyRunner {
-    pub db: DailyDb,
+    pub db: Arc<DatabaseManager>,
     pub config: SepoliaConfig,
     pub wallet_manager: Arc<WalletManager>,
     pub wallet_password: Option<String>,
@@ -330,7 +324,7 @@ impl DailyRunner {
                     total.total_attempts += stats.total_attempts;
                     total.successful += stats.successful;
                     total.failed += stats.failed;
-                }
+                },
                 Err(e) => error!("Daily worker panicked: {:?}", e),
             }
         }
@@ -345,7 +339,7 @@ impl DailyRunner {
 
     fn clone_inner(&self) -> Self {
         Self {
-            db: self.db.clone(),
+            db: Arc::clone(&self.db),
             config: self.config.clone(),
             wallet_manager: self.wallet_manager.clone(),
             wallet_password: self.wallet_password.clone(),
@@ -405,10 +399,10 @@ impl DailyRunner {
                 let mut limits = self.task_limits.write().await;
                 *limits = new_limits;
                 info!("Task limits reloaded from {}: {:?}", path, *limits);
-            }
+            },
             Err(e) => {
                 warn!("Failed to reload task limits from {}: {}", path, e);
-            }
+            },
         }
     }
 
@@ -421,20 +415,13 @@ impl DailyRunner {
     /// 2. Picks a random pending task for that wallet
     /// 3. Executes it
     /// 4. Records success (counts toward limit) or failure (back to pool)
-    async fn worker_loop(
-        self: Arc<Self>,
-        worker_id: usize,
-        cancel: CancellationToken,
-    ) -> DailyRunStats {
+    async fn worker_loop(self: Arc<Self>, worker_id: usize, cancel: CancellationToken) -> DailyRunStats {
         let mut stats = DailyRunStats::default();
         eprintln!("[Daily] Worker {} entering loop", worker_id);
         info!(
             target: "task_result",
             "Daily worker {} started", worker_id
         );
-
-        let task_timeout_secs = self.config.task_timeout_secs.unwrap_or(120).max(1);
-        let _task_timeout = Duration::from_secs(task_timeout_secs);
 
         loop {
             if cancel.is_cancelled() {
@@ -475,7 +462,7 @@ impl DailyRunner {
                     error!("Worker {}: DB error: {}", worker_id, e);
                     sleep(Duration::from_secs(IDLE_SLEEP_SECS)).await;
                     continue;
-                }
+                },
             };
 
             // Find active wallets (those with at least one task under limit)
@@ -551,14 +538,16 @@ impl DailyRunner {
                 } => {
                     stats.total_attempts += 1;
                     stats.successful += 1;
-                    info!(
-                        target: "task_result",
-                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{:02}/{:02}][{}] {}",
-                        Local::now().format("%H:%M:%S"),
-                        worker_id, wallet_idx, proxy_id,
-                        "OK", count, limit, task_name, message,
+                    let progress = format!("{:02}/{:02}", count, limit);
+                    core_logic::daily_log!(
+                        worker_id,
+                        wallet_idx,
+                        proxy_id,
+                        "OK",
+                        format!("{}][{}", progress, task_name),
+                        message
                     );
-                }
+                },
                 TaskOutcome::Retry {
                     task_name,
                     message,
@@ -568,14 +557,16 @@ impl DailyRunner {
                 } => {
                     stats.total_attempts += 1;
                     stats.failed += 1;
-                    info!(
-                        target: "task_result",
-                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{:02}/{:02}][{}] {}",
-                        Local::now().format("%H:%M:%S"),
-                        worker_id, wallet_idx, proxy_id,
-                        "RETRY", count, limit, task_name, message,
+                    let progress = format!("{:02}/{:02}", count, limit);
+                    core_logic::daily_log!(
+                        worker_id,
+                        wallet_idx,
+                        proxy_id,
+                        "RETRY",
+                        format!("{}][{}", progress, task_name),
+                        message
                     );
-                }
+                },
                 TaskOutcome::Timeout {
                     task_name,
                     message,
@@ -585,14 +576,16 @@ impl DailyRunner {
                 } => {
                     stats.total_attempts += 1;
                     stats.failed += 1;
-                    error!(
-                        target: "task_result",
-                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{:02}/{:02}][{}] {}",
-                        Local::now().format("%H:%M:%S"),
-                        worker_id, wallet_idx, proxy_id,
-                        "TIMEOUT", count, limit, task_name, message,
+                    let progress = format!("{:02}/{:02}", count, limit);
+                    core_logic::daily_log!(
+                        worker_id,
+                        wallet_idx,
+                        proxy_id,
+                        "TIMEOUT",
+                        format!("{}][{}", progress, task_name),
+                        message
                     );
-                }
+                },
                 TaskOutcome::WalletComplete {
                     wallet_idx,
                     wallet_address,
@@ -601,14 +594,16 @@ impl DailyRunner {
                     count,
                     limit,
                 } => {
-                    info!(
-                        target: "task_result",
-                        "{} [WK:{:03}][WL:{:04}][P:{}] {:<7} [{:02}/{:02}][{}] Daily tasks done - Address : {}",
-                        Local::now().format("%H:%M:%S"),
-                        worker_id, wallet_idx, proxy_id,
-                        "LIMIT", count, limit, task_name, wallet_address,
+                    let progress = format!("{:02}/{:02}", count, limit);
+                    core_logic::daily_log!(
+                        worker_id,
+                        wallet_idx,
+                        proxy_id,
+                        "LIMIT",
+                        format!("{}][{}", progress, task_name),
+                        format!("Daily tasks done - Address : {}", wallet_address)
                     );
-                }
+                },
             }
         }
 
@@ -620,12 +615,7 @@ impl DailyRunner {
     // ------------------------------------------------------------------
 
     /// Pick a random pending task for `wallet_idx` and execute it.
-    async fn execute_one_task(
-        &self,
-        wallet_idx: usize,
-        today: &str,
-        _worker_id: usize,
-    ) -> TaskOutcome {
+    async fn execute_one_task(&self, wallet_idx: usize, today: &str, _worker_id: usize) -> TaskOutcome {
         let wallet_addr = &self.wallet_addresses[wallet_idx];
 
         // Get completion counts for this wallet today
@@ -639,7 +629,7 @@ impl DailyRunner {
                     count: 0,
                     limit: 0,
                 };
-            }
+            },
         };
 
         // Select proxy first — so LIMIT logs show real P:xxx
@@ -683,27 +673,36 @@ impl DailyRunner {
                     count: current_count,
                     limit: current_limit,
                 };
-            }
+            },
         };
 
         // Rate-limit proxy
         if let Some(ref proxy) = proxy_config {
-            self.proxy_rate_limiter
-                .wait_until_available(&proxy.url)
-                .await;
+            self.proxy_rate_limiter.wait_until_available(&proxy.url).await;
         }
 
         // Determine if this is a base-chain task (bridge-back)
         let is_base = task_name == "16_bridgeBackTplus" || task_name == "17_bridgeBackCplus";
 
         let rpc_url = if is_base {
-            self.base_rpc_url.as_deref().unwrap_or(&self.config.rpc_url)
+            self.base_rpc_url.clone().unwrap_or_else(|| self.config.get_rpc_url())
         } else {
-            &self.config.rpc_url
+            self.config.get_rpc_url()
         };
 
         // Create RPC provider
-        let provider = self.create_provider(&proxy_config, rpc_url).await;
+        let provider = match self.create_provider(&proxy_config, &rpc_url).await {
+            Ok(p) => p,
+            Err(e) => {
+                return TaskOutcome::Retry {
+                    task_name: task_name.to_string(),
+                    message: format!("Provider creation failed: {}", e),
+                    proxy_id: proxy_id.clone(),
+                    count: current_count,
+                    limit: current_limit,
+                };
+            },
+        };
 
         // Decrypt wallet
         let wallet = match self
@@ -720,10 +719,7 @@ impl DailyRunner {
                 } else {
                     self.config.chain_id
                 };
-                match decrypted
-                    .evm_private_key
-                    .parse::<ethers::signers::LocalWallet>()
-                {
+                match decrypted.evm_private_key.parse::<ethers::signers::LocalWallet>() {
                     Ok(w) => w.with_chain_id(chain_id),
                     Err(e) => {
                         return TaskOutcome::Retry {
@@ -733,9 +729,9 @@ impl DailyRunner {
                             count: current_count,
                             limit: current_limit,
                         };
-                    }
+                    },
                 }
-            }
+            },
             Err(e) => {
                 return TaskOutcome::Retry {
                     task_name: task_name.to_string(),
@@ -744,15 +740,12 @@ impl DailyRunner {
                     count: current_count,
                     limit: current_limit,
                 };
-            }
+            },
         };
 
         // Pick the right gas manager
         let ctx_gas = if is_base {
-            self.base_gas_manager
-                .as_ref()
-                .unwrap_or(&self.gas_manager)
-                .clone()
+            self.base_gas_manager.as_ref().unwrap_or(&self.gas_manager).clone()
         } else {
             self.gas_manager.clone()
         };
@@ -773,10 +766,20 @@ impl DailyRunner {
         };
 
         // Execute the task with a timeout so RPC hangs don't stall the wallet
-        let task_timeout = self.config.task_timeout_secs.unwrap_or(120).max(1);
+        let default_timeout = self.config.task_timeout_secs.unwrap_or(120).max(1);
+        let task_timeout = self
+            .config
+            .task_timeouts
+            .as_ref()
+            .and_then(|overrides| {
+                overrides
+                    .iter()
+                    .find(|(k, _)| k.eq_ignore_ascii_case(task_name))
+                    .map(|(_, &v)| v.max(1))
+            })
+            .unwrap_or(default_timeout);
         let start = std::time::Instant::now();
-        let run_result =
-            tokio::time::timeout(Duration::from_secs(task_timeout), task.run(ctx)).await;
+        let run_result = tokio::time::timeout(Duration::from_secs(task_timeout), task.run(ctx)).await;
 
         match run_result {
             Ok(Ok(result)) => {
@@ -794,7 +797,14 @@ impl DailyRunner {
                 let msg = format!("{} ({:.1}s)", result.message, elapsed.as_secs_f64());
                 if let Err(e) = self
                     .db
-                    .record_task_completion(wallet_addr, task_name, today, result.success, &msg)
+                    .log_task_result(
+                        &format!("{:03}", _worker_id),
+                        wallet_addr,
+                        task_name,
+                        result.success,
+                        &msg,
+                        elapsed.as_millis() as u64,
+                    )
                     .await
                 {
                     warn!("Failed to record task completion: {}", e);
@@ -817,7 +827,7 @@ impl DailyRunner {
                         limit: current_limit,
                     }
                 }
-            }
+            },
             Ok(Err(e)) => {
                 let elapsed = start.elapsed();
 
@@ -829,7 +839,14 @@ impl DailyRunner {
                 let msg = format!("{} ({:.1}s)", e, elapsed.as_secs_f64());
                 if let Err(log_err) = self
                     .db
-                    .record_task_completion(wallet_addr, task_name, today, false, &msg)
+                    .log_task_result(
+                        &format!("{:03}", _worker_id),
+                        wallet_addr,
+                        task_name,
+                        false,
+                        &msg,
+                        elapsed.as_millis() as u64,
+                    )
                     .await
                 {
                     warn!("Failed to record task failure: {}", log_err);
@@ -842,7 +859,7 @@ impl DailyRunner {
                     count: current_count,
                     limit: current_limit,
                 }
-            }
+            },
             Err(_) => {
                 let elapsed = start.elapsed();
 
@@ -857,7 +874,14 @@ impl DailyRunner {
                 );
                 if let Err(log_err) = self
                     .db
-                    .record_task_completion(wallet_addr, task_name, today, false, &msg)
+                    .log_task_result(
+                        &format!("{:03}", _worker_id),
+                        wallet_addr,
+                        task_name,
+                        false,
+                        &msg,
+                        elapsed.as_millis() as u64,
+                    )
                     .await
                 {
                     warn!("Failed to record task failure: {}", log_err);
@@ -870,7 +894,7 @@ impl DailyRunner {
                     count: current_count,
                     limit: current_limit,
                 }
-            }
+            },
         }
     }
 
@@ -907,16 +931,26 @@ impl DailyRunner {
         &self,
         proxy_config: &Option<ProxyConfig>,
         rpc_url: &str,
-    ) -> ethers::providers::Provider<ethers::providers::Http> {
+    ) -> Result<ethers::providers::Provider<ethers::providers::Http>> {
+        use anyhow::Context;
+
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            ),
+            reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
+        );
+        headers.insert(
+            reqwest::header::ORIGIN,
+            reqwest::header::HeaderValue::from_static("https://sepolia.etherscan.io"),
+        );
+        headers.insert(
+            reqwest::header::REFERER,
+            reqwest::header::HeaderValue::from_static("https://sepolia.etherscan.io"),
         );
 
-        let mut builder = reqwest::Client::builder().default_headers(headers);
+        let mut builder = reqwest::Client::builder()
+            .default_headers(headers)
+            .timeout(std::time::Duration::from_secs(30));
 
         if let Some(proxy_conf) = proxy_config {
             if let Ok(mut proxy) = reqwest::Proxy::all(&proxy_conf.url) {
@@ -927,11 +961,9 @@ impl DailyRunner {
             }
         }
 
-        let client = builder.build().expect("Failed to build HTTP client");
-        ethers::providers::Provider::new(ethers::providers::Http::new_with_client(
-            reqwest::Url::parse(rpc_url).expect("Invalid RPC URL"),
-            client,
-        ))
+        let client = builder.build().context("Failed to build HTTP client")?;
+        let url = reqwest::Url::parse(rpc_url).context("Invalid RPC URL")?;
+        Ok(ethers::providers::Provider::new(ethers::providers::Http::new_with_client(url, client)))
     }
 }
 
@@ -1037,8 +1069,8 @@ mod tests {
     fn test_all_task_names_count() {
         assert_eq!(
             ALL_TASK_NAMES.len(),
-            DailyDb::TASKS_PER_WALLET,
-            "ALL_TASK_NAMES must match TASKS_PER_WALLET"
+            20,
+            "ALL_TASK_NAMES must match expected count"
         );
     }
 
@@ -1214,18 +1246,12 @@ mod tests {
 
     #[test]
     fn test_wallet_all_zero_limits_reports_no_remaining() {
-        let limits: HashMap<String, u32> = ALL_TASK_NAMES
-            .iter()
-            .map(|t| (t.to_string(), 0u32))
-            .collect();
+        let limits: HashMap<String, u32> = ALL_TASK_NAMES.iter().map(|t| (t.to_string(), 0u32)).collect();
         let counts = HashMap::new();
 
         assert!(!wallet_has_remaining(&counts, &limits));
         let remaining = get_remaining_tasks(&counts, &limits);
-        assert!(
-            remaining.is_empty(),
-            "all-zero limits should produce empty pending"
-        );
+        assert!(remaining.is_empty(), "all-zero limits should produce empty pending");
     }
 
     #[test]
@@ -1245,10 +1271,7 @@ mod tests {
 
     #[test]
     fn test_wallet_usage_pct_all_zero_limits_returns_zero() {
-        let limits: HashMap<String, u32> = ALL_TASK_NAMES
-            .iter()
-            .map(|t| (t.to_string(), 0u32))
-            .collect();
+        let limits: HashMap<String, u32> = ALL_TASK_NAMES.iter().map(|t| (t.to_string(), 0u32)).collect();
         let counts = HashMap::new();
 
         let pct = wallet_usage_pct(&counts, &limits);
@@ -1364,9 +1387,7 @@ mod tests {
     fn test_all_task_names_prefix_format() {
         for name in ALL_TASK_NAMES {
             assert!(name.len() >= 3, "Task '{}' too short", name);
-            let _: u32 = name[..2]
-                .parse()
-                .expect("Task should start with 2-digit number");
+            let _: u32 = name[..2].parse().expect("Task should start with 2-digit number");
             assert_eq!(
                 name.as_bytes()[2],
                 b'_',
@@ -1402,16 +1423,11 @@ mod tests {
     // ---- Integration: DB + limit helpers ----
 
     /// Helper: create an in-memory DB.
-    async fn setup_test_db() -> DailyDb {
-        let pool = sqlx::sqlite::SqlitePoolOptions::new()
-            .max_connections(5)
-            .connect("sqlite::memory:")
-            .await
-            .expect("Failed to create in-memory database");
-
-        let db = database::DailyDb { pool };
-        db.init_schema().await.expect("Failed to init schema");
-        db
+    async fn setup_test_db() -> Arc<DatabaseManager> {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.expect("Failed to create test database");
+        Arc::new(db)
     }
 
     #[tokio::test]
@@ -1422,14 +1438,14 @@ mod tests {
 
         // Wallet 0: 3/19 tasks done
         for i in 0..3 {
-            db.record_task_completion("0xalice", ALL_TASK_NAMES[i], &date, true, "ok")
+            db.log_task_result("WK", "0xalice", ALL_TASK_NAMES[i], true, "ok", 0)
                 .await
                 .unwrap();
         }
         // Wallet 1: 0/20 done
         // Wallet 2: all 20/20 done (with limit=1 each)
         for i in 0..20 {
-            db.record_task_completion("0xcharlie", ALL_TASK_NAMES[i], &date, true, "ok")
+            db.log_task_result("WK", "0xcharlie", ALL_TASK_NAMES[i], true, "ok", 0)
                 .await
                 .unwrap();
         }
@@ -1467,7 +1483,7 @@ mod tests {
 
         // Complete 5 tasks for wallet 0
         for i in 0..5 {
-            db.record_task_completion("0xalice", ALL_TASK_NAMES[i], &date, true, "ok")
+            db.log_task_result("WK", "0xalice", ALL_TASK_NAMES[i], true, "ok", 0)
                 .await
                 .unwrap();
         }
@@ -1491,15 +1507,12 @@ mod tests {
         let limits = HashMap::new();
 
         // Record a FAILED attempt for task "01_checkBalance"
-        db.record_task_completion("0xalice", "01_checkBalance", &date, false, "error")
+        db.log_task_result("WK", "0xalice", "01_checkBalance", false, "error", 0)
             .await
             .unwrap();
 
         let counts = db.get_completed_counts("0xalice", &date).await.unwrap();
-        assert!(
-            counts.is_empty(),
-            "Failed task should not appear in completed counts"
-        );
+        assert!(counts.is_empty(), "Failed task should not appear in completed counts");
 
         // Pending should still include the task
         let pending = get_remaining_tasks(&counts, &limits);
@@ -1515,12 +1528,12 @@ mod tests {
 
         // 2 failures then 3 successes
         for _ in 0..2 {
-            db.record_task_completion("0xalice", "01_checkBalance", &date, false, "fail")
+            db.log_task_result("WK", "0xalice", "01_checkBalance", false, "fail", 0)
                 .await
                 .unwrap();
         }
         for _ in 0..3 {
-            db.record_task_completion("0xalice", "01_checkBalance", &date, true, "ok")
+            db.log_task_result("WK", "0xalice", "01_checkBalance", true, "ok", 0)
                 .await
                 .unwrap();
         }
@@ -1548,7 +1561,7 @@ mod tests {
 
         // Run checkBalance 7 times successfully
         for _ in 0..7 {
-            db.record_task_completion("0xalice", "01_checkBalance", &date, true, "ok")
+            db.log_task_result("WK", "0xalice", "01_checkBalance", true, "ok", 0)
                 .await
                 .unwrap();
         }
@@ -1580,7 +1593,7 @@ mod tests {
 
         // ---- Phase 1: Fill checkBalance to its limit of 5 ----
         for i in 0..5 {
-            db.record_task_completion(wallet, "01_checkBalance", &date, true, "ok")
+            db.log_task_result("WK", wallet, "01_checkBalance", true, "ok", 0)
                 .await
                 .unwrap();
 
@@ -1622,7 +1635,7 @@ mod tests {
 
         // ---- Phase 2: Fill mintUsdtPlus to its limit of 3 ----
         for i in 0..3 {
-            db.record_task_completion(wallet, "02_mintUsdtPlus", &date, true, "ok")
+            db.log_task_result("WK", wallet, "02_mintUsdtPlus", true, "ok", 0)
                 .await
                 .unwrap();
 
@@ -1643,7 +1656,7 @@ mod tests {
 
         // ---- Phase 3: Fill mintUsdcPlus to its limit of 2 ----
         for i in 0..2 {
-            db.record_task_completion(wallet, "03_mintUsdcPlus", &date, true, "ok")
+            db.log_task_result("WK", wallet, "03_mintUsdcPlus", true, "ok", 0)
                 .await
                 .unwrap();
 
@@ -1665,14 +1678,12 @@ mod tests {
         // ---- Phase 4: Complete all remaining tasks (14 x limit=1) ----
         let remaining_tasks: Vec<&&str> = ALL_TASK_NAMES
             .iter()
-            .filter(|t| {
-                **t != "01_checkBalance" && **t != "02_mintUsdtPlus" && **t != "03_mintUsdcPlus"
-            })
+            .filter(|t| **t != "01_checkBalance" && **t != "02_mintUsdtPlus" && **t != "03_mintUsdcPlus")
             .collect();
         assert_eq!(remaining_tasks.len(), 17, "17 remaining tasks expected");
 
         for task in &remaining_tasks {
-            db.record_task_completion(wallet, task, &date, true, "ok")
+            db.log_task_result("WK", wallet, task, true, "ok", 0)
                 .await
                 .unwrap();
         }
@@ -1709,7 +1720,8 @@ mod tests {
         }
 
         // ---- Verify total completions ----
-        let total = db.get_total_completed(wallet, &date).await.unwrap();
+        let counts_total = db.get_completed_counts(wallet, &date).await.unwrap();
+        let total: usize = counts_total.values().sum();
         assert_eq!(total, 27, "Total completions = 5 + 3 + 2 + (17 x 1) = 27");
     }
 
@@ -1719,6 +1731,8 @@ mod tests {
 
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -1751,10 +1765,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -1783,6 +1794,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -1812,10 +1825,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -1832,10 +1842,7 @@ mod tests {
 
         // Empty pool should return None
         let (proxy, id) = runner.select_proxy().await;
-        assert!(
-            proxy.is_none(),
-            "No proxy should be selected from empty pool"
-        );
+        assert!(proxy.is_none(), "No proxy should be selected from empty pool");
         assert_eq!(id, "000");
     }
 
@@ -1844,6 +1851,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -1885,10 +1894,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -1904,10 +1910,7 @@ mod tests {
         };
 
         let (proxy, id) = runner.select_proxy().await;
-        assert!(
-            proxy.is_none(),
-            "No proxy should be selected when all unhealthy"
-        );
+        assert!(proxy.is_none(), "No proxy should be selected when all unhealthy");
         assert_eq!(id, "000");
     }
 
@@ -1917,6 +1920,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -1948,10 +1953,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -2026,9 +2028,7 @@ mod tests {
                     // 1. Pick random non-busy wallet
                     let wallet_idx = {
                         let mut busy_set = busy.lock().await;
-                        let available: Vec<usize> = (0..wallets.len())
-                            .filter(|w| !busy_set.contains(w))
-                            .collect();
+                        let available: Vec<usize> = (0..wallets.len()).filter(|w| !busy_set.contains(w)).collect();
                         if available.is_empty() {
                             drop(busy_set);
                             sleep(Duration::from_millis(5)).await;
@@ -2052,7 +2052,7 @@ mod tests {
 
                     // 3. Pick random pending task and record completion
                     let task = remaining[rand::thread_rng().gen_range(0..remaining.len())];
-                    db.record_task_completion(wallet, task, &date, true, "stress")
+                    db.log_task_result("WK", wallet, task, true, "stress", 0)
                         .await
                         .unwrap();
 
@@ -2096,10 +2096,7 @@ mod tests {
                 .map(|t| counts.get(*t).copied().unwrap_or(0))
                 .sum();
 
-            let expected_max: usize = ALL_TASK_NAMES
-                .iter()
-                .map(|t| get_task_limit(&limits, t) as usize)
-                .sum();
+            let expected_max: usize = ALL_TASK_NAMES.iter().map(|t| get_task_limit(&limits, t) as usize).sum();
 
             assert!(
                 total <= expected_max,
@@ -2128,6 +2125,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -2159,10 +2158,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -2198,6 +2194,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -2230,10 +2228,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -2291,6 +2286,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -2320,10 +2317,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -2348,6 +2342,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -2377,10 +2373,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -2400,9 +2393,7 @@ mod tests {
             username: None,
             password: None,
         };
-        let provider = runner
-            .create_provider(&Some(proxy), "http://localhost:9999")
-            .await;
+        let provider = runner.create_provider(&Some(proxy), "http://localhost:9999").await;
         let _ = provider;
     }
 
@@ -2413,6 +2404,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -2459,10 +2452,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -2501,11 +2491,7 @@ mod tests {
     fn test_all_task_names_no_empty() {
         for name in ALL_TASK_NAMES {
             assert!(!name.is_empty(), "Task name should not be empty");
-            assert!(
-                !name.contains(' '),
-                "Task name '{}' should not contain spaces",
-                name
-            );
+            assert!(!name.contains(' '), "Task name '{}' should not contain spaces", name);
         }
     }
 
@@ -2514,6 +2500,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -2546,10 +2534,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -2649,10 +2634,7 @@ mod tests {
 
         // get_remaining_tasks should be empty
         let remaining = get_remaining_tasks(&all_counts, &all_limits);
-        assert!(
-            remaining.is_empty(),
-            "Expected no remaining tasks when all exceeded"
-        );
+        assert!(remaining.is_empty(), "Expected no remaining tasks when all exceeded");
     }
 
     #[tokio::test]
@@ -2661,6 +2643,8 @@ mod tests {
 
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -2693,10 +2677,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -2715,10 +2696,7 @@ mod tests {
         cancel_child.cancel();
 
         let result = runner.run(cancel_child).await;
-        assert!(
-            result.is_ok(),
-            "Runner should exit cleanly on immediate cancel"
-        );
+        assert!(result.is_ok(), "Runner should exit cleanly on immediate cancel");
         let stats = result.unwrap();
         assert_eq!(stats.total_attempts, 0);
     }
@@ -2743,6 +2721,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -2772,10 +2752,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -2796,9 +2773,7 @@ mod tests {
             username: Some("myuser".into()),
             password: Some("mypassword".into()),
         };
-        let provider = runner
-            .create_provider(&Some(proxy), "http://localhost:9999")
-            .await;
+        let provider = runner.create_provider(&Some(proxy), "http://localhost:9999").await;
         let _ = provider;
     }
 
@@ -2811,11 +2786,7 @@ mod tests {
         for t in &tasks {
             let name = t.name();
             assert!(!name.is_empty(), "Task name must not be empty");
-            assert!(
-                name.len() >= 3,
-                "Task name '{}' too short for 'XX_' prefix",
-                name
-            );
+            assert!(name.len() >= 3, "Task name '{}' too short for 'XX_' prefix", name);
             assert!(
                 name.chars().take(2).all(|c| c.is_ascii_digit()),
                 "Task name '{}' must start with 2 digits",
@@ -2867,12 +2838,7 @@ mod tests {
         let limits = HashMap::new();
         let pct = wallet_usage_pct(&counts, &limits);
         let expected = 8.0 / 20.0 * 100.0;
-        assert!(
-            (pct - expected).abs() < 0.5,
-            "Expected ~{:.1}%, got {}",
-            expected,
-            pct
-        );
+        assert!((pct - expected).abs() < 0.5, "Expected ~{:.1}%, got {}", expected, pct);
     }
 
     #[test]
@@ -2916,6 +2882,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -2945,10 +2913,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),
@@ -2977,6 +2942,8 @@ mod tests {
         let db = setup_test_db().await;
         let config = SepoliaConfig {
             rpc_url: "http://localhost:9999".into(),
+            rpc_urls: vec![],
+            task_timeouts: None,
             chain_id: 11155111,
             explorer: "https://sepolia.etherscan.io".into(),
             symbol: "ETH".into(),
@@ -3006,10 +2973,7 @@ mod tests {
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
-                    ethers::providers::Provider::<ethers::providers::Http>::try_from(
-                        "http://localhost:9999",
-                    )
-                    .unwrap(),
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
                 ),
                 0.01,
             )),

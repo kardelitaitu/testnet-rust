@@ -61,10 +61,7 @@ impl Task<TaskContext> for Erc1155TransferTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
@@ -73,16 +70,10 @@ impl Task<TaskContext> for Erc1155TransferTask {
             match db.get_all_assets_by_type("ERC1155").await {
                 Ok(contracts) if !contracts.is_empty() => {
                     // Use existing contract
-                    let addr_str = contracts
-                        .choose(&mut rng)
-                        .context("Failed to pick contract")?;
+                    let addr_str = contracts.choose(&mut rng).context("Failed to pick contract")?;
                     debug!("Using existing ERC1155: {}", addr_str);
-                    Some(
-                        addr_str
-                            .parse::<Address>()
-                            .context("Invalid address in DB")?,
-                    )
-                }
+                    Some(addr_str.parse::<Address>().context("Invalid address in DB")?)
+                },
                 _ => None,
             }
         } else {
@@ -117,9 +108,7 @@ impl Task<TaskContext> for Erc1155TransferTask {
                         let tx_hash = format!("{:?}", pending.tx_hash());
                         match timeout(Duration::from_secs(90), pending).await {
                             Ok(Ok(Some(receipt))) if receipt.status == Some(U64::from(1)) => {
-                                let addr = receipt
-                                    .contract_address
-                                    .context("No contract address in receipt")?;
+                                let addr = receipt.contract_address.context("No contract address in receipt")?;
                                 // Save to DB
                                 if let Some(db) = &ctx.db {
                                     let _ = db
@@ -133,7 +122,7 @@ impl Task<TaskContext> for Erc1155TransferTask {
                                         .await;
                                 }
                                 addr
-                            }
+                            },
                             Ok(Ok(Some(_))) => {
                                 let _ = nonce_manager.resync().await;
                                 return Ok(TaskResult {
@@ -141,7 +130,7 @@ impl Task<TaskContext> for Erc1155TransferTask {
                                     message: format!("ERC1155 deploy reverted (tx: {})", tx_hash),
                                     tx_hash: Some(tx_hash),
                                 });
-                            }
+                            },
                             Ok(Ok(None)) | Err(_) => {
                                 let _ = nonce_manager.resync().await;
                                 return Ok(TaskResult {
@@ -149,20 +138,17 @@ impl Task<TaskContext> for Erc1155TransferTask {
                                     message: format!("ERC1155 deploy timed out (tx: {})", tx_hash),
                                     tx_hash: Some(tx_hash),
                                 });
-                            }
+                            },
                             Ok(Err(e)) => {
                                 let _ = nonce_manager.resync().await;
                                 return Ok(TaskResult {
                                     success: false,
-                                    message: format!(
-                                        "ERC1155 deploy receipt failed (tx: {}): {}",
-                                        tx_hash, e
-                                    ),
+                                    message: format!("ERC1155 deploy receipt failed (tx: {}): {}", tx_hash, e),
                                     tx_hash: Some(tx_hash),
                                 });
-                            }
+                            },
                         }
-                    }
+                    },
                     Err(e) => {
                         debug!("ERC1155 deploy submit failed, resyncing nonce: {}", e);
                         let _ = nonce_manager.resync().await;
@@ -171,9 +157,9 @@ impl Task<TaskContext> for Erc1155TransferTask {
                             message: format!("Failed to submit ERC1155 deploy tx: {}", e),
                             tx_hash: None,
                         });
-                    }
+                    },
                 }
-            }
+            },
         };
 
         debug!("Using ERC1155 at {:?}", contract_address);
@@ -183,12 +169,7 @@ impl Task<TaskContext> for Erc1155TransferTask {
         let mint_nonce = nonce_manager.next().await?;
         let mint_data = contract.encode(
             "mint",
-            (
-                address,
-                U256::from(token_id),
-                U256::from(amount),
-                Bytes::from(vec![]),
-            ),
+            (address, U256::from(token_id), U256::from(amount), Bytes::from(vec![])),
         )?;
 
         let mint_tx = TransactionRequest::new()
@@ -204,7 +185,7 @@ impl Task<TaskContext> for Erc1155TransferTask {
             Ok(pending) => {
                 let mint_tx_hash = format!("{:?}", pending.tx_hash());
                 match timeout(Duration::from_secs(90), pending).await {
-                    Ok(Ok(Some(receipt))) if receipt.status == Some(U64::from(1)) => {}
+                    Ok(Ok(Some(receipt))) if receipt.status == Some(U64::from(1)) => {},
                     Ok(Ok(Some(_))) => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -212,31 +193,25 @@ impl Task<TaskContext> for Erc1155TransferTask {
                             message: format!("ERC1155 mint reverted (tx: {})", mint_tx_hash),
                             tx_hash: Some(mint_tx_hash),
                         });
-                    }
+                    },
                     Ok(Ok(None)) | Err(_) => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
                             success: false,
-                            message: format!(
-                                "ERC1155 mint timed out or unavailable (tx: {})",
-                                mint_tx_hash
-                            ),
+                            message: format!("ERC1155 mint timed out or unavailable (tx: {})", mint_tx_hash),
                             tx_hash: Some(mint_tx_hash),
                         });
-                    }
+                    },
                     Ok(Err(e)) => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
                             success: false,
-                            message: format!(
-                                "ERC1155 mint receipt failed (tx: {}): {}",
-                                mint_tx_hash, e
-                            ),
+                            message: format!("ERC1155 mint receipt failed (tx: {}): {}", mint_tx_hash, e),
                             tx_hash: Some(mint_tx_hash),
                         });
-                    }
+                    },
                 }
-            }
+            },
             Err(e) => {
                 debug!("ERC1155 mint submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -245,7 +220,7 @@ impl Task<TaskContext> for Erc1155TransferTask {
                     message: format!("Failed to submit ERC1155 mint tx: {}", e),
                     tx_hash: None,
                 });
-            }
+            },
         }
 
         debug!("Minted {} tokens of id {} to self", amount, token_id);
@@ -290,7 +265,7 @@ impl Task<TaskContext> for Erc1155TransferTask {
                     message: format!("Failed to submit ERC1155 transfer tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

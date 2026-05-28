@@ -57,10 +57,7 @@ impl RpcManager {
             .build()
             .context("Failed to build HTTP client")?;
 
-        let endpoints: Vec<RpcEndpoint> = urls
-            .iter()
-            .map(|url| RpcEndpoint::new(url.clone(), chain_id))
-            .collect();
+        let endpoints: Vec<RpcEndpoint> = urls.iter().map(|url| RpcEndpoint::new(url.clone(), chain_id)).collect();
 
         Ok(Self {
             chain_id,
@@ -133,15 +130,9 @@ impl RpcManager {
             });
 
             if healthy {
-                debug!(
-                    "RPC {} is healthy (latency: {}ms)",
-                    endpoint.url, latency_ms
-                );
+                debug!("RPC {} is healthy (latency: {}ms)", endpoint.url, latency_ms);
             } else {
-                warn!(
-                    "RPC {} is unhealthy (latency: {}ms)",
-                    endpoint.url, latency_ms
-                );
+                warn!("RPC {} is unhealthy (latency: {}ms)", endpoint.url, latency_ms);
             }
         }
 
@@ -161,7 +152,7 @@ impl RpcManager {
             Err(e) => {
                 debug!("Health check failed for {}: {}", url, e);
                 false
-            }
+            },
         }
     }
 
@@ -305,13 +296,9 @@ mod tests {
             "http://medium.com".into(),
         ];
         let mgr = RpcManager::new(1, &urls).unwrap();
-        mgr.endpoints[0]
-            .last_latency_ms
-            .store(500, Ordering::SeqCst);
+        mgr.endpoints[0].last_latency_ms.store(500, Ordering::SeqCst);
         mgr.endpoints[1].last_latency_ms.store(50, Ordering::SeqCst);
-        mgr.endpoints[2]
-            .last_latency_ms
-            .store(200, Ordering::SeqCst);
+        mgr.endpoints[2].last_latency_ms.store(200, Ordering::SeqCst);
         let best = mgr.get_best_endpoint().unwrap();
         assert_eq!(best.url, "http://fast.com");
     }
@@ -322,9 +309,7 @@ mod tests {
         let mgr = RpcManager::new(1, &urls).unwrap();
         mgr.endpoints[0].last_latency_ms.store(10, Ordering::SeqCst);
         mgr.endpoints[0].healthy.store(false, Ordering::SeqCst);
-        mgr.endpoints[1]
-            .last_latency_ms
-            .store(300, Ordering::SeqCst);
+        mgr.endpoints[1].last_latency_ms.store(300, Ordering::SeqCst);
         let best = mgr.get_best_endpoint().unwrap();
         assert_eq!(best.url, "http://slow.com");
     }
@@ -332,9 +317,7 @@ mod tests {
     #[test]
     fn test_get_best_endpoint_with_single_healthy() {
         let mgr = RpcManager::new(1, &["http://only.com".into()]).unwrap();
-        mgr.endpoints[0]
-            .last_latency_ms
-            .store(100, Ordering::SeqCst);
+        mgr.endpoints[0].last_latency_ms.store(100, Ordering::SeqCst);
         let best = mgr.get_best_endpoint().unwrap();
         assert_eq!(best.url, "http://only.com");
     }
@@ -355,11 +338,7 @@ mod tests {
 
     #[test]
     fn test_healthy_count_all_healthy_returns_count() {
-        let urls = vec![
-            "http://a.com".into(),
-            "http://b.com".into(),
-            "http://c.com".into(),
-        ];
+        let urls = vec!["http://a.com".into(), "http://b.com".into(), "http://c.com".into()];
         let mgr = RpcManager::new(1, &urls).unwrap();
         assert_eq!(mgr.healthy_count(), 3);
     }

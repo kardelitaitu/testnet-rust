@@ -27,44 +27,44 @@ pub(crate) mod utils;
 // Selective exports - only public API types
 pub use config::{ChainConfig, ProxyConfig, SpamConfig, WalletSource};
 pub use database::{
-    AsyncDbConfig, DatabaseManager, DbMetrics, DbMetricsSnapshot, DexOrder, FallbackStrategy,
-    QueuedTaskResult, TaskMetricBatchItem,
+    AsyncDbConfig, DatabaseManager, DbMetrics, DbMetricsSnapshot, DexOrder, FallbackStrategy, QueuedTaskResult,
+    TaskMetricBatchItem,
 };
 pub use error::{ConfigError, CoreError, DatabaseError, NetworkError, SecurityError, WalletError};
 pub use metrics::{MetricsCollector, MetricsSnapshot};
 pub use security::SecurityUtils;
 pub use templates::{
-    ChainBuilder, ChainSpammer, EvmChainAdapter, GasEstimator, RpcProvider, SpammerConfig,
-    SpammerResult, TransactionSigner,
+    ChainBuilder, ChainSpammer, EvmChainAdapter, GasEstimator, RpcProvider, SpammerConfig, SpammerResult,
+    TransactionSigner,
 };
 pub use traits::{Spammer as SpammerTrait, SpammerStats, Task, TaskResult, WalletLoader};
 
 // Utils are pub(crate) - only export specific public utilities
 pub use utils::{
-    generate_random_address, setup_logger, ExplorerGasSnapshot, ExplorerGasTracker,
-    ExplorerGasTrackerPayload, GasConfig, ProxyHealthManager, ProxyManager, ProxyRateLimiter,
-    RpcManager, WalletManager, ChainType, WorkerRunner,
+    generate_random_address, setup_logger, ChainType, ExplorerGasSnapshot, ExplorerGasTracker,
+    ExplorerGasTrackerPayload, GasConfig, ProxyHealthManager, ProxyManager, ProxyRateLimiter, RpcManager,
+    WalletManager, WorkerRunner,
 };
 
 // Export memory optimization utilities
 pub use utils::memory_monitor::{
-    get_memory_report, init_memory_monitoring, sample_memory_usage, MemoryMonitor,
-    MemoryMonitorConfig, MemoryStats, MemoryTrend,
+    get_memory_report, init_memory_monitoring, sample_memory_usage, MemoryMonitor, MemoryMonitorConfig, MemoryStats,
+    MemoryTrend,
 };
 pub use utils::memory_optimized_logger::{
-    setup_memory_optimized_logger, MemoryOptimizedFileAppender, MemoryOptimizedLayer,
-    MemoryOptimizedLoggerConfig,
+    setup_memory_optimized_logger, MemoryOptimizedFileAppender, MemoryOptimizedLayer, MemoryOptimizedLoggerConfig,
 };
 pub use utils::memory_optimizer::{
-    get_memory_status, init_memory_optimization, perform_memory_cleanup,
-    register_memory_cleanup_hook, MemoryOptimizer, MemoryOptimizerConfig,
+    get_memory_status, init_memory_optimization, perform_memory_cleanup, register_memory_cleanup_hook, MemoryOptimizer,
+    MemoryOptimizerConfig,
 };
 
 // Export retry and rate-limiter utilities for testing
-pub use utils::{
-    is_transient_error, with_retry, CircuitBreaker, CircuitBreakerConfig, RetryConfig,
-    TokenBucket,
-};
+pub use utils::{is_transient_error, with_retry, CircuitBreaker, CircuitBreakerConfig, RetryConfig, TokenBucket};
+
+// Export macros
+// Macros annotated with #[macro_export] are automatically exported at the crate root
+pub use utils::logger::now_hms;
 
 /// Log an error message and immediately exit the process with code 1.
 ///

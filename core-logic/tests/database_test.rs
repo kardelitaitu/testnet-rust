@@ -21,20 +21,11 @@ async fn test_database_manager_log_task_result() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
 
     // Log a task result
     let result = db
-        .log_task_result(
-            "wallet_1",
-            "0xabc",
-            "checkBalance",
-            true,
-            "Balance: 1.0 ETH",
-            100,
-        )
+        .log_task_result("wallet_1", "0xabc", "checkBalance", true, "Balance: 1.0 ETH", 100)
         .await;
     assert!(result.is_ok());
 
@@ -48,9 +39,7 @@ async fn test_database_manager_log_success_and_failure() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
 
     // Log a success
     db.log_task_result("w1", "0xaaa", "task1", true, "ok", 100)
@@ -71,13 +60,9 @@ async fn test_database_manager_rejects_empty_wallet_id() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
 
-    let result = db
-        .log_task_result("", "0xabc", "task1", true, "msg", 100)
-        .await;
+    let result = db.log_task_result("", "0xabc", "task1", true, "msg", 100).await;
     // Should handle empty wallet ID gracefully (may succeed or fail)
     // Just verify no panic
     let _ = result;
@@ -92,25 +77,14 @@ async fn test_database_manager_concurrent_writes() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
 
-    let db = std::sync::Arc::new(
-        DatabaseManager::new(db_path.to_str().unwrap())
-            .await
-            .unwrap(),
-    );
+    let db = std::sync::Arc::new(DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap());
 
     let mut handles = Vec::new();
     for i in 0..5 {
         let db_clone = db.clone();
         handles.push(tokio::spawn(async move {
             db_clone
-                .log_task_result(
-                    &format!("w{}", i),
-                    &format!("0x{:03x}", i),
-                    "task",
-                    true,
-                    "msg",
-                    i * 10,
-                )
+                .log_task_result(&format!("w{}", i), &format!("0x{:03x}", i), "task", true, "msg", i * 10)
                 .await
         }));
     }
@@ -135,13 +109,9 @@ async fn test_new_with_async_queues_and_flushes() {
         batch_size: 10,
         flush_interval_ms: 50,
     };
-    let db = DatabaseManager::new_with_async(
-        db_path.to_str().unwrap(),
-        config,
-        FallbackStrategy::Drop,
-    )
-    .await
-    .unwrap();
+    let db = DatabaseManager::new_with_async(db_path.to_str().unwrap(), config, FallbackStrategy::Drop)
+        .await
+        .unwrap();
 
     // Queue several results
     for i in 0..5 {
@@ -176,13 +146,9 @@ async fn test_new_with_async_channel_full_fallback() {
         batch_size: 10,
         flush_interval_ms: 5000, // long interval so channel doesn't drain during test
     };
-    let db = DatabaseManager::new_with_async(
-        db_path.to_str().unwrap(),
-        config,
-        FallbackStrategy::Hybrid,
-    )
-    .await
-    .unwrap();
+    let db = DatabaseManager::new_with_async(db_path.to_str().unwrap(), config, FallbackStrategy::Hybrid)
+        .await
+        .unwrap();
 
     // Fill the channel
     for i in 0..2 {

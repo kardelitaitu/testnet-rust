@@ -36,16 +36,14 @@ impl GasManager {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Failed to get latest block"))?;
 
-        let base_fee = block
-            .base_fee_per_gas
-            .unwrap_or_else(|| U256::from(1000000000u64)); // Default 1 Gwei
+        let base_fee = block.base_fee_per_gas.unwrap_or_else(|| U256::from(1000000000u64)); // Default 1 Gwei
 
         let (mut est_max, mut est_prio) = match self.provider.estimate_eip1559_fees(None).await {
             Ok(fees) => fees,
             Err(_) => {
                 let prio: U256 = parse_units(self.config.priority_gwei(), "gwei")?;
                 (base_fee + prio, prio)
-            }
+            },
         };
 
         let config_max: U256 = parse_units(self.config.max_gwei(), "gwei")?;

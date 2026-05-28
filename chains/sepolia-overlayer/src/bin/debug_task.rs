@@ -8,15 +8,13 @@ use sepolia_overlayer::task::{
     t01_check_balance::SepoliaCheckBalanceTask, t02_mint_usdt_plus::MintUsdtPlusTask,
     t03_mint_usdc_plus::MintUsdcPlusTask, t04_redeem_usdt_plus::RedeemUsdtPlusTask,
     t05_redeem_usdc_plus::RedeemUsdcPlusTask, t06_stake_usdt_plus::StakeUsdtPlusTask,
-    t07_stake_usdc_plus::StakeUsdcPlusTask, t08_unstake_tplus::UnstakeTplusTask,
-    t09_unstake_cplus::UnstakeCplusTask, t10_aave_usdt_faucet::AaveUsdtFaucetTask,
-    t11_aave_usdc_faucet::AaveUsdcFaucetTask, t12_bridge_tplus::BridgeTplusTask,
-    t13_bridge_cplus::BridgeCplusTask, t14_send_random_usdt_plus::SendRandomUsdtPlusTask,
-    t15_send_random_usdc_plus::SendRandomUsdcPlusTask, t16_bridge_back_tplus::BridgeBackTplusTask,
-    t17_bridge_back_cplus::BridgeBackCplusTask, t18_receive_tplus::ReceiveTplusTask,
-    t19_receive_cplus::ReceiveCplusTask, t20_aave_wbtc_faucet::AaveWbtcFaucetTask,
-    t21_redeem_to_ausdt::RedeemToAusdtTask, t22_redeem_to_ausdc::RedeemToAusdcTask, SepoliaTask,
-    TaskContext,
+    t07_stake_usdc_plus::StakeUsdcPlusTask, t08_unstake_tplus::UnstakeTplusTask, t09_unstake_cplus::UnstakeCplusTask,
+    t10_aave_usdt_faucet::AaveUsdtFaucetTask, t11_aave_usdc_faucet::AaveUsdcFaucetTask,
+    t12_bridge_tplus::BridgeTplusTask, t13_bridge_cplus::BridgeCplusTask,
+    t14_send_random_usdt_plus::SendRandomUsdtPlusTask, t15_send_random_usdc_plus::SendRandomUsdcPlusTask,
+    t16_bridge_back_tplus::BridgeBackTplusTask, t17_bridge_back_cplus::BridgeBackCplusTask,
+    t18_receive_tplus::ReceiveTplusTask, t19_receive_cplus::ReceiveCplusTask, t20_aave_wbtc_faucet::AaveWbtcFaucetTask,
+    t21_redeem_to_ausdt::RedeemToAusdtTask, t22_redeem_to_ausdc::RedeemToAusdcTask, SepoliaTask, TaskContext,
 };
 use std::env;
 use std::path::Path;
@@ -45,10 +43,10 @@ struct Args {
     #[arg(long)]
     no_proxy: bool,
 
-    #[arg(long, default_value_t = 0.01)]
+    #[arg(long, default_value_t = 1.0)]
     min_gwei: f64,
 
-    #[arg(long, default_value_t = 1.2)]
+    #[arg(long, default_value_t = 2.0)]
     max_gwei: f64,
 }
 
@@ -74,7 +72,7 @@ async fn main() -> Result<()> {
         Err(e) => {
             error!("Failed to load config: {}", e);
             return Ok(());
-        }
+        },
     };
     info!("Loaded config for chain ID: {}", cfg.chain_id);
 
@@ -90,11 +88,11 @@ async fn main() -> Result<()> {
             Ok(c) => {
                 info!("Loaded base config for chain ID: {}", c.chain_id);
                 (Some(c), true)
-            }
+            },
             Err(e) => {
                 error!("Failed to load base config: {}", e);
                 return Ok(());
-            }
+            },
         }
     } else {
         (None, false)
@@ -168,18 +166,13 @@ async fn main() -> Result<()> {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::USER_AGENT,
-        reqwest::header::HeaderValue::from_static(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        ),
+        reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
     );
     let client_builder = reqwest::Client::builder()
         .default_headers(headers)
         .timeout(std::time::Duration::from_secs(30));
     let client = if let Some(ref proxy_str) = proxy_url {
-        println!(
-            "Using proxy: {}",
-            proxy_str.split('@').next_back().unwrap_or("...")
-        );
+        println!("Using proxy: {}", proxy_str.split('@').next_back().unwrap_or("..."));
         match reqwest::Proxy::all(proxy_str) {
             Ok(p) => client_builder.proxy(p).build().unwrap_or_default(),
             Err(_) => client_builder.build().unwrap_or_default(),
@@ -227,10 +220,7 @@ async fn main() -> Result<()> {
         {
             pos
         } else if t_id < tasks.len() {
-            println!(
-                "??  Warning: Task ID {} not found by name, using index {}",
-                t_id, t_id
-            );
+            println!("??  Warning: Task ID {} not found by name, using index {}", t_id, t_id);
             t_id
         } else {
             error!("Invalid task ID: {}", t_id);
@@ -282,10 +272,10 @@ async fn main() -> Result<()> {
                 println!("\n? Failed:");
                 println!("{}", res.message);
             }
-        }
+        },
         Err(e) => {
             println!("\n?? Task Error: {:?}", e);
-        }
+        },
     }
     println!("\n? Duration: {:?}", start.elapsed());
 

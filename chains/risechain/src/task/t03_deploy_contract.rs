@@ -25,10 +25,7 @@ impl Task<TaskContext> for DeployContractTask {
         if balance < required {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Insufficient funds: have {} wei, want {} wei",
-                    balance, required
-                ),
+                message: format!("Insufficient funds: have {} wei, want {} wei", balance, required),
                 tx_hash: None,
             });
         }
@@ -71,7 +68,7 @@ impl Task<TaskContext> for DeployContractTask {
                         tx_hash: Some(format!("{:?}", r.transaction_hash)),
                     })
                 }
-            }
+            },
             None => Ok(TaskResult {
                 success: false,
                 message: "Transaction dropped".into(),

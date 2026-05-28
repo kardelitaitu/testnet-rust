@@ -68,10 +68,7 @@ async fn main() -> Result<()> {
     };
 
     let config = TempoSpammerConfig::from_path(&config_path).context("Failed to load config")?;
-    println!(
-        "Loaded config: {} (chain {})",
-        config.rpc_url, config.chain_id
-    );
+    println!("Loaded config: {} (chain {})", config.rpc_url, config.chain_id);
 
     // Load wallet with password handling
     let mut wallet_password = env::var("WALLET_PASSWORD").ok();
@@ -84,10 +81,7 @@ async fn main() -> Result<()> {
     }
 
     if args.wallet >= total_wallets {
-        println!(
-            "❌ Wallet {} not found (have {})",
-            args.wallet, total_wallets
-        );
+        println!("❌ Wallet {} not found (have {})", args.wallet, total_wallets);
         return Ok(());
     }
 
@@ -106,10 +100,7 @@ async fn main() -> Result<()> {
         wallet_password = Some(input);
 
         // Validate password works
-        if let Err(e) = wallet_manager
-            .get_wallet(args.wallet, wallet_password.as_deref())
-            .await
-        {
+        if let Err(e) = wallet_manager.get_wallet(args.wallet, wallet_password.as_deref()).await {
             println!("❌ Decryption failed even with provided password: {}", e);
             return Ok(());
         }
@@ -117,9 +108,7 @@ async fn main() -> Result<()> {
 
     // Get the directory containing the config file
     let config_path_obj = std::path::Path::new(&config_path);
-    let config_dir = config_path_obj
-        .parent()
-        .unwrap_or(std::path::Path::new("."));
+    let config_dir = config_path_obj.parent().unwrap_or(std::path::Path::new("."));
 
     // Check multiple locations for proxies.txt
     let possible_paths = vec![
@@ -145,11 +134,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    println!(
-        "Loaded {} proxies from {}",
-        proxies.len(),
-        proxies_path.display()
-    );
+    println!("Loaded {} proxies from {}", proxies.len(), proxies_path.display());
 
     // Select proxy (random by default)
     let (proxy_idx, proxy) = if proxies.is_empty() {
@@ -211,8 +196,7 @@ async fn main() -> Result<()> {
             1,
             "01_deploy_contract",
             "Deploy Counter Contract",
-            Box::new(tempo_spammer::tasks::t01_deploy_contract::DeployContractTask::new())
-                as Box<dyn TempoTask>,
+            Box::new(tempo_spammer::tasks::t01_deploy_contract::DeployContractTask::new()) as Box<dyn TempoTask>,
         ),
         (
             2,
@@ -541,12 +525,9 @@ async fn main() -> Result<()> {
         match DatabaseManager::new("tempo-spammer.db").await {
             Ok(db) => Some(Arc::new(db)),
             Err(e) => {
-                println!(
-                    "⚠️  Failed to open database: {:?}. Continuing without DB.",
-                    e
-                );
+                println!("⚠️  Failed to open database: {:?}. Continuing without DB.", e);
                 None
-            }
+            },
         }
     } else {
         None
@@ -571,13 +552,13 @@ async fn main() -> Result<()> {
                 println!("📎 Transaction: {}", hash);
             }
             println!("⏱️  Duration: {:.1}s", duration.as_secs_f64());
-        }
+        },
         Ok(Err(e)) => {
             let duration = start_time.elapsed();
             println!("Proxy: {:?}", client.proxy_config.as_ref().map(|p| &p.url));
             println!("❌ Error: {:?}", e);
             println!("⏱️  Duration: {:.1}s", duration.as_secs_f64());
-        }
+        },
         Err(_) => {
             let duration = start_time.elapsed();
             let timed_out_result = TaskResult {
@@ -587,7 +568,7 @@ async fn main() -> Result<()> {
             };
             println!("⚠️  Failed: {}", timed_out_result.message);
             println!("⏱️  Duration: {:.1}s", duration.as_secs_f64());
-        }
+        },
     }
 
     Ok(())

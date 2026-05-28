@@ -80,14 +80,11 @@ impl TempoTask for NftCreateMintTask {
                 } else {
                     return Err(e).context("Failed to deploy NFT");
                 }
-            }
+            },
         };
 
         let tx_hash = *pending.tx_hash();
-        let receipt = pending
-            .get_receipt()
-            .await
-            .context("Failed to get receipt")?;
+        let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
         if !receipt.inner.status() {
             return Ok(TaskResult {
@@ -178,7 +175,7 @@ impl TempoTask for NftCreateMintTask {
                 } else {
                     return Err(e).context("Failed to send grant role transaction");
                 }
-            }
+            },
         };
 
         let grant_hash = *grant_pending.tx_hash();
@@ -232,14 +229,11 @@ impl TempoTask for NftCreateMintTask {
                 } else {
                     return Err(e).context("Failed to send mint transaction");
                 }
-            }
+            },
         };
 
         let mint_hash = *mint_pending.tx_hash();
-        let mint_receipt = mint_pending
-            .get_receipt()
-            .await
-            .context("Failed to get mint receipt")?;
+        let mint_receipt = mint_pending.get_receipt().await.context("Failed to get mint receipt")?;
 
         if !mint_receipt.inner.status() {
             return Ok(TaskResult {
@@ -256,9 +250,7 @@ impl TempoTask for NftCreateMintTask {
         let mut minted_id = U256::ZERO;
         for log in mint_receipt.inner.logs() {
             // Removed boolean validation argument
-            if let Ok(decoded_log) =
-                IMinimalNFT::Transfer::decode_raw_log(log.topics(), &log.data().data)
-            {
+            if let Ok(decoded_log) = IMinimalNFT::Transfer::decode_raw_log(log.topics(), &log.data().data) {
                 minted_id = decoded_log.tokenId;
                 // println!("ℹ️  Minted Token ID: {}", minted_id);
                 break;
@@ -272,13 +264,7 @@ impl TempoTask for NftCreateMintTask {
 
         if let Some(db) = &ctx.db {
             if let Err(e) = db
-                .log_asset_creation(
-                    &address.to_string(),
-                    &contract_address.to_string(),
-                    "nft",
-                    "NFT",
-                    "NFT",
-                )
+                .log_asset_creation(&address.to_string(), &contract_address.to_string(), "nft", "NFT", "NFT")
                 .await
             {
                 // println!("⚠️ Failed to log to database: {:?}", e);

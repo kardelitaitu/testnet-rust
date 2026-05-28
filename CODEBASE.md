@@ -75,17 +75,24 @@ Runtime helpers:
 Sepolia-specific overlayer implementation with main, daily, debug, funding, and balance dump binaries.
 
 Entrypoints:
-- `chains/sepolia-overlayer/src/main.rs` (`sepolia-overlayer`)
-- `chains/sepolia-overlayer/src/bin/debug_task.rs`
-- `chains/sepolia-overlayer/src/bin/daily.rs`
-- `chains/sepolia-overlayer/src/bin/fund.rs` (`sepolia-funder`)
-- `chains/sepolia-overlayer/src/bin/wallet-balance-dump.rs`
+- `chains/sepolia-overlayer/src/main.rs` (`sepolia-overlayer`) — main spammer
+- `chains/sepolia-overlayer/src/bin/debug_task.rs` (`sepolia-debug_task`) — interactive task debugger
+- `chains/sepolia-overlayer/src/bin/daily.rs` (`sepolia-daily`) — scheduled daily task execution loop
+- `chains/sepolia-overlayer/src/bin/fund.rs` (`sepolia-funder`) — multi-hop obfuscated ETH funding
+- `chains/sepolia-overlayer/src/bin/wallet-balance-dump.rs` (`wallet-balance-dump`) — parallel wallet balance scanner
 
 Task area:
-- `chains/sepolia-overlayer/src/task/`
+- `chains/sepolia-overlayer/src/task/` — 22 task modules (t01–t22)
+
+Daily runner:
+- `chains/sepolia-overlayer/src/daily_runner/mod.rs` — core execution loop, task dispatch, pause window logic, busy-wallet locking, per-task limits (hot-reloadable), proxy health management, task timeout overrides, and `confirm_with_retry` helper (exponential backoff with 5 retries)
 
 Config default:
-- `chains/sepolia-overlayer/config.toml`
+- `chains/sepolia-overlayer/config.toml` — chain RPC endpoints, task limits, gas bounds, timeouts
+- `chains/sepolia-overlayer/config-base.toml` — Base Sepolia chain config (chain ID 84532)
+
+Funder documentation:
+- `chains/sepolia-overlayer/sepolia-funder.md` — full usage guide, architecture, test coverage, design decisions
 
 ### `chains/tempo-spammer` (`tempo-spammer`)
 Tempo chain-specific implementation (edition 2024, alloy-based stack).

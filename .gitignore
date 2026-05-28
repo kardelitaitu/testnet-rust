@@ -13,9 +13,8 @@ chains/sepolia-overlayer/wallets-json-sepolia-overlayer
 chains/arc/wallet-json-arc
 address.txt
 proxies.txt
-target-xenea
-target_check_no_refund
-target_check_receive_cplus
+*-balances.txt
+wallet-balances.txt
 
 # Secrets
 .env
@@ -28,15 +27,16 @@ _start-dacc.bat
 .trae/
 .agent/
 .cargo/
-target/
-target_analyzer/
-target-temp/
+.hermes/
+.llm-context/
+target*/
 node_modules/
 
 # Windows Reserved
 nul
-.exe
+*.exe
 
-# Coverage artifacts
+# Coverage and Profiling
 *.lcov
+*.profraw
 target/llvm-cov/

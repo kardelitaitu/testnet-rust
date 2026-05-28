@@ -100,10 +100,7 @@ impl SubBlock {
     }
 
     fn rlp_encoded_fields_length(&self) -> usize {
-        self.version.length()
-            + self.parent_hash.length()
-            + self.fee_recipient.length()
-            + self.transactions.length()
+        self.version.length() + self.parent_hash.length() + self.fee_recipient.length() + self.transactions.length()
     }
 
     fn rlp_header(&self) -> alloy_rlp::Header {
@@ -138,10 +135,7 @@ impl Encodable for SubBlock {
 /// A subblock with a signature.
 #[derive(Debug, Clone, derive_more::Deref, derive_more::DerefMut, PartialEq, Eq)]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(rlp)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(rlp))]
 pub struct SignedSubBlock {
     /// The subblock.
     #[deref]
@@ -160,8 +154,7 @@ impl SignedSubBlock {
         self,
         validator: B256,
     ) -> Result<RecoveredSubBlock, alloy_consensus::crypto::RecoveryError> {
-        let senders =
-            reth_primitives_traits::transaction::recover::recover_signers(&self.transactions)?;
+        let senders = reth_primitives_traits::transaction::recover::recover_signers(&self.transactions)?;
 
         Ok(RecoveredSubBlock {
             inner: self,
@@ -312,13 +305,10 @@ mod tests {
     #[test]
     fn test_partial_validator_key_matches() {
         // Create a 15-byte partial key
-        let partial =
-            PartialValidatorKey::from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+        let partial = PartialValidatorKey::from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
 
         // Full key that starts with the partial
-        let matching_key = [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
-        ];
+        let matching_key = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
         assert!(
             partial.matches(matching_key),
             "Should match when validator starts with partial"
@@ -329,18 +319,14 @@ mod tests {
         assert!(partial.matches(exact_match), "Should match exact length");
 
         // Different first byte
-        let non_matching = [
-            0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
-        ];
+        let non_matching = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
         assert!(
             !partial.matches(non_matching),
             "Should not match with different first byte"
         );
 
         // Different last byte of partial
-        let partial_mismatch = [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 99, 16, 17, 18,
-        ];
+        let partial_mismatch = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 99, 16, 17, 18];
         assert!(
             !partial.matches(partial_mismatch),
             "Should not match with different byte in partial range"
@@ -360,10 +346,7 @@ mod tests {
         // Zero partial key matches any key starting with zeros
         let zero_partial = PartialValidatorKey::ZERO;
         let zeros = [0u8; 20];
-        assert!(
-            zero_partial.matches(zeros),
-            "Zero partial should match zeros"
-        );
+        assert!(zero_partial.matches(zeros), "Zero partial should match zeros");
     }
 
     #[test]

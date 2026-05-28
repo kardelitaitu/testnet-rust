@@ -27,8 +27,7 @@ impl Task<TaskContext> for DelegatecallTask {
 
         // Load factory from config or use fallback
         let create2_address: Address = if let Some(addr) = &ctx.config.create2_factory {
-            addr.parse()
-                .context("Invalid create2_factory address in config")?
+            addr.parse().context("Invalid create2_factory address in config")?
         } else {
             "0x8628208543e2b16be283e30abec6fec7b91e5721".parse()?
         };
@@ -38,9 +37,8 @@ impl Task<TaskContext> for DelegatecallTask {
 
         let counter_abi_str = include_str!("../../contracts/Counter_abi.txt").trim();
         let counter_bytecode_str = include_str!("../../contracts/Counter_bytecode.txt").trim();
-        let counter_bytecode_bytes = Bytes::from(
-            hex::decode(counter_bytecode_str).context("Failed to decode Counter bytecode")?,
-        );
+        let counter_bytecode_bytes =
+            Bytes::from(hex::decode(counter_bytecode_str).context("Failed to decode Counter bytecode")?);
 
         // Factory ABI
         let factory_abi_json = r#"[
@@ -67,9 +65,7 @@ impl Task<TaskContext> for DelegatecallTask {
             wallet.clone(),
         ));
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         if receipt.status != Some(U64::from(1)) {
             return Ok(TaskResult {
@@ -116,9 +112,7 @@ impl Task<TaskContext> for DelegatecallTask {
             .from(address);
 
         let increment_pending = client.send_transaction(increment_tx, None).await?;
-        let increment_receipt = increment_pending
-            .await?
-            .context("Failed to get increment receipt")?;
+        let increment_receipt = increment_pending.await?.context("Failed to get increment receipt")?;
 
         let new_value: U256 = counter
             .method("count", ())?

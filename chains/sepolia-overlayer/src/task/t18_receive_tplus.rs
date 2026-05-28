@@ -1,4 +1,4 @@
-use super::{SepoliaTask, TaskContext, TaskResult};
+use super::{confirm_with_retry, SepoliaTask, TaskContext, TaskResult};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::middleware::SignerMiddleware;
@@ -91,10 +91,7 @@ impl SepoliaTask for ReceiveTplusTask {
         if main_eth < min_eth {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Not enough ETH — have {} wei, need {} wei",
-                    main_eth, min_eth
-                ),
+                message: format!("Not enough ETH — have {} wei, need {} wei", main_eth, min_eth),
             });
         }
 
@@ -120,15 +117,10 @@ impl SepoliaTask for ReceiveTplusTask {
             .gas(RETURN_TRANSFER_GAS_LIMIT)
             .gas_price(max_fee);
 
-        let tx = transfer_call
-            .send()
-            .await
-            .context("Failed to send T+ to proxy")?;
+        let tx = transfer_call.send().await.context("Failed to send T+ to proxy")?;
+        let tx_hash = tx.tx_hash();
 
-        let receipt = tx
-            .confirmations(1)
-            .interval(Duration::from_millis(500))
-            .await?;
+        let receipt = confirm_with_retry(tx_hash, provider).await?;
 
         if receipt.is_none_or(|r| r.status != Some(1.into())) {
             return Ok(TaskResult {
@@ -144,11 +136,9 @@ impl SepoliaTask for ReceiveTplusTask {
             .send_transaction(TransactionRequest::pay(proxy_addr, proxy_gas_u256), None)
             .await
             .context("Failed to send ETH to proxy")?;
+        let eth_tx_hash = eth_tx.tx_hash();
 
-        let eth_receipt = eth_tx
-            .confirmations(1)
-            .interval(Duration::from_millis(500))
-            .await?;
+        let eth_receipt = confirm_with_retry(eth_tx_hash, provider).await?;
 
         if eth_receipt.is_none_or(|r| r.status != Some(1.into())) {
             return Ok(TaskResult {
@@ -169,10 +159,7 @@ impl SepoliaTask for ReceiveTplusTask {
                 .call()
                 .await
                 .unwrap_or(U256::zero());
-            let eb: U256 = provider
-                .get_balance(proxy_addr, None)
-                .await
-                .unwrap_or(U256::zero());
+            let eb: U256 = provider.get_balance(proxy_addr, None).await.unwrap_or(U256::zero());
 
             if tb >= proxy_amount && eb >= proxy_gas_u256 {
                 break (tb, eb);
@@ -222,26 +209,25 @@ impl SepoliaTask for ReceiveTplusTask {
             .method::<_, H256>("transfer", (main_addr, proxy_t_balance))?
             .gas(RETURN_TRANSFER_GAS_LIMIT)
             .gas_price(proxy_max_fee);
-        let proxy_return = proxy_return_call
-            .send()
-            .await
-            .context("Proxy failed to send T+ back")?;
+        let proxy_return = proxy_return_call.send().await.context("Proxy failed to send T+ back")?;
 
         let return_tx_hash = proxy_return.tx_hash();
-        let return_receipt = proxy_return
-            .confirmations(1)
-            .interval(Duration::from_millis(500))
-            .await?;
+        let return_receipt = confirm_with_retry(return_tx_hash, provider).await?;
 
-        let return_ok = return_receipt
-            .as_ref()
-            .is_some_and(|r| r.status == Some(1.into()));
+        let return_ok = return_receipt.as_ref().is_some_and(|r| r.status == Some(1.into()));
 
-        let result_msg = format!(
-            "Received {} USDT Plus (tx: {:?})",
-            format_whole_with_commas(proxy_t_balance),
-            return_tx_hash,
-        );
+        let result_msg = if return_ok {
+            format!(
+                "Received {} USDT Plus (tx: {:?})",
+                format_whole_with_commas(proxy_t_balance),
+                return_tx_hash,
+            )
+        } else {
+            format!(
+                "Failed to receive USDT Plus - return receipt not confirmed (tx: {:?})",
+                return_tx_hash,
+            )
+        };
 
         Ok(TaskResult {
             success: return_ok,

@@ -69,10 +69,7 @@ pub struct RpcManager {
 impl RpcManager {
     /// Create a new RPC manager with the given chain ID and URLs
     pub fn new(chain_id: u64, urls: &[String]) -> Self {
-        let endpoints: Vec<RpcEndpoint> = urls
-            .iter()
-            .map(|url| RpcEndpoint::new(url.clone(), chain_id))
-            .collect();
+        let endpoints: Vec<RpcEndpoint> = urls.iter().map(|url| RpcEndpoint::new(url.clone(), chain_id)).collect();
 
         Self {
             chain_id,
@@ -148,10 +145,7 @@ impl RpcManager {
                 let failures = endpoint.failure_count.fetch_add(1, Ordering::SeqCst) + 1;
                 if failures >= 3 {
                     endpoint.healthy.store(false, Ordering::SeqCst);
-                    warn!(
-                        "Marking RPC {} as unhealthy after {} failures",
-                        url, failures
-                    );
+                    warn!("Marking RPC {} as unhealthy after {} failures", url, failures);
                 }
                 break;
             }
@@ -391,11 +385,7 @@ mod tests {
 
     #[test]
     fn test_healthy_count_all_healthy_returns_count() {
-        let urls = vec![
-            "http://a.com".into(),
-            "http://b.com".into(),
-            "http://c.com".into(),
-        ];
+        let urls = vec!["http://a.com".into(), "http://b.com".into(), "http://c.com".into()];
         let mgr = RpcManager::new(1, &urls);
         assert_eq!(mgr.healthy_count(), 3);
     }
@@ -456,18 +446,14 @@ mod tests {
         match err {
             CoreError::Network(NetworkError::NoEndpoints(chain_id)) => {
                 assert_eq!(chain_id, 1);
-            }
+            },
             _ => panic!("Expected NetworkError::NoEndpoints variant"),
         }
     }
 
     #[tokio::test]
     async fn test_concurrent_round_robin_distribution() {
-        let urls = vec![
-            "http://a.com".into(),
-            "http://b.com".into(),
-            "http://c.com".into(),
-        ];
+        let urls = vec!["http://a.com".into(), "http://b.com".into(), "http://c.com".into()];
         let mgr = std::sync::Arc::new(RpcManager::new(1, &urls));
         let mut handles = Vec::new();
         let calls_per_task = 500;
@@ -501,15 +487,24 @@ mod tests {
         let tolerance = (total as f64 * 0.05) as u64; // 5% tolerance for randomness
         assert!(
             count_a.abs_diff(expected_per) <= tolerance,
-            "a: got {}, expected {} ± {}", count_a, expected_per, tolerance
+            "a: got {}, expected {} ± {}",
+            count_a,
+            expected_per,
+            tolerance
         );
         assert!(
             count_b.abs_diff(expected_per) <= tolerance,
-            "b: got {}, expected {} ± {}", count_b, expected_per, tolerance
+            "b: got {}, expected {} ± {}",
+            count_b,
+            expected_per,
+            tolerance
         );
         assert!(
             count_c.abs_diff(expected_per) <= tolerance,
-            "c: got {}, expected {} ± {}", count_c, expected_per, tolerance
+            "c: got {}, expected {} ± {}",
+            count_c,
+            expected_per,
+            tolerance
         );
     }
 }

@@ -124,13 +124,11 @@ impl TempoTask for MultiSendDisperseTask {
                     Ok(pending) => {
                         last_tx_hash = Some(format!("{:?}", *pending.tx_hash()));
                         let _ = pending.get_receipt().await;
-                    }
+                    },
                     Err(e) => {
                         let err_str = e.to_string().to_lowercase();
                         if err_str.contains("nonce too low") || err_str.contains("already known") {
-                            tracing::warn!(
-                                "Nonce error on multi_send (t28), resetting cache and retrying..."
-                            );
+                            tracing::warn!("Nonce error on multi_send (t28), resetting cache and retrying...");
                             client.reset_nonce_cache().await;
                             tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                             if let Ok(pending) = client.provider.send_transaction(tx).await {
@@ -140,7 +138,7 @@ impl TempoTask for MultiSendDisperseTask {
                         } else {
                             // println!("Transfer to {} failed: {:?}", recipient, e);
                         }
-                    }
+                    },
                 }
             }
         }

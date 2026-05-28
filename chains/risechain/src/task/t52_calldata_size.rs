@@ -52,17 +52,12 @@ impl Task<TaskContext> for CalldataSizeTask {
             .from(address);
 
         let deploy_pending = client.send_transaction(deploy_tx, None).await?;
-        let deploy_receipt = deploy_pending
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = deploy_pending.await?.context("Failed to get deploy receipt")?;
 
-        let contract_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let contract_address = deploy_receipt.contract_address.context("No contract address")?;
 
         let calldata_abi: abi::Abi = serde_json::from_str(calldata_abi_json)?;
-        let calldata_contract =
-            Contract::new(contract_address, calldata_abi, Arc::new(provider.clone()));
+        let calldata_contract = Contract::new(contract_address, calldata_abi, Arc::new(provider.clone()));
 
         let mut rng = OsRng;
         let mut large_calldata = vec![0u8; 512];
@@ -70,8 +65,7 @@ impl Task<TaskContext> for CalldataSizeTask {
             *byte = rng.gen();
         }
 
-        let store_data =
-            calldata_contract.encode("storeData", Bytes::from(large_calldata.clone()))?;
+        let store_data = calldata_contract.encode("storeData", Bytes::from(large_calldata.clone()))?;
 
         let store_tx = Eip1559TransactionRequest::new()
             .to(contract_address)
@@ -82,9 +76,7 @@ impl Task<TaskContext> for CalldataSizeTask {
             .from(address);
 
         let store_pending = client.send_transaction(store_tx, None).await?;
-        let store_receipt = store_pending
-            .await?
-            .context("Failed to get store receipt")?;
+        let store_receipt = store_pending.await?.context("Failed to get store receipt")?;
 
         let calldata_size = store_data.len();
 

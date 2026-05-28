@@ -32,10 +32,10 @@ impl WorkerRunner {
                 Ok(()) => {
                     info!("🛑 Received Ctrl+C. Initiating graceful shutdown...");
                     cloned_token.cancel();
-                }
+                },
                 Err(err) => {
                     error!("Unable to listen for shutdown signal: {}", err);
-                }
+                },
             }
         });
 
@@ -60,7 +60,7 @@ impl WorkerRunner {
                         Err(e) => {
                             error!("Worker {} failed: {:?}", id, e);
                             Err(e)
-                        }
+                        },
                     }
                 }
                 .instrument(span),
@@ -75,13 +75,13 @@ impl WorkerRunner {
                 Ok(Ok(stats)) => {
                     total_success += stats.success;
                     total_failed += stats.failed;
-                }
+                },
                 Ok(Err(_)) => {
                     // Already logged in thread
-                }
+                },
                 Err(e) => {
                     error!("A worker task panicked or failed to join: {:?}", e);
-                }
+                },
             }
         }
 
@@ -152,10 +152,7 @@ mod tests {
     #[tokio::test]
     async fn test_run_spammers_single_worker() {
         let spammer = MockSpammer {
-            stats: SpammerStats {
-                success: 10,
-                failed: 2,
-            },
+            stats: SpammerStats { success: 10, failed: 2 },
             delay_ms: 0,
             cancel_on_start: false,
         };
@@ -166,49 +163,33 @@ mod tests {
     #[tokio::test]
     async fn test_run_spammers_multiple_workers() {
         let s1 = MockSpammer {
-            stats: SpammerStats {
-                success: 5,
-                failed: 1,
-            },
+            stats: SpammerStats { success: 5, failed: 1 },
             delay_ms: 0,
             cancel_on_start: false,
         };
         let s2 = MockSpammer {
-            stats: SpammerStats {
-                success: 3,
-                failed: 0,
-            },
+            stats: SpammerStats { success: 3, failed: 0 },
             delay_ms: 0,
             cancel_on_start: false,
         };
         let s3 = MockSpammer {
-            stats: SpammerStats {
-                success: 0,
-                failed: 4,
-            },
+            stats: SpammerStats { success: 0, failed: 4 },
             delay_ms: 0,
             cancel_on_start: false,
         };
-        let result =
-            WorkerRunner::run_spammers(vec![Box::new(s1), Box::new(s2), Box::new(s3)]).await;
+        let result = WorkerRunner::run_spammers(vec![Box::new(s1), Box::new(s2), Box::new(s3)]).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_run_spammers_with_delays() {
         let s1 = MockSpammer {
-            stats: SpammerStats {
-                success: 1,
-                failed: 0,
-            },
+            stats: SpammerStats { success: 1, failed: 0 },
             delay_ms: 10,
             cancel_on_start: false,
         };
         let s2 = MockSpammer {
-            stats: SpammerStats {
-                success: 2,
-                failed: 0,
-            },
+            stats: SpammerStats { success: 2, failed: 0 },
             delay_ms: 5,
             cancel_on_start: false,
         };
@@ -279,18 +260,21 @@ mod tests {
             delay_ms: 0,
             cancel_on_start: true, // Triggers cancellation
         };
-        
+
         let start = std::time::Instant::now();
         let _ = WorkerRunner::run_spammers(vec![Box::new(s1), Box::new(s2)]).await;
         let elapsed = start.elapsed();
-        
+
         // Should finish quickly — use generous tolerance for CI/coverage overhead
-        assert!(elapsed < std::time::Duration::from_millis(200), "Should have cancelled s1 quickly, got {:?}", elapsed);
+        assert!(
+            elapsed < std::time::Duration::from_millis(200),
+            "Should have cancelled s1 quickly, got {:?}",
+            elapsed
+        );
     }
 
     #[tokio::test]
     async fn test_run_spammers_one_hangs_others_succeed() {
-        
         let s1 = MockSpammer {
             stats: SpammerStats { success: 10, failed: 0 },
             delay_ms: 10,
@@ -301,7 +285,7 @@ mod tests {
             delay_ms: 10,
             cancel_on_start: false,
         };
-        
+
         let result = WorkerRunner::run_spammers(vec![Box::new(s1), Box::new(s2)]).await;
         assert!(result.is_ok());
     }

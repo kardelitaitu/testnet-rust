@@ -118,10 +118,7 @@ mod tests {
         input.extend_from_slice(&data);
         let result = strip_push0(&input);
         // Should pass through unchanged — PUSH32's data is not PUSH0
-        assert_eq!(
-            result, input,
-            "PUSH32 data containing 0x5f should not be modified"
-        );
+        assert_eq!(result, input, "PUSH32 data containing 0x5f should not be modified");
         assert_eq!(result.len(), 33);
     }
 
@@ -148,11 +145,7 @@ mod tests {
         assert_eq!(result[2], 0x60); // PUSH1 opcode
         assert_eq!(result[3], 0x42); // PUSH1 data
                                      // Total length: original - 1 (removed 0x5f) + 2 (added 0x60 0x00) = original + 1
-        assert_eq!(
-            result.len(),
-            input.len() + 1,
-            "All push opcodes should be handled"
-        );
+        assert_eq!(result.len(), input.len() + 1, "All push opcodes should be handled");
     }
 
     #[test]
@@ -183,15 +176,8 @@ mod tests {
         input.push(0x7f); // PUSH32 #2
         input.extend_from_slice(&[0x22; 32]);
         let result = strip_push0(&input);
-        assert_eq!(
-            result.len(),
-            66,
-            "Two PUSH32s = 2 opcodes + 64 data bytes = 66 bytes"
-        );
-        assert_eq!(
-            result, input,
-            "Should be identical to input (no PUSH0 present)"
-        );
+        assert_eq!(result.len(), 66, "Two PUSH32s = 2 opcodes + 64 data bytes = 66 bytes");
+        assert_eq!(result, input, "Should be identical to input (no PUSH0 present)");
     }
 
     #[test]
@@ -234,10 +220,7 @@ mod tests {
 
             // Invariant 3: Input that doesn't contain 0x5f is unchanged
             if !input.contains(&0x5f) {
-                assert_eq!(
-                    result, input,
-                    "Input without 0x5f should pass through unchanged"
-                );
+                assert_eq!(result, input, "Input without 0x5f should pass through unchanged");
             }
         }
     }

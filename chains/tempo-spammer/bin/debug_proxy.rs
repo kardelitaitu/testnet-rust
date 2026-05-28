@@ -12,25 +12,22 @@ async fn main() -> Result<()> {
     let proxies = match load_proxies(proxies_path) {
         Ok(p) => {
             if p.is_empty() {
-                println!(
-                    "⚠️ No proxies found in {}, trying config/proxies.txt",
-                    proxies_path
-                );
+                println!("⚠️ No proxies found in {}, trying config/proxies.txt", proxies_path);
                 match load_proxies("config/proxies.txt") {
                     Ok(p2) => p2,
                     Err(_) => {
                         println!("❌ Failed to load any proxies. Exiting.");
                         return Ok(());
-                    }
+                    },
                 }
             } else {
                 p
             }
-        }
+        },
         Err(e) => {
             println!("❌ Error loading proxies: {:?}", e);
             return Ok(());
-        }
+        },
     };
 
     println!("✅ Loaded {} proxies", proxies.len());

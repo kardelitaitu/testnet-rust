@@ -32,10 +32,7 @@ impl Task<TaskContext> for SelfTransferTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         // 3. Send 0 TXENE to self (fire-and-forget)
@@ -54,10 +51,7 @@ impl Task<TaskContext> for SelfTransferTask {
         match pending_tx {
             Ok(pending) => Ok(TaskResult {
                 success: true,
-                message: format!(
-                    "Self-transfer 0 TXENE submitted (tx: {:?})",
-                    pending.tx_hash()
-                ),
+                message: format!("Self-transfer 0 TXENE submitted (tx: {:?})", pending.tx_hash()),
                 tx_hash: Some(format!("{:?}", pending.tx_hash())),
             }),
             Err(e) => {
@@ -68,7 +62,7 @@ impl Task<TaskContext> for SelfTransferTask {
                     message: format!("Failed to submit self-transfer tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 

@@ -63,10 +63,7 @@ impl Task<TaskContext> for MintMemeTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         let tx = TransactionRequest::new()
@@ -83,8 +80,7 @@ impl Task<TaskContext> for MintMemeTask {
 
         match pending_tx {
             Ok(pending) => {
-                let amount_display =
-                    ethers::utils::format_units(amount, 18).unwrap_or_else(|_| amount.to_string());
+                let amount_display = ethers::utils::format_units(amount, 18).unwrap_or_else(|_| amount.to_string());
                 Ok(TaskResult {
                     success: true,
                     message: format!(
@@ -96,7 +92,7 @@ impl Task<TaskContext> for MintMemeTask {
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })
-            }
+            },
             Err(e) => {
                 debug!("MintMeme tx submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -105,7 +101,7 @@ impl Task<TaskContext> for MintMemeTask {
                     message: format!("Failed to submit MEME mint tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

@@ -38,11 +38,7 @@ impl GasManager {
     }
 
     pub async fn get_gas_price(&self) -> Result<U256> {
-        Ok(self
-            .provider
-            .get_gas_price()
-            .await
-            .unwrap_or_else(|_| U256::zero()))
+        Ok(self.provider.get_gas_price().await.unwrap_or_else(|_| U256::zero()))
     }
 
     pub async fn get_fees(&self) -> Result<(U256, U256)> {
@@ -81,11 +77,9 @@ impl GasManager {
     }
 
     pub fn get_max_fee(&self, base_fee: U256) -> U256 {
-        let priority_fee_wei: U256 =
-            parse_units(self.config.priority_gwei(), "gwei").unwrap_or(U256::zero());
+        let priority_fee_wei: U256 = parse_units(self.config.priority_gwei(), "gwei").unwrap_or(U256::zero());
         let max_fee_wei = base_fee + priority_fee_wei;
-        let max_configured_wei: U256 =
-            parse_units(self.config.max_gwei(), "gwei").unwrap_or(U256::zero());
+        let max_configured_wei: U256 = parse_units(self.config.max_gwei(), "gwei").unwrap_or(U256::zero());
 
         max_fee_wei.min(max_configured_wei)
     }

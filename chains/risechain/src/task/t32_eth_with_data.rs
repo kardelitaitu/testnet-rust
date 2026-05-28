@@ -46,8 +46,7 @@ impl Task<TaskContext> for EthWithDataTask {
         let min_amount = U256::from(5_000_000_000_000u64);
         let amount_wei = amount_wei.max(min_amount);
 
-        let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-            .unwrap_or_else(|_| amount_wei.to_string());
+        let amount_eth = ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
 
         let mut custom_data = [0u8; 8];
         rng.fill(&mut custom_data);
@@ -70,16 +69,11 @@ impl Task<TaskContext> for EthWithDataTask {
             wallet.clone(),
         ));
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         Ok(TaskResult {
             success: receipt.status == Some(U64::from(1)),
-            message: format!(
-                "Sent {} ETH to {:?} with data: 0x{}",
-                amount_eth, recipient, data_hex
-            ),
+            message: format!("Sent {} ETH to {:?} with data: 0x{}", amount_eth, recipient, data_hex),
             tx_hash: Some(format!("{:?}", receipt.transaction_hash)),
         })
     }

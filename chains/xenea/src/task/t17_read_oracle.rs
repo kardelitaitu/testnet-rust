@@ -50,10 +50,10 @@ impl Task<TaskContext> for ReadOracleTask {
                 match method.call().await {
                     Ok(p) => {
                         price = Some(p);
-                    }
+                    },
                     Err(_) => {
                         error_msg = "latestAnswer call failed";
-                    }
+                    },
                 }
             }
 
@@ -62,25 +62,23 @@ impl Task<TaskContext> for ReadOracleTask {
                     match method.call().await {
                         Ok(p) => {
                             price = Some(p);
-                        }
+                        },
                         Err(_) => {
                             error_msg = "latest_answer call failed";
-                        }
+                        },
                     }
                 }
             }
 
             if price.is_none() {
-                if let Ok(method) =
-                    contract.method::<_, (u64, I256, u64, u64, u64)>("latestRoundData", ())
-                {
+                if let Ok(method) = contract.method::<_, (u64, I256, u64, u64, u64)>("latestRoundData", ()) {
                     match method.call().await {
                         Ok((_, p, _, _, _)) => {
                             price = Some(p);
-                        }
+                        },
                         Err(_) => {
                             error_msg = "latestRoundData call failed";
-                        }
+                        },
                     }
                 }
             }
@@ -88,13 +86,13 @@ impl Task<TaskContext> for ReadOracleTask {
             match price {
                 Some(p) => {
                     let price_i128 = p.as_i128();
-                    let formatted_price = ethers::utils::format_units(U256::from(price_i128), 8u32)
-                        .unwrap_or_else(|_| p.to_string());
+                    let formatted_price =
+                        ethers::utils::format_units(U256::from(price_i128), 8u32).unwrap_or_else(|_| p.to_string());
                     results.push(format!("{}: ${}", name, formatted_price));
-                }
+                },
                 None => {
                     results.push(format!("{}: ERROR ({})", name, error_msg));
-                }
+                },
             }
         }
 

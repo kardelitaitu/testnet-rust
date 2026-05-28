@@ -198,7 +198,7 @@ With `--json-log results.json` an additional file is written:
 
 ## Related files
 
-- `src/bin/fund.rs` — the binary itself (51 unit tests inline)
+- `src/bin/fund.rs` — the binary itself (58 unit tests inline)
 - `tests/fund_cli.rs` — CLI integration tests (4 tests via `assert_cmd`)
 - `sepolia-funder.md` — this file
 - `src/task/t18_receive_tplus.rs` — single-hop proxy pattern (inspiration)

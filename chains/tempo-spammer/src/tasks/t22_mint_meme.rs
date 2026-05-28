@@ -114,13 +114,13 @@ impl TempoTask for MintMemeTask {
                 Ok(pending) => {
                     let _ = pending.get_receipt().await;
                     // println!("ISSUER_ROLE granted");
-                }
+                },
                 Err(e) => {
                     // println!(
                     //     "Warning: Failed to grant role (might already have it): {}",
                     //     e
                     // );
-                }
+                },
             }
         }
 
@@ -165,21 +165,17 @@ impl TempoTask for MintMemeTask {
                     {
                         return Ok(TaskResult {
                             success: false,
-                            message: "Mint reverted: Likely Sold Out or Already Claimed"
-                                .to_string(),
+                            message: "Mint reverted: Likely Sold Out or Already Claimed".to_string(),
                             tx_hash: None,
                         });
                     }
                     return Err(e).context("Failed to mint");
-                }
+                },
             }
         };
 
         let tx_hash = *pending.tx_hash();
-        let receipt = pending
-            .get_receipt()
-            .await
-            .context("Failed to get receipt")?;
+        let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
         if !receipt.inner.status() {
             return Ok(TaskResult {
@@ -213,9 +209,7 @@ impl TempoTask for MintMemeTask {
 async fn get_token_decimals(client: &crate::TempoClient, token: Address) -> Result<u8> {
     let mut calldata = Vec::new();
     calldata.extend_from_slice(&[0x31, 0x3f, 0x13, 0xa0]);
-    let query = TransactionRequest::default()
-        .to(token)
-        .input(calldata.into());
+    let query = TransactionRequest::default().to(token).input(calldata.into());
     if let Ok(data) = client.provider.call(query).await {
         let bytes = data.as_ref();
         if !bytes.is_empty() {

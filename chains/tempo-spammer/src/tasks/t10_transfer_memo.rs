@@ -64,10 +64,7 @@ impl TempoTask for TransferMemoTask {
 
         // Debugging log if still zero
         if balance.is_zero() {
-            tracing::warn!(
-                "WARNING: PathUSD Balance is 0 for {:?} even after retries.",
-                address
-            );
+            tracing::warn!("WARNING: PathUSD Balance is 0 for {:?} even after retries.", address);
         }
 
         let min_balance = U256::from(50) * U256::from(10_u64.pow(token_decimals as u32));
@@ -151,15 +148,12 @@ impl TempoTask for TransferMemoTask {
                 } else {
                     return Err(e).context("Failed to send transfer with memo");
                 }
-            }
+            },
         };
 
         let tx_hash = *pending.tx_hash();
 
-        let receipt = pending
-            .get_receipt()
-            .await
-            .context("Failed to get receipt")?;
+        let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
         if !receipt.inner.status() {
             return Ok(TaskResult {

@@ -58,11 +58,7 @@ impl BatchSendTransactionStableTask {
         }
 
         // 2. Burst Submit
-        tracing::info!(
-            "Blasting {} Stable Transfers (Start Nonce: {})",
-            count,
-            start_nonce
-        );
+        tracing::info!("Blasting {} Stable Transfers (Start Nonce: {})", count, start_nonce);
 
         let mut last_submitted_nonce = start_nonce.wrapping_sub(1);
         let mut last_hash = String::new();
@@ -75,11 +71,11 @@ impl BatchSendTransactionStableTask {
                     last_hash = pending.tx_hash().to_string();
                     last_submitted_nonce = tx_nonce;
                     submission_count += 1;
-                }
+                },
                 Err(e) => {
                     tracing::error!("Pipelined Stable Tx at nonce {} failure: {}", tx_nonce, e);
                     break; // CRITICAL: Stop on first failure
-                }
+                },
             }
         }
 
@@ -123,10 +119,7 @@ impl TempoTask for BatchSendTransactionStableTask {
         let mut using_created_token = false;
 
         if let Some(db) = &ctx.db {
-            if let Ok(assets) = db
-                .get_assets_by_type(&address.to_string(), "stablecoin")
-                .await
-            {
+            if let Ok(assets) = db.get_assets_by_type(&address.to_string(), "stablecoin").await {
                 if !assets.is_empty() {
                     let mut rng = rand::thread_rng();
                     if let Some(random_asset) = assets.choose(&mut rng) {
@@ -176,10 +169,10 @@ impl TempoTask for BatchSendTransactionStableTask {
                     let _ = pending.get_receipt().await;
                     tracing::debug!("Mint confirmed. Waiting for node sync...");
                     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-                }
+                },
                 Err(e) => {
                     tracing::warn!("Auto-mint submission failed: {}. Proceeding anyway...", e);
-                }
+                },
             }
         }
 

@@ -123,16 +123,14 @@ impl TempoTask for MintStableTask {
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("nonce too low") || err_str.contains("already known") {
-                        tracing::warn!(
-                            "Nonce error on grantRole (mint_stable), resetting cache and retrying..."
-                        );
+                        tracing::warn!("Nonce error on grantRole (mint_stable), resetting cache and retrying...");
                         client.reset_nonce_cache().await;
                         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                         client.provider.send_transaction(grant_tx).await
                     } else {
                         Err(e)
                     }
-                }
+                },
             };
 
             if let Ok(pending) = grant_result {
@@ -156,25 +154,19 @@ impl TempoTask for MintStableTask {
                     .from(address);
 
                 // Send MINTER_ROLE grant with retry logic
-                let minter_grant_result = match client
-                    .provider
-                    .send_transaction(grant_tx.clone())
-                    .await
-                {
+                let minter_grant_result = match client.provider.send_transaction(grant_tx.clone()).await {
                     Ok(p) => Ok(p),
                     Err(e) => {
                         let err_str = e.to_string().to_lowercase();
                         if err_str.contains("nonce too low") || err_str.contains("already known") {
-                            tracing::warn!(
-                                "Nonce error on MINTER_ROLE grant, resetting cache and retrying..."
-                            );
+                            tracing::warn!("Nonce error on MINTER_ROLE grant, resetting cache and retrying...");
                             client.reset_nonce_cache().await;
                             tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                             client.provider.send_transaction(grant_tx).await
                         } else {
                             Err(e)
                         }
-                    }
+                    },
                 };
 
                 if let Ok(pending) = minter_grant_result {
@@ -214,33 +206,25 @@ impl TempoTask for MintStableTask {
             Err(e) => {
                 let err_str = e.to_string().to_lowercase();
                 if err_str.contains("nonce too low") || err_str.contains("already known") {
-                    tracing::warn!(
-                        "Nonce error on mint (mint_stable), resetting cache and retrying..."
-                    );
+                    tracing::warn!("Nonce error on mint (mint_stable), resetting cache and retrying...");
                     client.reset_nonce_cache().await;
                     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                     client.provider.send_transaction(mint_tx).await
                 } else {
                     Err(e)
                 }
-            }
+            },
         };
 
         match mint_result {
             Ok(pending) => {
                 let tx_hash = *pending.tx_hash();
-                let receipt = pending
-                    .get_receipt()
-                    .await
-                    .context("Failed to get receipt")?;
+                let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
                 if receipt.inner.status() {
                     return Ok(TaskResult {
                         success: true,
-                        message: format!(
-                            "Minted {} {} to {:?}",
-                            amount_base, token_symbol, address
-                        ),
+                        message: format!("Minted {} {} to {:?}", amount_base, token_symbol, address),
                         tx_hash: Some(format!("{:?}", tx_hash)),
                     });
                 } else {
@@ -250,19 +234,18 @@ impl TempoTask for MintStableTask {
                         tx_hash: Some(format!("{:?}", tx_hash)),
                     });
                 }
-            }
+            },
             Err(e) => {
                 let err_str = e.to_string().to_lowercase();
                 if err_str.contains("aa4bc69a") {
                     return Ok(TaskResult {
                         success: false,
-                        message: "Mint skipped: Likely Sold Out or Already Claimed (0xaa4bc69a)"
-                            .to_string(),
+                        message: "Mint skipped: Likely Sold Out or Already Claimed (0xaa4bc69a)".to_string(),
                         tx_hash: None,
                     });
                 }
                 return Err(e).context("Failed to mint stablecoin");
-            }
+            },
         }
 
         // This part is now unreachable if we return in all paths above,
@@ -283,9 +266,7 @@ async fn get_token_decimals(client: &crate::TempoClient, token: Address) -> Resu
     let mut calldata = Vec::new();
     calldata.extend_from_slice(&[0x31, 0x3f, 0x13, 0xa0]);
 
-    let query = TransactionRequest::default()
-        .to(token)
-        .input(calldata.into());
+    let query = TransactionRequest::default().to(token).input(calldata.into());
 
     if let Ok(data) = client.provider.call(query).await {
         let bytes = data.as_ref();
@@ -296,21 +277,14 @@ async fn get_token_decimals(client: &crate::TempoClient, token: Address) -> Resu
     Ok(6)
 }
 
-async fn check_has_role(
-    client: &crate::TempoClient,
-    token: Address,
-    role: [u8; 32],
-    account: Address,
-) -> Result<bool> {
+async fn check_has_role(client: &crate::TempoClient, token: Address, role: [u8; 32], account: Address) -> Result<bool> {
     let has_role_call = ITIP20Mintable::hasRoleCall {
         role: alloy_primitives::B256::from(role),
         account,
     };
     let calldata = has_role_call.abi_encode();
 
-    let query = TransactionRequest::default()
-        .to(token)
-        .input(calldata.into());
+    let query = TransactionRequest::default().to(token).input(calldata.into());
 
     if let Ok(data) = client.provider.call(query).await {
         if !data.is_empty() {

@@ -362,9 +362,7 @@ mod tests {
         for _ in 0..num_tasks {
             let mgr = mgr.clone();
             let addr = addr1();
-            handles.push(tokio::spawn(
-                async move { mgr.get_and_increment(addr).await },
-            ));
+            handles.push(tokio::spawn(async move { mgr.get_and_increment(addr).await }));
         }
 
         let mut results: Vec<u64> = Vec::with_capacity(num_tasks);
@@ -403,9 +401,7 @@ mod tests {
         for _ in 0..num_tasks {
             let mgr = mgr.clone();
             let addr = addr1();
-            handles.push(tokio::spawn(
-                async move { mgr.get_and_increment(addr).await },
-            ));
+            handles.push(tokio::spawn(async move { mgr.get_and_increment(addr).await }));
         }
 
         let mut results: Vec<u64> = Vec::with_capacity(num_tasks);
@@ -433,14 +429,10 @@ mod tests {
         for _ in 0..10 {
             let mgr_a = mgr.clone();
             let a1 = addr1();
-            handles.push(tokio::spawn(async move {
-                (a1, mgr_a.get_and_increment(a1).await)
-            }));
+            handles.push(tokio::spawn(async move { (a1, mgr_a.get_and_increment(a1).await) }));
             let mgr_b = mgr.clone();
             let a2 = addr2();
-            handles.push(tokio::spawn(async move {
-                (a2, mgr_b.get_and_increment(a2).await)
-            }));
+            handles.push(tokio::spawn(async move { (a2, mgr_b.get_and_increment(a2).await) }));
         }
 
         let mut addr1_nonces = Vec::new();

@@ -64,34 +64,27 @@ impl TransferMemeTask {
                             anyhow::bail!("Mint transaction reverted on-chain.");
                         }
                     }
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("nonce too low") || err_str.contains("already known") {
-                        tracing::warn!(
-                            "Nonce error on meme mint (t23), resetting cache and retrying..."
-                        );
+                        tracing::warn!("Nonce error on meme mint (t23), resetting cache and retrying...");
                         client.reset_nonce_cache().await;
                         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
                         // Retry
                         match client.provider.send_transaction(mint_tx).await {
                             Ok(pending) => {
-                                tracing::debug!(
-                                    "Mint Sent (Retry): {}. Waiting confirmation...",
-                                    pending.tx_hash()
-                                );
+                                tracing::debug!("Mint Sent (Retry): {}. Waiting confirmation...", pending.tx_hash());
                                 if let Ok(receipt) = pending.get_receipt().await {
                                     if receipt.inner.status() {
                                         tracing::info!("✅ Mint Confirmed (Retry).");
-                                        balance = TempoTokens::get_token_balance(
-                                            client, token_addr, address,
-                                        )
-                                        .await
-                                        .unwrap_or(U256::ZERO);
+                                        balance = TempoTokens::get_token_balance(client, token_addr, address)
+                                            .await
+                                            .unwrap_or(U256::ZERO);
                                     }
                                 }
-                            }
+                            },
                             Err(e2) => tracing::warn!("Retry failed: {}", e2),
                         }
                     } else if err_str.contains("aa4bc69a") {
@@ -107,7 +100,7 @@ impl TransferMemeTask {
                     } else {
                         anyhow::bail!("Mint submission failed: {}", e);
                     }
-                }
+                },
             }
         }
 
@@ -136,10 +129,7 @@ impl TransferMemeTask {
                     if receipt.inner.status() {
                         Ok(TaskResult {
                             success: true,
-                            message: format!(
-                                "Transferred {} {} to {:?}.",
-                                amount_base, symbol, recipient
-                            ),
+                            message: format!("Transferred {} {} to {:?}.", amount_base, symbol, recipient),
                             tx_hash: Some(format!("{:?}", tx_hash)),
                         })
                     } else {
@@ -152,7 +142,7 @@ impl TransferMemeTask {
                 } else {
                     anyhow::bail!("Failed to get transfer receipt");
                 }
-            }
+            },
             Err(e) => {
                 let err_str = e.to_string().to_lowercase();
                 if err_str.contains("nonce too low") || err_str.contains("already known") {
@@ -167,19 +157,16 @@ impl TransferMemeTask {
                             // Assuming success on retry if sent
                             Ok(TaskResult {
                                 success: true,
-                                message: format!(
-                                    "Transferred {} {} to {:?} (Retry).",
-                                    amount_base, symbol, recipient
-                                ),
+                                message: format!("Transferred {} {} to {:?} (Retry).", amount_base, symbol, recipient),
                                 tx_hash: Some(format!("{:?}", tx_hash)),
                             })
-                        }
+                        },
                         Err(e2) => anyhow::bail!("Transfer (Retry) failed: {}", e2),
                     }
                 } else {
                     anyhow::bail!("Transfer submission failed: {}", e);
                 }
-            }
+            },
         }
     }
 }
@@ -233,8 +220,7 @@ impl TempoTask for TransferMemeTask {
             .await
             {
                 Ok((decimals, balance)) => {
-                    let amount_wei =
-                        U256::from(amount_base) * U256::from(10_u64.pow(decimals as u32));
+                    let amount_wei = U256::from(amount_base) * U256::from(10_u64.pow(decimals as u32));
                     tracing::info!(
                         "Token: {} ({}), Balance: {}, Needed: {}",
                         symbol,
@@ -243,14 +229,7 @@ impl TempoTask for TransferMemeTask {
                         amount_wei
                     );
                     match self
-                        .execute_transfer(
-                            ctx,
-                            token_addr,
-                            symbol.clone(),
-                            decimals,
-                            balance,
-                            amount_wei,
-                        )
+                        .execute_transfer(ctx, token_addr, symbol.clone(), decimals, balance, amount_wei)
                         .await
                     {
                         Ok(result) => {
@@ -268,17 +247,14 @@ impl TempoTask for TransferMemeTask {
                                 }
                             }
                             return Ok(result);
-                        }
+                        },
                         Err(e) => return Err(e),
                     }
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("aa4bc69a") {
-                        tracing::warn!(
-                            "Token {} is dead/sold-out (0xaa4bc69a). Trying another...",
-                            symbol
-                        );
+                        tracing::warn!("Token {} is dead/sold-out (0xaa4bc69a). Trying another...", symbol);
                         if meme_tokens.len() > 1 {
                             meme_tokens.retain(|t| t != &token_addr_str);
                             if attempts < max_attempts {
@@ -289,13 +265,9 @@ impl TempoTask for TransferMemeTask {
                     if attempts >= max_attempts {
                         anyhow::bail!("Failed setup after {} attempts: {}", attempts, e);
                     }
-                    tracing::warn!(
-                        "Proxy/Network error on attempt {}: {}. Retrying...",
-                        attempts,
-                        e
-                    );
+                    tracing::warn!("Proxy/Network error on attempt {}: {}. Retrying...", attempts, e);
                     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                }
+                },
             }
         }
     }

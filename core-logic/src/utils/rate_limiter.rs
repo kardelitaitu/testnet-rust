@@ -82,7 +82,7 @@ impl TokenBucket {
 
 fn now_ms() -> u64 {
     static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
-    let start = START.get_or_init(|| Instant::now());
+    let start = START.get_or_init(Instant::now);
     start.elapsed().as_millis() as u64
 }
 
@@ -204,10 +204,7 @@ impl PerWalletRateLimiter {
         let new_backoff = (current * config.backoff_factor as u64).min(config.max_backoff_ms);
         backoffs.insert(wallet_id.to_string(), new_backoff);
 
-        debug!(
-            "Wallet {} received 429, backing off for {}ms",
-            wallet_id, new_backoff
-        );
+        debug!("Wallet {} received 429, backing off for {}ms", wallet_id, new_backoff);
     }
 
     /// Clear backoff after successful request
@@ -402,7 +399,7 @@ mod tests {
     #[tokio::test]
     async fn test_per_wallet_limiter_acquire_with_wait() {
         let limiter = PerWalletRateLimiter::new(100); // 100 TPS → generous
-        // Should not block for long with high TPS
+                                                      // Should not block for long with high TPS
         tokio::time::timeout(Duration::from_millis(500), async {
             limiter.acquire_with_wait("wallet1").await;
         })
@@ -414,7 +411,7 @@ mod tests {
     async fn test_token_bucket_refill_after_drain() {
         // Create a bucket with fast refill rate
         let bucket = TokenBucket::new(10, 1000); // 1000 tokens/sec
-        // Drain it
+                                                 // Drain it
         bucket.try_acquire(10);
         assert_eq!(bucket.available(), 0);
         // Wait for refill (1000/sec = 1 token/ms)

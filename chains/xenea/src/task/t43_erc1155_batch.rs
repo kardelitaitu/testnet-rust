@@ -36,16 +36,10 @@ impl Task<TaskContext> for ERC1155BatchTask {
             match db.get_all_assets_by_type("ERC1155").await {
                 Ok(contracts) if !contracts.is_empty() => {
                     let mut rng = OsRng;
-                    let addr_str = contracts
-                        .choose(&mut rng)
-                        .context("Failed to pick contract")?;
+                    let addr_str = contracts.choose(&mut rng).context("Failed to pick contract")?;
                     debug!("Using existing ERC1155: {}", addr_str);
-                    Some(
-                        addr_str
-                            .parse::<Address>()
-                            .context("Invalid address in DB")?,
-                    )
-                }
+                    Some(addr_str.parse::<Address>().context("Invalid address in DB")?)
+                },
                 _ => None,
             }
         } else {
@@ -72,10 +66,7 @@ impl Task<TaskContext> for ERC1155BatchTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
@@ -104,9 +95,7 @@ impl Task<TaskContext> for ERC1155BatchTask {
                         let tx_hash = format!("{:?}", pending.tx_hash());
                         match pending.await {
                             Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
-                                let addr = receipt
-                                    .contract_address
-                                    .context("No contract address in receipt")?;
+                                let addr = receipt.contract_address.context("No contract address in receipt")?;
                                 if let Some(db) = &ctx.db {
                                     let _ = db
                                         .log_asset_creation(
@@ -119,7 +108,7 @@ impl Task<TaskContext> for ERC1155BatchTask {
                                         .await;
                                 }
                                 addr
-                            }
+                            },
                             _ => {
                                 let _ = nonce_manager.resync().await;
                                 return Ok(TaskResult {
@@ -127,9 +116,9 @@ impl Task<TaskContext> for ERC1155BatchTask {
                                     message: format!("ERC1155 deploy failed (tx: {})", tx_hash),
                                     tx_hash: Some(tx_hash),
                                 });
-                            }
+                            },
                         }
-                    }
+                    },
                     Err(e) => {
                         debug!("ERC1155Batch deploy submit failed, resyncing nonce: {}", e);
                         let _ = nonce_manager.resync().await;
@@ -138,9 +127,9 @@ impl Task<TaskContext> for ERC1155BatchTask {
                             message: format!("Failed to submit ERC1155 deploy tx: {}", e),
                             tx_hash: None,
                         });
-                    }
+                    },
                 }
-            }
+            },
         };
 
         debug!("Using ERC1155 at {:?}", nft_address);
@@ -148,9 +137,7 @@ impl Task<TaskContext> for ERC1155BatchTask {
 
         // 4. Batch mint (fire-and-forget)
         let mut rng = OsRng;
-        let ids: Vec<U256> = (0..5)
-            .map(|_| U256::from(rng.gen_range(1..10000)))
-            .collect();
+        let ids: Vec<U256> = (0..5).map(|_| U256::from(rng.gen_range(1..10000))).collect();
         let amounts: Vec<U256> = (0..5).map(|_| U256::from(rng.gen_range(1..100))).collect();
         let data = format!("Batch mint for {:?}", address);
 
@@ -182,11 +169,15 @@ impl Task<TaskContext> for ERC1155BatchTask {
                     success: true,
                     message: format!(
                         "ERC1155 at {:?}, batch mint: {} tokens across {} IDs, total {} units (tx: {:?})",
-                        nft_address, ids.len(), ids.len(), total_minted, pending.tx_hash()
+                        nft_address,
+                        ids.len(),
+                        ids.len(),
+                        total_minted,
+                        pending.tx_hash()
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })
-            }
+            },
             Err(e) => {
                 debug!("ERC1155Batch mint submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -195,7 +186,7 @@ impl Task<TaskContext> for ERC1155BatchTask {
                     message: format!("Failed to submit ERC1155 batch mint tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

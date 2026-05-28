@@ -30,8 +30,7 @@ impl Task<TaskContext> for WethWrapTask {
 
         let balance = provider.get_balance(address, None).await?;
         let amount_wei = balance / 10; // 10%
-        let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-            .unwrap_or_else(|_| amount_wei.to_string());
+        let amount_eth = ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
 
         let (max_fee, priority_fee) = ctx.gas_manager.get_fees().await?;
         let gas_limit = crate::utils::gas::GasManager::LIMIT_SEND_MEME;
@@ -58,9 +57,7 @@ impl Task<TaskContext> for WethWrapTask {
         use ethers::middleware::SignerMiddleware;
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         Ok(TaskResult {
             success: receipt.status == Some(U64::from(1)),

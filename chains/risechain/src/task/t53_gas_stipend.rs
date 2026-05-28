@@ -49,17 +49,12 @@ impl Task<TaskContext> for GasStipendTask {
             .from(address);
 
         let deploy_pending = client.send_transaction(deploy_tx, None).await?;
-        let deploy_receipt = deploy_pending
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = deploy_pending.await?.context("Failed to get deploy receipt")?;
 
-        let contract_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let contract_address = deploy_receipt.contract_address.context("No contract address")?;
 
         let stipend_abi: abi::Abi = serde_json::from_str(stipend_abi_json)?;
-        let stipend_contract =
-            Contract::new(contract_address, stipend_abi, Arc::new(provider.clone()));
+        let stipend_contract = Contract::new(contract_address, stipend_abi, Arc::new(provider.clone()));
 
         let gas_amount = 50000u64;
         let call_data = stipend_contract.encode("callWithGas", gas_amount)?;

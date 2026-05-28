@@ -43,11 +43,7 @@ impl Task<TaskContext> for FlashLoanTestTask {
              ]"#;
             let abi: abi::Abi = serde_json::from_str(lending_abi)?;
             let pool = Contract::new(pool_address, abi, Arc::new(provider.clone()));
-            match pool
-                .method::<_, Vec<Address>>("getReservesList", ())?
-                .call()
-                .await
-            {
+            match pool.method::<_, Vec<Address>>("getReservesList", ())?.call().await {
                 Ok(reserves) => summary_parts.push(format!("Reserves: {}", reserves.len())),
                 Err(_) => summary_parts.push("Reserves: N/A".to_string()),
             }

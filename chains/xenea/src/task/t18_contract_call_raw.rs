@@ -52,10 +52,7 @@ impl Task<TaskContext> for ContractCallRawTask {
         let amount_wei = available / U256::from(100u64);
 
         // 3. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         // 4. Encode raw calldata: (recipient, amount)
@@ -79,17 +76,14 @@ impl Task<TaskContext> for ContractCallRawTask {
 
         match pending_tx {
             Ok(pending) => {
-                let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-                    .unwrap_or_else(|_| amount_wei.to_string());
+                let amount_eth =
+                    ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
                 Ok(TaskResult {
                     success: true,
-                    message: format!(
-                        "Raw call: sent {} TXENE to {:?} with calldata",
-                        amount_eth, recipient
-                    ),
+                    message: format!("Raw call: sent {} TXENE to {:?} with calldata", amount_eth, recipient),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })
-            }
+            },
             Err(e) => {
                 debug!("ContractCallRaw tx submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -98,7 +92,7 @@ impl Task<TaskContext> for ContractCallRawTask {
                     message: format!("Failed to submit raw call tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

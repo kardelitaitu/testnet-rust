@@ -30,11 +30,11 @@ async fn main() -> Result<()> {
                 if i < 5 || i % 50 == 0 {
                     println!("✅ Wallet {}: {} - OK", i, &wallet.evm_address[..20]);
                 }
-            }
+            },
             Err(e) => {
                 failed_wallets.push((i, e.to_string()));
                 println!("❌ Wallet {}: FAILED - {}", i, e);
-            }
+            },
         }
     }
 

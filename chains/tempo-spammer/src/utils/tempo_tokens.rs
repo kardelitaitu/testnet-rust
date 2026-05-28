@@ -55,10 +55,9 @@ impl TempoTokens {
 
     pub fn get_random_memo() -> String {
         const WORDS: &[&str] = &[
-            "happy", "bright", "ocean", "swift", "calm", "brave", "gentle", "wild", "sweet",
-            "clear", "warm", "cool", "fresh", "peace", "dream", "hope", "joy", "love", "grace",
-            "faith", "luck", "joy", "harmony", "serenity", "sunset", "sunrise", "mountain",
-            "river", "forest", "sky", "star", "moon",
+            "happy", "bright", "ocean", "swift", "calm", "brave", "gentle", "wild", "sweet", "clear", "warm", "cool",
+            "fresh", "peace", "dream", "hope", "joy", "love", "grace", "faith", "luck", "joy", "harmony", "serenity",
+            "sunset", "sunrise", "mountain", "river", "forest", "sky", "star", "moon",
         ];
 
         let word_count = rand::thread_rng().gen_range(2..4);
@@ -76,19 +75,13 @@ impl TempoTokens {
         format!("{} {}", words.join(" "), number)
     }
 
-    pub async fn get_token_balance(
-        client: &crate::TempoClient,
-        token: Address,
-        wallet: Address,
-    ) -> Result<U256> {
+    pub async fn get_token_balance(client: &crate::TempoClient, token: Address, wallet: Address) -> Result<U256> {
         let mut calldata = Vec::new();
         calldata.extend_from_slice(&[0x70, 0xa0, 0x82, 0x31]);
         calldata.extend_from_slice(&[0u8; 12]);
         calldata.extend_from_slice(wallet.as_slice());
 
-        let query = TransactionRequest::default()
-            .to(token)
-            .input(calldata.into());
+        let query = TransactionRequest::default().to(token).input(calldata.into());
 
         if let Ok(data) = client.provider.call(query).await {
             let bytes = data.as_ref();
@@ -103,9 +96,7 @@ impl TempoTokens {
         let mut calldata = Vec::new();
         calldata.extend_from_slice(&[0x31, 0x3f, 0x13, 0xa0]);
 
-        let query = TransactionRequest::default()
-            .to(token)
-            .input(calldata.into());
+        let query = TransactionRequest::default().to(token).input(calldata.into());
 
         if let Ok(data) = client.provider.call(query).await {
             let bytes = data.as_ref();

@@ -51,10 +51,7 @@ impl TempoTask for TransferLaterStableTask {
         let mut using_created_token = false;
 
         if let Some(db) = &ctx.db {
-            if let Ok(assets) = db
-                .get_assets_by_type(&address.to_string(), "stablecoin")
-                .await
-            {
+            if let Ok(assets) = db.get_assets_by_type(&address.to_string(), "stablecoin").await {
                 if !assets.is_empty() {
                     let mut rng = rand::thread_rng();
                     if let Some(random_asset) = assets.choose(&mut rng) {

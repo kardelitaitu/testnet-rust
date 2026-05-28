@@ -77,8 +77,7 @@ impl TempoTask for LimitOrderTask {
             if pathusd_balance < U256::from(1000) * U256::from(10_u64.pow(decimals as u32)) {
                 return Ok(TaskResult {
                     success: false,
-                    message: "Insufficient PathUSD balance for BUY order (need 1% balance)"
-                        .to_string(),
+                    message: "Insufficient PathUSD balance for BUY order (need 1% balance)".to_string(),
                     tx_hash: None,
                 });
             }
@@ -118,7 +117,7 @@ impl TempoTask for LimitOrderTask {
                             continue;
                         }
                         break;
-                    }
+                    },
                 }
             }
 
@@ -172,7 +171,7 @@ impl TempoTask for LimitOrderTask {
                             continue;
                         }
                         break;
-                    }
+                    },
                 }
             }
 
@@ -196,7 +195,7 @@ impl TempoTask for LimitOrderTask {
                         message: format!("Nonce error: {}", e),
                         tx_hash: None,
                     });
-                }
+                },
             };
 
             let tx = TransactionRequest::default()
@@ -224,7 +223,7 @@ impl TempoTask for LimitOrderTask {
                         ),
                         tx_hash: Some(format!("{:?}", tx_hash)),
                     });
-                }
+                },
                 Err(e) => {
                     let err = e.to_string().to_lowercase();
                     if (err.contains("nonce") || err.contains("known")) && attempt < max_retries {
@@ -239,7 +238,7 @@ impl TempoTask for LimitOrderTask {
                         message: format!("Limit order reverted: {}", e),
                         tx_hash: None,
                     });
-                }
+                },
             }
         }
     }

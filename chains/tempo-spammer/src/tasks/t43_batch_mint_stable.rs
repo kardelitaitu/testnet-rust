@@ -31,13 +31,13 @@ sol!(
 
 const PATHUSD_ADDRESS: &str = "0x20c0000000000000000000000000000000000000";
 const ISSUER_ROLE: [u8; 32] = [
-    0x2c, 0xfb, 0x1f, 0xc1, 0x0a, 0x22, 0xd0, 0x6e, 0x48, 0x5a, 0xfd, 0x48, 0xff, 0x86, 0x0e, 0x2e,
-    0xbc, 0x30, 0xa5, 0x47, 0x32, 0x71, 0x8a, 0x6e, 0x6e, 0x51, 0xb2, 0x70, 0x56, 0x6a, 0x38, 0xf6,
+    0x2c, 0xfb, 0x1f, 0xc1, 0x0a, 0x22, 0xd0, 0x6e, 0x48, 0x5a, 0xfd, 0x48, 0xff, 0x86, 0x0e, 0x2e, 0xbc, 0x30, 0xa5,
+    0x47, 0x32, 0x71, 0x8a, 0x6e, 0x6e, 0x51, 0xb2, 0x70, 0x56, 0x6a, 0x38, 0xf6,
 ]; // keccak256("ISSUER_ROLE")
 
 const MINTER_ROLE: [u8; 32] = [
-    0x9f, 0x2d, 0xf0, 0xfe, 0xd2, 0xc7, 0x76, 0x48, 0xde, 0x58, 0x60, 0xa4, 0xcc, 0x50, 0x8c, 0xd0,
-    0x81, 0x8c, 0x85, 0xb8, 0xb8, 0xa1, 0xab, 0x4c, 0xee, 0xef, 0x8d, 0x98, 0x1c, 0x89, 0x56, 0xa6,
+    0x9f, 0x2d, 0xf0, 0xfe, 0xd2, 0xc7, 0x76, 0x48, 0xde, 0x58, 0x60, 0xa4, 0xcc, 0x50, 0x8c, 0xd0, 0x81, 0x8c, 0x85,
+    0xb8, 0xb8, 0xa1, 0xab, 0x4c, 0xee, 0xef, 0x8d, 0x98, 0x1c, 0x89, 0x56, 0xa6,
 ]; // keccak256("MINTER_ROLE")
 
 #[derive(Debug, Clone, Default)]
@@ -66,10 +66,7 @@ impl TempoTask for BatchMintStableTask {
         let mut using_created_token = false;
 
         if let Some(db) = &ctx.db {
-            if let Ok(assets) = db
-                .get_assets_by_type(&address.to_string(), "stablecoin")
-                .await
-            {
+            if let Ok(assets) = db.get_assets_by_type(&address.to_string(), "stablecoin").await {
                 if !assets.is_empty() {
                     let mut rng = rand::rngs::OsRng;
                     if let Some(random_asset) = assets.choose(&mut rng) {
@@ -101,15 +98,12 @@ impl TempoTask for BatchMintStableTask {
 
         // Check if token is PathUSD (System Token)
         if token_addr == Address::from_str(PATHUSD_ADDRESS)? {
-            tracing::warn!(
-                "Cannot mint system token PathUSD via mint(). Skipping/Using Faucet instead."
-            );
+            tracing::warn!("Cannot mint system token PathUSD via mint(). Skipping/Using Faucet instead.");
             // We could try to use faucet logic here, but the task is "Batch Mint".
             // Let's just return early with success = true (skipped) to avoid failing the runner.
             return Ok(TaskResult {
                 success: true,
-                message: "Skipped batch mint for system token PathUSD (cannot grant roles)"
-                    .to_string(),
+                message: "Skipped batch mint for system token PathUSD (cannot grant roles)".to_string(),
                 tx_hash: None,
             });
         }
@@ -164,10 +158,10 @@ impl TempoTask for BatchMintStableTask {
                     } else {
                         tracing::warn!("  -> ISSUER_ROLE grant receipt failed.");
                     }
-                }
+                },
                 Err(e) => {
                     tracing::warn!("  -> ISSUER_ROLE grant failed: {}", e);
-                }
+                },
             }
 
             // Fallback to MINTER_ROLE if ISSUER failed
@@ -186,8 +180,7 @@ impl TempoTask for BatchMintStableTask {
                             .input(role_call_minter.abi_encode().into()),
                     )
                     .await?;
-                let has_minter =
-                    IMintable::hasRoleCall::abi_decode_returns(&role_res_minter).unwrap_or(false);
+                let has_minter = IMintable::hasRoleCall::abi_decode_returns(&role_res_minter).unwrap_or(false);
 
                 if has_minter {
                     grant_success = true;
@@ -221,10 +214,10 @@ impl TempoTask for BatchMintStableTask {
                                     tracing::warn!("  -> MINTER_ROLE grant tx failed (status 0).");
                                 }
                             }
-                        }
+                        },
                         Err(e) => {
                             tracing::warn!("  -> MINTER_ROLE grant failed: {}", e);
-                        }
+                        },
                     }
                 }
             }

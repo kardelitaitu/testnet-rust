@@ -71,7 +71,7 @@ impl TempoTask for MultiSendConcurrentTask {
                     message: "No system token balance found for concurrent transfer".to_string(),
                     tx_hash: None,
                 });
-            }
+            },
         };
         let decimals = token_decimals;
         let token_addr = token_info.address;
@@ -145,15 +145,15 @@ impl TempoTask for MultiSendConcurrentTask {
                             } else {
                                 // println!("  [{}] Failed: transaction reverted", i + 1);
                             }
-                        }
+                        },
                         Err(_e) => {
                             // println!("  [{}] Failed to get receipt: {:?}", i + 1, _e);
-                        }
+                        },
                     }
-                }
+                },
                 Err(_e) => {
                     // println!("  [{}] Tx failed: {:?}", i + 1, _e);
-                }
+                },
             }
         }
 
@@ -168,11 +168,7 @@ impl TempoTask for MultiSendConcurrentTask {
                 "Completed {}/{} concurrent {} transfers.",
                 success_count, count, token_info.symbol
             ),
-            tx_hash: if last_hash.is_empty() {
-                None
-            } else {
-                Some(last_hash)
-            },
+            tx_hash: if last_hash.is_empty() { None } else { Some(last_hash) },
         })
     }
 }

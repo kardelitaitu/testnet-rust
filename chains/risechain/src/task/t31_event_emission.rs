@@ -28,8 +28,7 @@ impl Task<TaskContext> for EventEmissionTask {
 
         let mut rng = OsRng;
         let amount_wei: u64 = rng.gen_range(10_000_000_000_000u64..100_000_000_000_000u64);
-        let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-            .unwrap_or_else(|_| amount_wei.to_string());
+        let amount_eth = ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
 
         let (max_fee, priority_fee) = ctx.gas_manager.get_fees().await?;
         let gas_limit = crate::utils::gas::GasManager::LIMIT_SEND_MEME;
@@ -64,9 +63,7 @@ impl Task<TaskContext> for EventEmissionTask {
             wallet.clone(),
         ));
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         let deposit_topic = ethers::utils::keccak256("Deposit(address,uint256)");
 

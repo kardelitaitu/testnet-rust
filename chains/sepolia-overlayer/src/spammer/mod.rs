@@ -92,7 +92,7 @@ mod tests {
                     "Error should mention new_with_signer: {}",
                     msg
                 );
-            }
+            },
             _ => panic!("Expected Err"),
         }
     }
@@ -121,9 +121,7 @@ impl EvmSpammer {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            ),
+            reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
         );
 
         let client_builder = Client::builder().default_headers(headers);
@@ -182,14 +180,13 @@ impl EvmSpammer {
                     tracing::error!("Critical error creating distribution: {}", e);
                     WeightedIndex::new(vec![1]).expect("Failed to create fallback distribution")
                 })
-            }
+            },
         };
 
         // Create base Sepolia gas manager if base config is provided
         let base_gas_manager = base_config.as_ref().map(|_| {
             let base_provider = Provider::new(Http::new_with_client(
-                reqwest::Url::parse(base_rpc_url.as_deref().unwrap())
-                    .expect("Invalid base RPC URL"),
+                reqwest::Url::parse(base_rpc_url.as_deref().unwrap()).expect("Invalid base RPC URL"),
                 reqwest::Client::new(),
             ));
             Arc::new(crate::utils::gas::GasManager::with_max(
@@ -229,25 +226,20 @@ impl EvmSpammer {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            ),
+            reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
         );
 
         let mut client_builder = Client::builder().default_headers(headers);
 
         if let Some(proxy_conf) = proxy_config {
-            let mut proxy = reqwest::Proxy::all(&proxy_conf.url)
-                .context("Invalid proxy URL")?;
+            let mut proxy = reqwest::Proxy::all(&proxy_conf.url).context("Invalid proxy URL")?;
             if let (Some(u), Some(p)) = (&proxy_conf.username, &proxy_conf.password) {
                 proxy = proxy.basic_auth(u, p);
             }
             client_builder = client_builder.proxy(proxy);
         }
 
-        let client = client_builder
-            .build()
-            .context("Failed to build HTTP client")?;
+        let client = client_builder.build().context("Failed to build HTTP client")?;
 
         Ok(Provider::new(Http::new_with_client(
             reqwest::Url::parse(rpc_url).context("Invalid RPC URL")?,
@@ -262,10 +254,7 @@ impl Spammer for EvmSpammer {
         Err(anyhow::anyhow!("Use new_with_signer construction"))
     }
 
-    async fn start(
-        &self,
-        cancellation_token: CancellationToken,
-    ) -> Result<core_logic::traits::SpammerStats> {
+    async fn start(&self, cancellation_token: CancellationToken) -> Result<core_logic::traits::SpammerStats> {
         let span = tracing::info_span!("spammer_context", wallet_id = self.wallet_id.as_str());
 
         async move {
@@ -317,13 +306,10 @@ impl Spammer for EvmSpammer {
                     };
 
                     if let Some(ref proxy) = proxy_config {
-                        self.proxy_rate_limiter
-                            .wait_until_available(&proxy.url)
-                            .await;
+                        self.proxy_rate_limiter.wait_until_available(&proxy.url).await;
                     }
 
-                    let is_base_task =
-                        task.name() == "16_bridgeBackTplus" || task.name() == "17_bridgeBackCplus";
+                    let is_base_task = task.name() == "16_bridgeBackTplus" || task.name() == "17_bridgeBackCplus";
 
                     let rpc_url = if is_base_task {
                         self.base_rpc_url.as_deref().unwrap_or(&self.config.rpc_url)
@@ -331,9 +317,7 @@ impl Spammer for EvmSpammer {
                         &self.config.rpc_url
                     };
 
-                    let provider = self
-                        .create_provider_with_proxy(&proxy_config, rpc_url)
-                        .await?;
+                    let provider = self.create_provider_with_proxy(&proxy_config, rpc_url).await?;
 
                     let mut rng = OsRng;
                     let wallet_idx = loop {
@@ -367,32 +351,26 @@ impl Spammer for EvmSpammer {
                                     self.busy_wallets.lock().await.remove(&wallet_idx);
                                     warn!("Failed to parse wallet {}: {}", wallet_idx, e);
                                     continue;
-                                }
+                                },
                             }
-                        }
+                        },
                         Err(e) => {
                             self.busy_wallets.lock().await.remove(&wallet_idx);
                             warn!("Failed to decrypt wallet {}: {}", wallet_idx, e);
                             continue;
-                        }
+                        },
                     };
 
                     let wallet_address = wallet.address();
 
                     let ctx_gas_manager = if is_base_task {
-                        self.base_gas_manager
-                            .as_ref()
-                            .unwrap_or(&self.gas_manager)
-                            .clone()
+                        self.base_gas_manager.as_ref().unwrap_or(&self.gas_manager).clone()
                     } else {
                         self.gas_manager.clone()
                     };
 
                     let ctx_config = if is_base_task {
-                        self.base_config
-                            .as_ref()
-                            .unwrap_or(&self.sepolia_config)
-                            .clone()
+                        self.base_config.as_ref().unwrap_or(&self.sepolia_config).clone()
                     } else {
                         self.sepolia_config.clone()
                     };
@@ -459,7 +437,7 @@ impl Spammer for EvmSpammer {
                                     )
                                     .await;
                             }
-                        }
+                        },
                         Err(e) => {
                             if let Some(ref proxy) = proxy_config {
                                 self.proxy_health.record_failure(&proxy.url).await;
@@ -492,15 +470,14 @@ impl Spammer for EvmSpammer {
                                     )
                                     .await;
                             }
-                        }
+                        },
                     }
                     self.busy_wallets.lock().await.remove(&wallet_idx);
                 }
 
-                let sleep_ms = if let (Some(min), Some(max)) = (
-                    self.sepolia_config.min_delay_ms,
-                    self.sepolia_config.max_delay_ms,
-                ) {
+                let sleep_ms = if let (Some(min), Some(max)) =
+                    (self.sepolia_config.min_delay_ms, self.sepolia_config.max_delay_ms)
+                {
                     let mut rng = OsRng;
                     rng.gen_range(min..=max)
                 } else {

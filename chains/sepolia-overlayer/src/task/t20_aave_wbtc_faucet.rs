@@ -1,10 +1,9 @@
-use super::{SepoliaTask, TaskContext, TaskResult};
+use super::{confirm_with_retry, SepoliaTask, TaskContext, TaskResult};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::middleware::SignerMiddleware;
 use ethers::prelude::*;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// AAVE faucet contract on Sepolia — mints test ERC20 tokens
 const AAVE_FAUCET: &str = "0xC959483DBa39aa9E78757139af0e9a2EDEb3f42D";
@@ -56,15 +55,16 @@ impl SepoliaTask for AaveWbtcFaucetTask {
 
         let tx_hash = mint_tx.tx_hash();
 
-        let receipt = mint_tx
-            .confirmations(1)
-            .interval(Duration::from_millis(500))
-            .await?;
+        let receipt = confirm_with_retry(tx_hash, provider).await?;
 
         let success = receipt.is_some_and(|r| r.status == Some(1.into()));
         Ok(TaskResult {
             success,
-            message: format!("Minted 1 WBTC from AAVE faucet (tx: {:?})", tx_hash),
+            message: if success {
+                format!("Minted 1 WBTC from AAVE faucet (tx: {:?})", tx_hash)
+            } else {
+                format!("Failed to mint WBTC from AAVE faucet - receipt not confirmed (tx: {:?})", tx_hash)
+            },
         })
     }
 }

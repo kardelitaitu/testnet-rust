@@ -67,8 +67,7 @@ impl TempoTask for MintDomainTask {
         let client = &ctx.client;
         let address = ctx.address();
 
-        let infinity_addr =
-            Address::from_str(INFINITY_NAME_ADDRESS).context("Invalid Infinity address")?;
+        let infinity_addr = Address::from_str(INFINITY_NAME_ADDRESS).context("Invalid Infinity address")?;
         let pathusd_addr = Address::from_str(PATHUSD_ADDRESS).context("Invalid PathUSD address")?;
 
         let mut rng = rand::rngs::OsRng;
@@ -87,8 +86,7 @@ impl TempoTask for MintDomainTask {
         if balance < min_balance {
             return Ok(TaskResult {
                 success: false,
-                message: "Insufficient PathUSD for domain registration. Need 1000 PathUSD"
-                    .to_string(),
+                message: "Insufficient PathUSD for domain registration. Need 1000 PathUSD".to_string(),
                 tx_hash: None,
             });
         }
@@ -124,14 +122,11 @@ impl TempoTask for MintDomainTask {
                 } else {
                     return Err(e).context("Failed to send register transaction");
                 }
-            }
+            },
         };
 
         let tx_hash = *pending.tx_hash();
-        let receipt = pending
-            .get_receipt()
-            .await
-            .context("Failed to get receipt")?;
+        let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
         if !receipt.inner.status() {
             return Ok(TaskResult {
@@ -168,10 +163,7 @@ impl TempoTask for MintDomainTask {
         // println!("🔍 Parsing logs for domain registration events...");
         for log in logs.iter() {
             // Try to decode DomainRegistered event
-            if let Ok(event) = IInfinityNameService::DomainRegistered::decode_raw_log(
-                log.topics(),
-                &log.data().data,
-            ) {
+            if let Ok(event) = IInfinityNameService::DomainRegistered::decode_raw_log(log.topics(), &log.data().data) {
                 // println!("✅ Found DomainRegistered event!");
                 // println!("   - Name: {:?}", event.name);
                 // println!("   - Owner: {:?}", event.owner);
@@ -195,9 +187,7 @@ impl TempoTask for MintDomainTask {
             }
 
             // Try to decode NameRegistered event
-            if let Ok(event) =
-                IInfinityNameService::NameRegistered::decode_raw_log(log.topics(), &log.data().data)
-            {
+            if let Ok(event) = IInfinityNameService::NameRegistered::decode_raw_log(log.topics(), &log.data().data) {
                 // println!("✅ Found NameRegistered event!");
                 // println!("   - Name: {:?}", event.name);
                 // println!("   - Owner: {:?}", event.owner);
@@ -220,9 +210,7 @@ impl TempoTask for MintDomainTask {
             }
 
             // Try to decode Transfer event (common for ENS-style domains)
-            if let Ok(event) =
-                IInfinityNameService::Transfer::decode_raw_log(log.topics(), &log.data().data)
-            {
+            if let Ok(event) = IInfinityNameService::Transfer::decode_raw_log(log.topics(), &log.data().data) {
                 // println!("✅ Found Transfer event!");
                 // println!("   - Node: {:?}", event.node);
                 // println!("   - Owner: {:?}", event.owner);
@@ -275,41 +263,27 @@ impl TempoTask for MintDomainTask {
                 .await
             {
                 Ok(bytes) => {
-                    println!(
-                        "🔍 Raw call return bytes (len {}): {:?}",
-                        bytes.len(),
-                        bytes
-                    );
+                    println!("🔍 Raw call return bytes (len {}): {:?}", bytes.len(), bytes);
                     if bytes.is_empty() {
                         println!("⚠️ owner(label) returned empty bytes");
-                    } else if let Ok(res) =
-                        IInfinityNameService::ownerCall::abi_decode_returns(&bytes)
-                    {
+                    } else if let Ok(res) = IInfinityNameService::ownerCall::abi_decode_returns(&bytes) {
                         if res == address {
                             println!("✅ Verification successful: owner(label) is {:?}", res);
                         } else {
-                            println!(
-                                "⚠️ Mismatch owner(label): expected {:?}, got {:?}",
-                                address, res
-                            );
+                            println!("⚠️ Mismatch owner(label): expected {:?}, got {:?}", address, res);
                         }
                     } else {
-                        println!(
-                            "⚠️ owner(label) decode fail or empty (bytes len {})",
-                            bytes.len()
-                        );
+                        println!("⚠️ owner(label) decode fail or empty (bytes len {})", bytes.len());
                     }
-                }
+                },
                 Err(e) => {
                     println!("❌ owner(label) call failed: {:?}", e);
-                }
+                },
             }
 
             // Check 2: owner(namehash) - ENS style
             println!("Checking owner(namehash('{}.tempo'))...", domain);
-            let check2 = IInfinityNameService::ownerCall {
-                node: full_namehash,
-            };
+            let check2 = IInfinityNameService::ownerCall { node: full_namehash };
             match client
                 .provider
                 .call(
@@ -320,41 +294,27 @@ impl TempoTask for MintDomainTask {
                 .await
             {
                 Ok(bytes) => {
-                    println!(
-                        "🔍 Raw call return bytes (len {}): {:?}",
-                        bytes.len(),
-                        bytes
-                    );
+                    println!("🔍 Raw call return bytes (len {}): {:?}", bytes.len(), bytes);
                     if bytes.is_empty() {
                         println!("⚠️ owner(namehash) returned empty bytes");
-                    } else if let Ok(res) =
-                        IInfinityNameService::ownerCall::abi_decode_returns(&bytes)
-                    {
+                    } else if let Ok(res) = IInfinityNameService::ownerCall::abi_decode_returns(&bytes) {
                         if res == address {
                             println!("✅ Verification successful: owner(namehash) is {:?}", res);
                         } else {
-                            println!(
-                                "⚠️ Mismatch owner(namehash): expected {:?}, got {:?}",
-                                address, res
-                            );
+                            println!("⚠️ Mismatch owner(namehash): expected {:?}, got {:?}", address, res);
                         }
                     } else {
-                        println!(
-                            "⚠️ owner(namehash) decode fail or empty (bytes len {})",
-                            bytes.len()
-                        );
+                        println!("⚠️ owner(namehash) decode fail or empty (bytes len {})", bytes.len());
                     }
-                }
+                },
                 Err(e) => {
                     println!("❌ owner(namehash) call failed: {:?}", e);
-                }
+                },
             }
 
             // Check 3: addr(namehash) - Resolver style
             println!("Checking addr(namehash('{}.tempo'))...", domain);
-            let check3 = IInfinityNameService::addrCall {
-                node: full_namehash,
-            };
+            let check3 = IInfinityNameService::addrCall { node: full_namehash };
             match client
                 .provider
                 .call(
@@ -365,34 +325,22 @@ impl TempoTask for MintDomainTask {
                 .await
             {
                 Ok(bytes) => {
-                    println!(
-                        "🔍 Raw call return bytes (len {}): {:?}",
-                        bytes.len(),
-                        bytes
-                    );
+                    println!("🔍 Raw call return bytes (len {}): {:?}", bytes.len(), bytes);
                     if bytes.is_empty() {
                         println!("⚠️ addr(namehash) returned empty bytes");
-                    } else if let Ok(res) =
-                        IInfinityNameService::addrCall::abi_decode_returns(&bytes)
-                    {
+                    } else if let Ok(res) = IInfinityNameService::addrCall::abi_decode_returns(&bytes) {
                         if res == address {
                             println!("✅ Verification successful: addr(namehash) is {:?}", res);
                         } else {
-                            println!(
-                                "⚠️ Mismatch addr(namehash): expected {:?}, got {:?}",
-                                address, res
-                            );
+                            println!("⚠️ Mismatch addr(namehash): expected {:?}, got {:?}", address, res);
                         }
                     } else {
-                        println!(
-                            "⚠️ addr(namehash) decode fail or empty (bytes len {})",
-                            bytes.len()
-                        );
+                        println!("⚠️ addr(namehash) decode fail or empty (bytes len {})", bytes.len());
                     }
-                }
+                },
                 Err(e) => {
                     println!("❌ addr(namehash) call failed: {:?}", e);
-                }
+                },
             }
         } else {
             // println!("⏭️  Domain ownership verification skipped (default behavior)");

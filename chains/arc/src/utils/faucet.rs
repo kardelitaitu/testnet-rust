@@ -37,11 +37,7 @@ fn find_obscura_binary() -> PathBuf {
         }
     }
     if let Ok(cwd) = std::env::current_dir() {
-        let names: &[&str] = if cfg!(windows) {
-            &["obscura.exe"]
-        } else {
-            &["obscura"]
-        };
+        let names: &[&str] = if cfg!(windows) { &["obscura.exe"] } else { &["obscura"] };
         for name in names {
             let candidate = cwd.join(name);
             if candidate.exists() {
@@ -388,31 +384,16 @@ pub fn request_tokens(
             _action_url = arr[7].as_str().unwrap_or("").to_string();
             input_names = arr[8]
                 .as_array()
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|v| v.as_str())
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                })
+                .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join("\n"))
                 .unwrap_or_default();
             captured_response = arr[9].as_str().unwrap_or("").to_string();
             debug_log = arr[10]
                 .as_array()
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|v| v.as_str())
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                })
+                .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join("\n"))
                 .unwrap_or_default();
             error_log = arr[11]
                 .as_array()
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|v| v.as_str())
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                })
+                .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join("\n"))
                 .unwrap_or_default();
             discovered_api = arr[12].as_str().unwrap_or("").to_string();
             parse_ok = true;
@@ -420,36 +401,20 @@ pub fn request_tokens(
             if !captured_response.is_empty() {
                 if let Ok(cr) = serde_json::from_str::<serde_json::Value>(&captured_response) {
                     api_status = cr.get("status").and_then(|v| v.as_i64()).unwrap_or(0);
-                    api_body = cr
-                        .get("body")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
+                    api_body = cr.get("body").and_then(|v| v.as_str()).unwrap_or("").to_string();
                 }
             }
-        }
+        },
         Ok(serde_json::Value::Array(arr)) if arr.len() >= 6 => {
             input_found = arr[0].as_bool().unwrap_or(false);
             submit_found = arr[1].as_bool().unwrap_or(false);
-            page_text = arr
-                .get(2)
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+            page_text = arr.get(2).and_then(|v| v.as_str()).unwrap_or("").to_string();
             _form_found = arr.get(3).and_then(|v| v.as_bool()).unwrap_or(false);
-            _current_url = arr
-                .get(4)
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            submitted_via = arr
-                .get(5)
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
+            _current_url = arr.get(4).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            submitted_via = arr.get(5).and_then(|v| v.as_str()).unwrap_or("").to_string();
             parse_ok = true;
-        }
-        _ => {}
+        },
+        _ => {},
     }
 
     if !parse_ok {
@@ -489,12 +454,16 @@ pub fn request_tokens(
     } else if api_status == 429 || api_rate_limited {
         format!(
             "❌ Rate limited (HTTP {}). API body:\n{}\nCheck explorer: https://testnet.arcscan.app/address/{}",
-            api_status, &api_body[..api_body.len().min(500)], address
+            api_status,
+            &api_body[..api_body.len().min(500)],
+            address
         )
     } else if api_invalid {
         format!(
             "❌ API returned error (HTTP {}).\nResponse:\n{}\nCheck explorer: https://testnet.arcscan.app/address/{}",
-            api_status, &api_body[..api_body.len().min(500)], address
+            api_status,
+            &api_body[..api_body.len().min(500)],
+            address
         )
     } else if api_success {
         format!(

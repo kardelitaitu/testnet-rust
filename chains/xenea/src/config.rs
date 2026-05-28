@@ -22,9 +22,7 @@ pub struct XeneaConfig {
 
 impl XeneaConfig {
     pub fn load(path: &str) -> Result<Self> {
-        let settings = Config::builder()
-            .add_source(File::with_name(path))
-            .build()?;
+        let settings = Config::builder().add_source(File::with_name(path)).build()?;
 
         settings.try_deserialize().map_err(|e| anyhow::anyhow!(e))
     }

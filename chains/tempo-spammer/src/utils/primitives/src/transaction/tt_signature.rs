@@ -11,16 +11,14 @@ use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
 
 /// The P256 (secp256r1/prime256v1) curve order n.
-pub const P256_ORDER: U256 =
-    uint!(0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551_U256);
+pub const P256_ORDER: U256 = uint!(0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551_U256);
 
 /// Half of the P256 curve order (n/2).
 ///
 /// For signatures to be valid, the s value must be less than or equal to n/2
 /// (low-s requirement). This prevents signature malleability where (r, s) and
 /// (r, n-s) are both valid signatures for the same message.
-pub const P256N_HALF: U256 =
-    uint!(0x7FFFFFFF800000007FFFFFFFFFFFFFFFDE737D56D38BCF4279DCE5617E3192A8_U256);
+pub const P256N_HALF: U256 = uint!(0x7FFFFFFF800000007FFFFFFFFFFFFFFFDE737D56D38BCF4279DCE5617E3192A8_U256);
 
 /// Normalize P256 signature s value to low-s form.
 ///
@@ -58,10 +56,7 @@ const ED: u8 = 0x80; // Extension data present (bit 7)
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "reth-codec", derive(reth_codecs::Compact))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(compact)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact))]
 pub struct P256SignatureWithPreHash {
     pub r: B256,
     pub s: B256,
@@ -76,10 +71,7 @@ pub struct P256SignatureWithPreHash {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "reth-codec", derive(reth_codecs::Compact))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(compact)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact))]
 pub struct WebAuthnSignature {
     pub r: B256,
     pub s: B256,
@@ -98,10 +90,7 @@ pub struct WebAuthnSignature {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(compact, rlp)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
 pub enum PrimitiveSignature {
     /// Standard secp256k1 ECDSA signature (65 bytes: r, s, v)
@@ -152,7 +141,7 @@ impl PrimitiveSignature {
                     pub_key_y: B256::from_slice(&sig_data[96..128]),
                     pre_hash: sig_data[128] != 0,
                 }))
-            }
+            },
             SIGNATURE_TYPE_WEBAUTHN => {
                 let len = sig_data.len();
                 if !(128..=MAX_WEBAUTHN_SIGNATURE_LENGTH).contains(&len) {
@@ -165,7 +154,7 @@ impl PrimitiveSignature {
                     pub_key_y: B256::from_slice(&sig_data[len - 32..]),
                     webauthn_data: Bytes::copy_from_slice(&sig_data[..len - 128]),
                 }))
-            }
+            },
 
             _ => Err("Unknown signature type identifier"),
         }
@@ -188,7 +177,7 @@ impl PrimitiveSignature {
                     "Secp256k1 signature must be exactly 65 bytes"
                 );
                 Bytes::copy_from_slice(&sig_bytes)
-            }
+            },
             Self::P256(p256_sig) => {
                 let mut bytes = Vec::with_capacity(1 + 129);
                 bytes.push(SIGNATURE_TYPE_P256);
@@ -198,7 +187,7 @@ impl PrimitiveSignature {
                 bytes.extend_from_slice(p256_sig.pub_key_y.as_slice());
                 bytes.push(if p256_sig.pre_hash { 1 } else { 0 });
                 Bytes::from(bytes)
-            }
+            },
             Self::WebAuthn(webauthn_sig) => {
                 let mut bytes = Vec::with_capacity(1 + webauthn_sig.webauthn_data.len() + 128);
                 bytes.push(SIGNATURE_TYPE_WEBAUTHN);
@@ -208,7 +197,7 @@ impl PrimitiveSignature {
                 bytes.extend_from_slice(webauthn_sig.pub_key_x.as_slice());
                 bytes.extend_from_slice(webauthn_sig.pub_key_y.as_slice());
                 Bytes::from(bytes)
-            }
+            },
         }
     }
 
@@ -249,16 +238,13 @@ impl PrimitiveSignature {
     /// - secp256k1: Uses standard ecrecover (signature verification + address recovery)
     /// - P256: Verifies P256 signature then derives address from public key
     /// - WebAuthn: Parses WebAuthn data, verifies P256 signature, derives address
-    pub fn recover_signer(
-        &self,
-        sig_hash: &B256,
-    ) -> Result<Address, alloy_consensus::crypto::RecoveryError> {
+    pub fn recover_signer(&self, sig_hash: &B256) -> Result<Address, alloy_consensus::crypto::RecoveryError> {
         match self {
             Self::Secp256k1(sig) => {
                 // Standard secp256k1 recovery using alloy's built-in methods
                 // This simultaneously verifies the signature AND recovers the address
                 alloy_consensus::crypto::secp256k1::recover_signer(sig, *sig_hash)
-            }
+            },
             Self::P256(p256_sig) => {
                 // Prepare message hash for verification
                 let message_hash = if p256_sig.pre_hash {
@@ -279,16 +265,12 @@ impl PrimitiveSignature {
                 .map_err(|_| alloy_consensus::crypto::RecoveryError::new())?;
 
                 // Derive and return address
-                Ok(derive_p256_address(
-                    &p256_sig.pub_key_x,
-                    &p256_sig.pub_key_y,
-                ))
-            }
+                Ok(derive_p256_address(&p256_sig.pub_key_x, &p256_sig.pub_key_y))
+            },
             Self::WebAuthn(webauthn_sig) => {
                 // Parse and verify WebAuthn data, compute challenge hash
-                let message_hash =
-                    verify_webauthn_data_internal(&webauthn_sig.webauthn_data, sig_hash)
-                        .map_err(|_| alloy_consensus::crypto::RecoveryError::new())?;
+                let message_hash = verify_webauthn_data_internal(&webauthn_sig.webauthn_data, sig_hash)
+                    .map_err(|_| alloy_consensus::crypto::RecoveryError::new())?;
 
                 // Verify P256 signature over the computed message hash
                 verify_p256_signature_internal(
@@ -301,11 +283,8 @@ impl PrimitiveSignature {
                 .map_err(|_| alloy_consensus::crypto::RecoveryError::new())?;
 
                 // Derive and return address
-                Ok(derive_p256_address(
-                    &webauthn_sig.pub_key_x,
-                    &webauthn_sig.pub_key_y,
-                ))
-            }
+                Ok(derive_p256_address(&webauthn_sig.pub_key_x, &webauthn_sig.pub_key_y))
+            },
         }
     }
 }
@@ -348,8 +327,7 @@ impl reth_codecs::Compact for PrimitiveSignature {
     fn from_compact(buf: &[u8], len: usize) -> (Self, &[u8]) {
         // Delegate to Bytes::from_compact which handles variable-length decoding
         let (bytes, rest) = Bytes::from_compact(buf, len);
-        let signature = Self::from_bytes(&bytes)
-            .expect("Failed to decode PrimitiveSignature from compact encoding");
+        let signature = Self::from_bytes(&bytes).expect("Failed to decode PrimitiveSignature from compact encoding");
         (signature, rest)
     }
 }
@@ -365,10 +343,7 @@ impl reth_codecs::Compact for PrimitiveSignature {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(compact)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact))]
 pub struct KeychainSignature {
     /// Root account address that this transaction is being executed for
     pub user_address: Address,
@@ -380,11 +355,7 @@ pub struct KeychainSignature {
     /// Note: Excluded from PartialEq, Eq, Hash, and Compact as it's a cache.
     #[cfg_attr(
         feature = "serde",
-        serde(
-            serialize_with = "serialize_once_lock",
-            rename = "keyId",
-            skip_deserializing,
-        )
+        serde(serialize_with = "serialize_once_lock", rename = "keyId", skip_deserializing,)
     )]
     cached_key_id: OnceLock<Address>,
 }
@@ -406,10 +377,7 @@ impl KeychainSignature {
     /// subsequent calls. Returns None for non-Keychain signatures.
     ///
     /// This follows the pattern used in alloy for lazy hash computation.
-    pub fn key_id(
-        &self,
-        sig_hash: &B256,
-    ) -> Result<Address, alloy_consensus::crypto::RecoveryError> {
+    pub fn key_id(&self, sig_hash: &B256) -> Result<Address, alloy_consensus::crypto::RecoveryError> {
         // Check if already cached
         if let Some(cached) = self.cached_key_id.get() {
             return Ok(*cached);
@@ -489,10 +457,7 @@ impl<'a> arbitrary::Arbitrary<'a> for KeychainSignature {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(untagged, rename_all = "camelCase"))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(compact, rlp)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
 pub enum TempoSignature {
     /// Primitive signature types: Secp256k1, P256, or WebAuthn
     Primitive(PrimitiveSignature),
@@ -517,10 +482,7 @@ impl TempoSignature {
 
         // Check if this is a Keychain signature (type identifier 0x03)
         // We need to handle this specially before delegating to PrimitiveSignature
-        if data.len() > 1
-            && data.len() != SECP256K1_SIGNATURE_LENGTH
-            && data[0] == SIGNATURE_TYPE_KEYCHAIN
-        {
+        if data.len() > 1 && data.len() != SECP256K1_SIGNATURE_LENGTH && data[0] == SIGNATURE_TYPE_KEYCHAIN {
             let sig_data = &data[1..];
 
             // Keychain format: user_address (20 bytes) || inner_signature
@@ -563,7 +525,7 @@ impl TempoSignature {
                 bytes.extend_from_slice(keychain_sig.user_address.as_slice());
                 bytes.extend_from_slice(&inner_bytes);
                 Bytes::from(bytes)
-            }
+            },
         }
     }
 
@@ -609,10 +571,7 @@ impl TempoSignature {
     /// that the signature is valid for the keychain. They also need to check the access key is authorized
     /// in the keychain precompile.
     /// We cannot check this here, as we don't have access to the keychain precompile.
-    pub fn recover_signer(
-        &self,
-        sig_hash: &B256,
-    ) -> Result<Address, alloy_consensus::crypto::RecoveryError> {
+    pub fn recover_signer(&self, sig_hash: &B256) -> Result<Address, alloy_consensus::crypto::RecoveryError> {
         match self {
             Self::Primitive(primitive_sig) => primitive_sig.recover_signer(sig_hash),
             Self::Keychain(keychain_sig) => {
@@ -621,7 +580,7 @@ impl TempoSignature {
 
                 // Return the user_address - the root account this transaction is for
                 Ok(keychain_sig.user_address)
-            }
+            },
         }
     }
 
@@ -677,8 +636,7 @@ impl reth_codecs::Compact for TempoSignature {
     fn from_compact(buf: &[u8], len: usize) -> (Self, &[u8]) {
         // Delegate to Bytes::from_compact which handles variable-length decoding
         let (bytes, rest) = Bytes::from_compact(buf, len);
-        let signature = Self::from_bytes(&bytes)
-            .expect("Failed to decode TempoSignature from compact encoding");
+        let signature = Self::from_bytes(&bytes).expect("Failed to decode TempoSignature from compact encoding");
         (signature, rest)
     }
 }
@@ -731,11 +689,9 @@ fn verify_p256_signature_internal(
         false, // Not compressed
     );
 
-    let verifying_key =
-        VerifyingKey::from_encoded_point(&encoded_point).map_err(|_| "Invalid P256 public key")?;
+    let verifying_key = VerifyingKey::from_encoded_point(&encoded_point).map_err(|_| "Invalid P256 public key")?;
 
-    let signature = P256Signature::from_slice(&[r, s].concat())
-        .map_err(|_| "Invalid P256 signature encoding")?;
+    let signature = P256Signature::from_slice(&[r, s].concat()).map_err(|_| "Invalid P256 signature encoding")?;
 
     // Verify signature
     verifying_key
@@ -759,10 +715,7 @@ struct ClientDataJson<'a> {
 /// 2. Validates authenticatorData (min 37 bytes, UP flag set)
 /// 3. Validates clientDataJSON (type="webauthn.get", challenge matches tx_hash)
 /// 4. Computes message hash = sha256(authenticatorData || sha256(clientDataJSON))
-fn verify_webauthn_data_internal(
-    webauthn_data: &[u8],
-    tx_hash: &B256,
-) -> Result<B256, &'static str> {
+fn verify_webauthn_data_internal(webauthn_data: &[u8], tx_hash: &B256) -> Result<B256, &'static str> {
     // Ensure that we have clientDataJSON after authenticatorData
     if webauthn_data.len() < MIN_AUTH_DATA_LEN + 32 {
         return Err("WebAuthn data too short");
@@ -853,8 +806,7 @@ mod tests {
 
     /// Sign a message hash with P256, normalize s, return (r, s)
     fn sign_p256_normalized(signing_key: &P256SigningKey, message_hash: &B256) -> (B256, B256) {
-        let signature: p256::ecdsa::Signature =
-            signing_key.sign_prehash(message_hash.as_slice()).unwrap();
+        let signature: p256::ecdsa::Signature = signing_key.sign_prehash(message_hash.as_slice()).unwrap();
         let sig_bytes = signature.to_bytes();
         let r = B256::from_slice(&sig_bytes[0..32]);
         let s = normalize_p256_s(&sig_bytes[32..64]);
@@ -870,9 +822,7 @@ mod tests {
             data.extend_from_slice(ext);
         }
         let challenge = URL_SAFE_NO_PAD.encode(tx_hash.as_slice());
-        data.extend_from_slice(
-            format!("{{\"type\":\"webauthn.get\",\"challenge\":\"{challenge}\"}}").as_bytes(),
-        );
+        data.extend_from_slice(format!("{{\"type\":\"webauthn.get\",\"challenge\":\"{challenge}\"}}").as_bytes());
         data
     }
 
@@ -937,17 +887,8 @@ mod tests {
         let message_hash = B256::ZERO;
 
         // Invalid signature (all zeros) should fail
-        let result = verify_p256_signature_internal(
-            &r,
-            &s,
-            pub_key_x.as_slice(),
-            pub_key_y.as_slice(),
-            &message_hash,
-        );
-        assert!(
-            result.is_err(),
-            "Invalid signature should fail verification"
-        );
+        let result = verify_p256_signature_internal(&r, &s, pub_key_x.as_slice(), pub_key_y.as_slice(), &message_hash);
+        assert!(result.is_err(), "Invalid signature should fail verification");
     }
 
     #[test]
@@ -963,10 +904,7 @@ mod tests {
             pub_key_y.as_slice(),
             &message_hash,
         );
-        assert!(
-            result.is_ok(),
-            "Valid P256 signature should verify successfully"
-        );
+        assert!(result.is_ok(), "Valid P256 signature should verify successfully");
     }
 
     #[test]
@@ -975,8 +913,7 @@ mod tests {
         let message_hash = B256::from_slice(&Sha256::digest(b"test message for high s"));
 
         // Sign and get raw (non-normalized) signature
-        let signature: p256::ecdsa::Signature =
-            signing_key.sign_prehash(message_hash.as_slice()).unwrap();
+        let signature: p256::ecdsa::Signature = signing_key.sign_prehash(message_hash.as_slice()).unwrap();
         let sig_bytes = signature.to_bytes();
         let r = &sig_bytes[0..32];
         let original_s = &sig_bytes[32..64];
@@ -1013,10 +950,7 @@ mod tests {
                 pub_key_y.as_slice(),
                 &message_hash,
             );
-            assert!(
-                original_result.is_err(),
-                "Original high-s signature should be rejected"
-            );
+            assert!(original_result.is_err(), "Original high-s signature should be rejected");
         }
     }
 
@@ -1062,7 +996,8 @@ mod tests {
         auth_data[32] = 0x01; // flags byte with UP flag set
 
         // Add clientDataJSON with wrong type
-        let client_data = b"{\"type\":\"webauthn.create\",\"challenge\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}";
+        let client_data =
+            b"{\"type\":\"webauthn.create\",\"challenge\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}";
         let mut webauthn_data = auth_data;
         webauthn_data.extend_from_slice(client_data);
 
@@ -1070,10 +1005,7 @@ mod tests {
         let result = verify_webauthn_data_internal(&webauthn_data, &tx_hash);
 
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            "clientDataJSON type must be webauthn.get"
-        );
+        assert_eq!(result.unwrap_err(), "clientDataJSON type must be webauthn.get");
     }
 
     #[test]
@@ -1083,8 +1015,7 @@ mod tests {
         auth_data[32] = 0x01; // flags byte with UP flag set
 
         // Add clientDataJSON with wrong challenge
-        let client_data =
-            b"{\"type\":\"webauthn.get\",\"challenge\":\"wrong_challenge_value_here\"}";
+        let client_data = b"{\"type\":\"webauthn.get\",\"challenge\":\"wrong_challenge_value_here\"}";
         let mut webauthn_data = auth_data;
         webauthn_data.extend_from_slice(client_data);
 
@@ -1104,10 +1035,7 @@ mod tests {
         let webauthn_data = build_webauthn_data(0x01, None, &tx_hash); // UP flag
 
         let result = verify_webauthn_data_internal(&webauthn_data, &tx_hash);
-        assert!(
-            result.is_ok(),
-            "Valid WebAuthn data should verify successfully"
-        );
+        assert!(result.is_ok(), "Valid WebAuthn data should verify successfully");
 
         // Verify the computed message hash is correct
         let message_hash = result.unwrap();
@@ -1125,10 +1053,8 @@ mod tests {
 
     #[test]
     fn test_p256_address_derivation() {
-        let pub_key_x =
-            hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").into();
-        let pub_key_y =
-            hex!("fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321").into();
+        let pub_key_x = hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").into();
+        let pub_key_y = hex!("fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321").into();
 
         let addr1 = derive_p256_address(&pub_key_x, &pub_key_y);
         let addr2 = derive_p256_address(&pub_key_x, &pub_key_y);
@@ -1143,10 +1069,8 @@ mod tests {
     #[test]
     fn test_p256_address_derivation_deterministic() {
         // Test that address derivation is deterministic
-        let pub_key_x =
-            hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").into();
-        let pub_key_y =
-            hex!("fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321").into();
+        let pub_key_x = hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").into();
+        let pub_key_y = hex!("fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321").into();
 
         let addr1 = derive_p256_address(&pub_key_x, &pub_key_y);
         let addr2 = derive_p256_address(&pub_key_x, &pub_key_y);
@@ -1157,23 +1081,16 @@ mod tests {
     #[test]
     fn test_p256_address_different_keys_different_addresses() {
         // Different keys should produce different addresses
-        let pub_key_x1 =
-            hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").into();
-        let pub_key_y1 =
-            hex!("fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321").into();
+        let pub_key_x1 = hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").into();
+        let pub_key_y1 = hex!("fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321").into();
 
-        let pub_key_x2 =
-            hex!("fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321").into();
-        let pub_key_y2 =
-            hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").into();
+        let pub_key_x2 = hex!("fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321").into();
+        let pub_key_y2 = hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").into();
 
         let addr1 = derive_p256_address(&pub_key_x1, &pub_key_y1);
         let addr2 = derive_p256_address(&pub_key_x2, &pub_key_y2);
 
-        assert_ne!(
-            addr1, addr2,
-            "Different keys should produce different addresses"
-        );
+        assert_ne!(addr1, addr2, "Different keys should produce different addresses");
     }
 
     #[test]
@@ -1227,10 +1144,7 @@ mod tests {
     #[test]
     fn test_tempo_signature_from_bytes_validation() {
         // Empty input
-        assert_eq!(
-            TempoSignature::from_bytes(&[]).unwrap_err(),
-            "Signature data is empty"
-        );
+        assert_eq!(TempoSignature::from_bytes(&[]).unwrap_err(), "Signature data is empty");
         assert_eq!(
             PrimitiveSignature::from_bytes(&[]).unwrap_err(),
             "Signature data is empty"
@@ -1269,10 +1183,7 @@ mod tests {
 
     #[test]
     fn test_tempo_signature_roundtrip() {
-        use super::{
-            P256_SIGNATURE_LENGTH, SECP256K1_SIGNATURE_LENGTH, SIGNATURE_TYPE_P256,
-            SIGNATURE_TYPE_WEBAUTHN,
-        };
+        use super::{P256_SIGNATURE_LENGTH, SECP256K1_SIGNATURE_LENGTH, SIGNATURE_TYPE_P256, SIGNATURE_TYPE_WEBAUTHN};
 
         // Test secp256k1 (no type identifier, detected by 65-byte length)
         let sig1_bytes = vec![1u8; SECP256K1_SIGNATURE_LENGTH];
@@ -1324,56 +1235,39 @@ mod tests {
         assert_eq!(secp256k1_sig, decoded, "Secp256k1 serde roundtrip failed");
 
         // Test P256
-        let p256_sig =
-            TempoSignature::Primitive(PrimitiveSignature::P256(P256SignatureWithPreHash {
-                r: B256::from([1u8; 32]),
-                s: B256::from([2u8; 32]),
-                pub_key_x: B256::from([3u8; 32]),
-                pub_key_y: B256::from([4u8; 32]),
-                pre_hash: true,
-            }));
+        let p256_sig = TempoSignature::Primitive(PrimitiveSignature::P256(P256SignatureWithPreHash {
+            r: B256::from([1u8; 32]),
+            s: B256::from([2u8; 32]),
+            pub_key_x: B256::from([3u8; 32]),
+            pub_key_y: B256::from([4u8; 32]),
+            pre_hash: true,
+        }));
 
         let json = serde_json::to_string(&p256_sig).unwrap();
         let decoded: TempoSignature = serde_json::from_str(&json).unwrap();
         assert_eq!(p256_sig, decoded, "P256 serde roundtrip failed");
 
         // Verify camelCase naming
-        assert!(
-            json.contains("\"pubKeyX\""),
-            "Should use camelCase for pubKeyX"
-        );
-        assert!(
-            json.contains("\"pubKeyY\""),
-            "Should use camelCase for pubKeyY"
-        );
-        assert!(
-            json.contains("\"preHash\""),
-            "Should use camelCase for preHash"
-        );
+        assert!(json.contains("\"pubKeyX\""), "Should use camelCase for pubKeyX");
+        assert!(json.contains("\"pubKeyY\""), "Should use camelCase for pubKeyY");
+        assert!(json.contains("\"preHash\""), "Should use camelCase for preHash");
 
         // Test WebAuthn
-        let webauthn_sig =
-            TempoSignature::Primitive(PrimitiveSignature::WebAuthn(WebAuthnSignature {
-                r: B256::from([5u8; 32]),
-                s: B256::from([6u8; 32]),
-                pub_key_x: B256::from([7u8; 32]),
-                pub_key_y: B256::from([8u8; 32]),
-                webauthn_data: Bytes::from(vec![9u8; 50]),
-            }));
+        let webauthn_sig = TempoSignature::Primitive(PrimitiveSignature::WebAuthn(WebAuthnSignature {
+            r: B256::from([5u8; 32]),
+            s: B256::from([6u8; 32]),
+            pub_key_x: B256::from([7u8; 32]),
+            pub_key_y: B256::from([8u8; 32]),
+            webauthn_data: Bytes::from(vec![9u8; 50]),
+        }));
 
         let json = serde_json::to_string(&webauthn_sig).unwrap();
         let decoded: TempoSignature = serde_json::from_str(&json).unwrap();
         assert_eq!(webauthn_sig, decoded, "WebAuthn serde roundtrip failed");
 
         // Verify camelCase naming
-        assert!(
-            json.contains("\"pubKeyX\""),
-            "Should use camelCase for pubKeyX"
-        );
-        assert!(
-            json.contains("\"pubKeyY\""),
-            "Should use camelCase for pubKeyY"
-        );
+        assert!(json.contains("\"pubKeyX\""), "Should use camelCase for pubKeyX");
+        assert!(json.contains("\"pubKeyY\""), "Should use camelCase for pubKeyY");
         assert!(
             json.contains("\"webauthnData\""),
             "Should use camelCase for webauthnData"
@@ -1410,14 +1304,13 @@ mod tests {
         let sig_hash = B256::from([0xAA; 32]);
         let (r, s) = sign_p256_normalized(&signing_key, &sig_hash);
 
-        let p256_sig =
-            TempoSignature::Primitive(PrimitiveSignature::P256(P256SignatureWithPreHash {
-                r,
-                s,
-                pub_key_x,
-                pub_key_y,
-                pre_hash: false,
-            }));
+        let p256_sig = TempoSignature::Primitive(PrimitiveSignature::P256(P256SignatureWithPreHash {
+            r,
+            s,
+            pub_key_x,
+            pub_key_y,
+            pre_hash: false,
+        }));
 
         let recovered = p256_sig.recover_signer(&sig_hash).unwrap();
         assert_eq!(
@@ -1436,20 +1329,16 @@ mod tests {
         let prehashed = B256::from_slice(&Sha256::digest(sig_hash.as_slice()));
         let (r, s) = sign_p256_normalized(&signing_key, &prehashed);
 
-        let p256_sig =
-            TempoSignature::Primitive(PrimitiveSignature::P256(P256SignatureWithPreHash {
-                r,
-                s,
-                pub_key_x,
-                pub_key_y,
-                pre_hash: true,
-            }));
+        let p256_sig = TempoSignature::Primitive(PrimitiveSignature::P256(P256SignatureWithPreHash {
+            r,
+            s,
+            pub_key_x,
+            pub_key_y,
+            pre_hash: true,
+        }));
 
         let recovered = p256_sig.recover_signer(&sig_hash).unwrap();
-        assert_eq!(
-            recovered, expected_address,
-            "P256 pre_hash recovery should match"
-        );
+        assert_eq!(recovered, expected_address, "P256 pre_hash recovery should match");
     }
 
     #[test]
@@ -1471,14 +1360,13 @@ mod tests {
 
         let (r, s) = sign_p256_normalized(&signing_key, &message_hash);
 
-        let webauthn_sig =
-            TempoSignature::Primitive(PrimitiveSignature::WebAuthn(WebAuthnSignature {
-                r,
-                s,
-                pub_key_x,
-                pub_key_y,
-                webauthn_data: Bytes::from(webauthn_data),
-            }));
+        let webauthn_sig = TempoSignature::Primitive(PrimitiveSignature::WebAuthn(WebAuthnSignature {
+            r,
+            s,
+            pub_key_x,
+            pub_key_y,
+            webauthn_data: Bytes::from(webauthn_data),
+        }));
 
         let recovered = webauthn_sig.recover_signer(&tx_hash).unwrap();
         assert_eq!(
@@ -1507,18 +1395,12 @@ mod tests {
 
         // recover_signer returns user_address
         let recovered = keychain_sig.recover_signer(&sig_hash).unwrap();
-        assert_eq!(
-            recovered, user_address,
-            "Keychain recovery should return user_address"
-        );
+        assert_eq!(recovered, user_address, "Keychain recovery should return user_address");
 
         // key_id should be cached and return access key address
         let keychain = keychain_sig.as_keychain().unwrap();
         let key_id = keychain.key_id(&sig_hash).unwrap();
-        assert_eq!(
-            key_id, access_key_address,
-            "key_id should return access key address"
-        );
+        assert_eq!(key_id, access_key_address, "key_id should return access key address");
     }
 
     #[test]
@@ -1557,10 +1439,7 @@ mod tests {
             webauthn_data.extend_from_slice(attack_json.as_bytes());
 
             let result = verify_webauthn_data_internal(&webauthn_data, &tx_hash);
-            assert!(
-                result.is_err(),
-                "Attack variant {i} should be rejected: {attack_json}"
-            );
+            assert!(result.is_err(), "Attack variant {i} should be rejected: {attack_json}");
         }
     }
 }

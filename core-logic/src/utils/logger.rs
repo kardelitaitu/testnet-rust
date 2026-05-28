@@ -71,10 +71,46 @@ pub fn setup_logger_with_file(log_path: &str) -> Result<WorkerGuard> {
             .event_format(FileFormatter),
     );
 
-    tracing::subscriber::set_global_default(subscriber)
-        .context("Failed to set global subscriber")?;
+    tracing::subscriber::set_global_default(subscriber).context("Failed to set global subscriber")?;
 
     Ok(guard)
+}
+
+// --- Macros ---
+
+#[macro_export]
+macro_rules! daily_log {
+    ($worker:expr, $wallet:expr, $proxy:expr, $status:expr, $task:expr, $msg:expr) => {
+        let timestamp = $crate::now_hms();
+        let status_padded = format!("{:<7}", $status);
+        let proxy_str = if $proxy.is_empty() || $proxy == "--" {
+            "---".to_string()
+        } else {
+            // Attempt to parse number if it's a URL or index
+            if $proxy.starts_with("http") {
+                // Shorten URL or keep placeholder
+                "PRX".to_string()
+            } else {
+                format!("{:0>3}", $proxy)
+            }
+        };
+
+        tracing::info!(
+            target: "task_result",
+            "{} [WK:{:0>3}][WL:{:0>4}][P:{}] {} [{}] {}",
+            timestamp,
+            $worker,
+            $wallet,
+            proxy_str,
+            status_padded,
+            $task,
+            $msg
+        );
+    };
+}
+
+pub fn now_hms() -> String {
+    chrono::Local::now().format("%H:%M:%S").to_string()
 }
 
 // --- Formatters ---
@@ -103,16 +139,9 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
     N: for<'a> FormatFields<'a> + 'static,
 {
-    fn format_event(
-        &self,
-        _ctx: &FmtContext<'_, S, N>,
-        mut writer: Writer<'_>,
-        event: &Event<'_>,
-    ) -> fmt::Result {
+    fn format_event(&self, _ctx: &FmtContext<'_, S, N>, mut writer: Writer<'_>, event: &Event<'_>) -> fmt::Result {
         // Extract message
-        let mut msg_visitor = MessageVisitor {
-            message: String::new(),
-        };
+        let mut msg_visitor = MessageVisitor { message: String::new() };
         event.record(&mut msg_visitor);
         let msg = msg_visitor.message;
 
@@ -141,20 +170,13 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
     N: for<'a> FormatFields<'a> + 'static,
 {
-    fn format_event(
-        &self,
-        _ctx: &FmtContext<'_, S, N>,
-        mut writer: Writer<'_>,
-        event: &Event<'_>,
-    ) -> fmt::Result {
+    fn format_event(&self, _ctx: &FmtContext<'_, S, N>, mut writer: Writer<'_>, event: &Event<'_>) -> fmt::Result {
         let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S");
         let level = event.metadata().level();
 
         write!(writer, "{} [{}] ", timestamp, level)?;
 
-        let mut msg_visitor = MessageVisitor {
-            message: String::new(),
-        };
+        let mut msg_visitor = MessageVisitor { message: String::new() };
         event.record(&mut msg_visitor);
         writeln!(writer, "{}", msg_visitor.message)
     }
@@ -167,9 +189,7 @@ mod tests {
     #[test]
     fn test_message_visitor_record_str() {
         let field_name = "message";
-        let mut visitor = MessageVisitor {
-            message: String::new(),
-        };
+        let mut visitor = MessageVisitor { message: String::new() };
         // Simulate what record_str does — directly for testing
         if field_name == "message" {
             visitor.message = "hello".to_string();
@@ -179,9 +199,7 @@ mod tests {
 
     #[test]
     fn test_message_visitor_ignores_other_fields() {
-        let mut visitor = MessageVisitor {
-            message: String::new(),
-        };
+        let mut visitor = MessageVisitor { message: String::new() };
         let field_name = "not_message";
         if field_name == "message" {
             visitor.message = "should not appear".to_string();
@@ -228,9 +246,7 @@ mod tests {
     #[test]
     fn test_message_visitor_trait_object() {
         // Verify MessageVisitor can be used as a &mut dyn Visit
-        let mut visitor = MessageVisitor {
-            message: String::new(),
-        };
+        let mut visitor = MessageVisitor { message: String::new() };
         let v: &mut dyn tracing::field::Visit = &mut visitor;
         // The trait object should exist without panics
         let _ = v;

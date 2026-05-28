@@ -28,8 +28,7 @@ impl TempoTask for DeployContractTask {
         let client = &ctx.client;
 
         let bytecode_hex = "608060405234801561001057600080fd5b5061012a806100206000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c8063368b8772146037578063d826f88a146068575b600080fd5b606660048036038101906062919060ba565b600055565b60005460749060d6565b60405180910390f35b600080fd5b609e8160eb565b811460a857600080fd5b50565b600081359050610bc565b600080fd5b6000601f19601f83011690549093919060d6560";
-        let bytecode =
-            hex::decode(bytecode_hex).map_err(|e| anyhow!("Invalid bytecode hex: {}", e))?;
+        let bytecode = hex::decode(bytecode_hex).map_err(|e| anyhow!("Invalid bytecode hex: {}", e))?;
         let bytecode = Bytes::from(bytecode);
 
         // Send with retry logic for nonce errors using explicit nonce management
@@ -52,7 +51,7 @@ impl TempoTask for DeployContractTask {
                     }
                     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     continue;
-                }
+                },
             };
 
             let mut tx = TransactionRequest::default()
@@ -68,8 +67,7 @@ impl TempoTask for DeployContractTask {
                     let err_str = e.to_string().to_lowercase();
                     attempt += 1;
 
-                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
-                        && attempt < max_retries
+                    if (err_str.contains("nonce too low") || err_str.contains("already known")) && attempt < max_retries
                     {
                         // tracing::warn!(
                         //     "Nonce error on contract deploy, attempt {}/{}, resetting cache...",
@@ -84,19 +82,15 @@ impl TempoTask for DeployContractTask {
                     } else {
                         return Err(e).context("Failed to send deployment transaction");
                     }
-                }
+                },
             }
         };
 
         let tx_hash = *pending.tx_hash();
 
         if let Some(db) = &ctx.db {
-            db.log_counter_contract_creation(
-                &ctx.address().to_string(),
-                &format!("{:?}", tx_hash),
-                ctx.chain_id(),
-            )
-            .await?;
+            db.log_counter_contract_creation(&ctx.address().to_string(), &format!("{:?}", tx_hash), ctx.chain_id())
+                .await?;
         }
 
         Ok(TaskResult {

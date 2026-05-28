@@ -52,17 +52,12 @@ impl Task<TaskContext> for MemoryExpansionTask {
             .from(address);
 
         let deploy_pending = client.send_transaction(deploy_tx, None).await?;
-        let deploy_receipt = deploy_pending
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = deploy_pending.await?.context("Failed to get deploy receipt")?;
 
-        let contract_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let contract_address = deploy_receipt.contract_address.context("No contract address")?;
 
         let memory_abi: abi::Abi = serde_json::from_str(memory_abi_json)?;
-        let memory_contract =
-            Contract::new(contract_address, memory_abi, Arc::new(provider.clone()));
+        let memory_contract = Contract::new(contract_address, memory_abi, Arc::new(provider.clone()));
 
         let mut rng = OsRng;
         let large_array: Vec<U256> = (0..100).map(|_| U256::from(rng.gen::<u64>())).collect();
@@ -78,9 +73,7 @@ impl Task<TaskContext> for MemoryExpansionTask {
             .from(address);
 
         let process_pending = client.send_transaction(process_tx, None).await?;
-        let process_receipt = process_pending
-            .await?
-            .context("Failed to get process receipt")?;
+        let process_receipt = process_pending.await?.context("Failed to get process receipt")?;
 
         Ok(TaskResult {
             success: process_receipt.status == Some(U64::from(1)),

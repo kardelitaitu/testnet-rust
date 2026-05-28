@@ -60,10 +60,7 @@ impl Task<TaskContext> for EthWithDataTask {
         let data_hex = hex::encode(custom_data);
 
         // 4. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         let tx = TransactionRequest::new()
@@ -81,8 +78,8 @@ impl Task<TaskContext> for EthWithDataTask {
 
         match pending_tx {
             Ok(pending) => {
-                let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-                    .unwrap_or_else(|_| amount_wei.to_string());
+                let amount_eth =
+                    ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
                 Ok(TaskResult {
                     success: true,
                     message: format!(
@@ -94,7 +91,7 @@ impl Task<TaskContext> for EthWithDataTask {
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })
-            }
+            },
             Err(e) => {
                 debug!("EthWithData tx submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -103,7 +100,7 @@ impl Task<TaskContext> for EthWithDataTask {
                     message: format!("Failed to submit eth with data tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

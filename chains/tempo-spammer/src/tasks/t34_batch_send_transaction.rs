@@ -169,14 +169,14 @@ impl TempoTask for BatchSendTransactionTask {
                     last_hash = pending.tx_hash().to_string();
                     last_submitted_nonce = tx_nonce;
                     submission_count += 1;
-                }
+                },
                 Err(e) => {
                     tracing::error!("Tempo Pipelined at nonce {} failure: {}", tx_nonce, e);
                     if first_error.is_none() {
                         first_error = Some(e);
                     }
                     break; // CRITICAL: Stop on first failure - nonces must be sequential
-                }
+                },
             }
         }
 

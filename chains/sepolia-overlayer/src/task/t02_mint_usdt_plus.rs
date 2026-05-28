@@ -1,4 +1,4 @@
-use super::{SepoliaTask, TaskContext, TaskResult};
+use super::{confirm_with_retry, SepoliaTask, TaskContext, TaskResult};
 use crate::utils::calc::calc_pct_rounded;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -28,17 +28,10 @@ async fn get_usdt_balance(provider: &Provider<Http>, wallet: Address) -> Result<
         serde_json::from_str::<ethers::abi::Abi>(MINT_ABI)?,
         Arc::new(provider.clone()),
     );
-    Ok(contract
-        .method::<_, U256>("balanceOf", wallet)?
-        .call()
-        .await?)
+    Ok(contract.method::<_, U256>("balanceOf", wallet)?.call().await?)
 }
 
-async fn get_usdt_allowance(
-    provider: &Provider<Http>,
-    wallet: Address,
-    spender: Address,
-) -> Result<U256> {
+async fn get_usdt_allowance(provider: &Provider<Http>, wallet: Address, spender: Address) -> Result<U256> {
     let addr: Address = USDT.parse()?;
     let contract = Contract::new(
         addr,
@@ -98,10 +91,7 @@ impl SepoliaTask for MintUsdtPlusTask {
                 .gas(50000);
             let approve_tx = approve_call.send().await?;
 
-            let _ = approve_tx
-                .confirmations(1)
-                .interval(Duration::from_millis(500))
-                .await?;
+            let _ = approve_tx.confirmations(1).interval(Duration::from_millis(500)).await?;
         }
 
         // Get gas fees from GasManager
@@ -133,15 +123,16 @@ impl SepoliaTask for MintUsdtPlusTask {
 
         let tx_hash = mint_tx.tx_hash();
 
-        let receipt = mint_tx
-            .confirmations(1)
-            .interval(Duration::from_millis(500))
-            .await?;
+        let receipt = confirm_with_retry(tx_hash, provider).await?;
 
         let success = receipt.is_some_and(|r| r.status == Some(1.into()));
         Ok(TaskResult {
             success,
-            message: format!("Minted {} T+ (tx: {:?})", whole_usdt, tx_hash),
+            message: if success {
+                format!("Minted {} T+ (tx: {:?})", whole_usdt, tx_hash)
+            } else {
+                format!("Failed to mint T+ - receipt not confirmed (tx: {:?})", tx_hash)
+            },
         })
     }
 }

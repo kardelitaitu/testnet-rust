@@ -1,8 +1,8 @@
 use anyhow::Result;
 use arc_project::config::ArcConfig;
 use arc_project::task::{
-    t01_check_balance::ArcCheckBalanceTask, t02_send_usdc::SendUsdcTask,
-    t03_send_eurc::SendEurcTask, t04_send_cirbtc::SendCirbtcTask, ArcTask, TaskContext,
+    t01_check_balance::ArcCheckBalanceTask, t02_send_usdc::SendUsdcTask, t03_send_eurc::SendEurcTask,
+    t04_send_cirbtc::SendCirbtcTask, ArcTask, TaskContext,
 };
 use clap::Parser;
 use dialoguer::{theme::ColorfulTheme, Select};
@@ -131,7 +131,7 @@ async fn main() -> Result<()> {
         Err(e) => {
             error!("Failed to load config: {}", e);
             return Ok(());
-        }
+        },
     };
     info!(
         "Loaded config | chain_id={} | rpc={} | symbol={} | explorer={}",
@@ -238,18 +238,13 @@ async fn main() -> Result<()> {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::USER_AGENT,
-        reqwest::header::HeaderValue::from_static(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        ),
+        reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
     );
     let client_builder = reqwest::Client::builder()
         .default_headers(headers)
         .timeout(std::time::Duration::from_secs(30));
     let client = if let Some(ref proxy_str) = proxy_url {
-        debug!(
-            "Building HTTP client with proxy: {}",
-            display_proxy(proxy_str)
-        );
+        debug!("Building HTTP client with proxy: {}", display_proxy(proxy_str));
         match reqwest::Proxy::all(proxy_str) {
             Ok(p) => client_builder.proxy(p).build().unwrap_or_default(),
             Err(_) => client_builder.build().unwrap_or_default(),
@@ -330,10 +325,7 @@ async fn main() -> Result<()> {
             Ok(n) => info!("Pre-flight | nonce={}", n),
             Err(e) => warn!("Pre-flight | failed to get nonce: {}", e),
         }
-        info!(
-            "Gas config | min_gwei={} | max_gwei={}",
-            args.min_gwei, args.max_gwei
-        );
+        info!("Gas config | min_gwei={} | max_gwei={}", args.min_gwei, args.max_gwei);
     }
 
     // 10. Create GasManager
@@ -381,17 +373,13 @@ async fn main() -> Result<()> {
                     res.message
                 );
             }
-        }
+        },
         Err(e) => {
             let elapsed = start.elapsed();
             println!("  💥 Error ({:.1}s)", elapsed.as_secs_f64());
             println!("  {:#}", e);
-            error!(
-                "Task error | duration={:.1}s | error={:#}",
-                elapsed.as_secs_f64(),
-                e
-            );
-        }
+            error!("Task error | duration={:.1}s | error={:#}", elapsed.as_secs_f64(), e);
+        },
     }
 
     // 13. Post-flight block info

@@ -57,12 +57,7 @@ struct SenderState {
 }
 
 impl SenderState {
-    fn try_pick_and_lock(
-        &mut self,
-        senders: &[WalletInfo],
-        max_per_sender: usize,
-        rng: &mut StdRng,
-    ) -> Option<usize> {
+    fn try_pick_and_lock(&mut self, senders: &[WalletInfo], max_per_sender: usize, rng: &mut StdRng) -> Option<usize> {
         let candidates: Vec<usize> = (0..senders.len())
             .filter(|&i| self.use_counts[i] < max_per_sender && !self.locked_senders.contains(&i))
             .collect();
@@ -203,9 +198,7 @@ fn should_retry_proxy_send_error(error: &impl std::fmt::Debug) -> bool {
         "request timeout",
     ];
 
-    retryable_patterns
-        .iter()
-        .any(|pattern| error_msg.contains(pattern))
+    retryable_patterns.iter().any(|pattern| error_msg.contains(pattern))
 }
 
 #[cfg(test)]
@@ -214,9 +207,7 @@ mod retry_filter_tests {
 
     #[test]
     fn timeout_is_retryable() {
-        let err = anyhow::anyhow!(
-            "Request timeout on the free tier, please upgrade your tier to the paid one"
-        );
+        let err = anyhow::anyhow!("Request timeout on the free tier, please upgrade your tier to the paid one");
         assert!(should_retry_proxy_send_error(&err));
     }
 
@@ -237,15 +228,8 @@ mod retry_filter_tests {
 // Test helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-fn pick_sender(
-    senders: &[WalletInfo],
-    use_counts: &[usize],
-    max_per_sender: usize,
-    rng: &mut StdRng,
-) -> usize {
-    let candidates: Vec<usize> = (0..senders.len())
-        .filter(|&i| use_counts[i] < max_per_sender)
-        .collect();
+fn pick_sender(senders: &[WalletInfo], use_counts: &[usize], max_per_sender: usize, rng: &mut StdRng) -> usize {
+    let candidates: Vec<usize> = (0..senders.len()).filter(|&i| use_counts[i] < max_per_sender).collect();
     if candidates.is_empty() {
         rng.gen_range(0..senders.len())
     } else {
@@ -315,7 +299,10 @@ async fn fund_via_chain(
         let shortfall_eth = (sender_tx_cost - sender_balance).as_u128() as f64 / 1e18;
         anyhow::bail!(
             "Sender {:?} balance ({:.6} ETH) insufficient for seed + gas ({:.6} ETH needed, shortfall {:.6} ETH)",
-            sender_address, sender_balance_eth, sender_tx_cost_eth, shortfall_eth
+            sender_address,
+            sender_balance_eth,
+            sender_tx_cost_eth,
+            shortfall_eth
         );
     }
 
@@ -344,17 +331,16 @@ async fn fund_via_chain(
         "Funder",
         format!("Waiting for {sender_wait_label} confirmation"),
     );
-    await_confirmation_with_progress(
+    let _sender_receipt = await_confirmation_with_progress(
         worker_id,
         "Funder",
         sender_wait_label,
-        pending
-            .confirmations(1)
-            .interval(Duration::from_millis(500)),
+        pending.confirmations(1).interval(Duration::from_millis(500)),
         Duration::from_secs(CONFIRMATION_TIMEOUT_SECS),
         Duration::from_secs(CONFIRMATION_HEARTBEAT_SECS),
     )
-    .await?;
+    .await?
+    .context("Sender -> P1 receipt not confirmed (Ok(None))")?;
 
     let mut recipient_tx_hash = None;
     let mut remaining = seed;
@@ -390,15 +376,11 @@ async fn fund_via_chain(
         let pending = {
             let mut send_attempt = 0usize;
             loop {
-                let tx = TransactionRequest::pay(next, forward)
-                    .gas(21_000)
-                    .gas_price(hop_gas);
+                let tx = TransactionRequest::pay(next, forward).gas(21_000).gas_price(hop_gas);
                 match proxy_signer.send_transaction(tx, None).await {
                     Ok(pending) => break pending,
                     Err(e) => {
-                        if send_attempt < PROXY_SEND_MAX_RETRIES
-                            && should_retry_proxy_send_error(&e)
-                        {
+                        if send_attempt < PROXY_SEND_MAX_RETRIES && should_retry_proxy_send_error(&e) {
                             let retry_after_secs = 1u64 << send_attempt as u32;
                             runner_log(
                                 worker_id,
@@ -425,7 +407,7 @@ async fn fund_via_chain(
                                 send_attempt + 1
                             )
                         });
-                    }
+                    },
                 }
             }
         };
@@ -436,17 +418,16 @@ async fn fund_via_chain(
             &stage_label,
             format!("Waiting for {hop_wait_label} confirmation"),
         );
-        await_confirmation_with_progress(
+        let _hop_receipt = await_confirmation_with_progress(
             worker_id,
             &stage_label,
             &hop_wait_label,
-            pending
-                .confirmations(1)
-                .interval(Duration::from_millis(500)),
+            pending.confirmations(1).interval(Duration::from_millis(500)),
             Duration::from_secs(CONFIRMATION_TIMEOUT_SECS),
             Duration::from_secs(CONFIRMATION_HEARTBEAT_SECS),
         )
-        .await?;
+        .await?
+        .context(format!("{hop_wait_label} receipt not confirmed (Ok(None))"))?;
 
         if i == hop_count - 1 {
             recipient_tx_hash = Some(hop_tx_hash);
@@ -479,22 +460,14 @@ async fn fund_via_chain(
     Ok(())
 }
 
-async fn random_gas_price(
-    provider: &Provider<Http>,
-    min_gwei: f64,
-    max_gwei: f64,
-    rng: &mut StdRng,
-) -> Result<U256> {
+async fn random_gas_price(provider: &Provider<Http>, min_gwei: f64, max_gwei: f64, rng: &mut StdRng) -> Result<U256> {
     const MGWEI_PER_GWEI: u64 = 1_000;
     const WEI_PER_MGWEI: u64 = 1_000_000;
 
     let min_mgwei = (min_gwei * MGWEI_PER_GWEI as f64).round() as u64;
     let max_mgwei = (max_gwei * MGWEI_PER_GWEI as f64).round() as u64;
 
-    let network = provider
-        .get_gas_price()
-        .await
-        .unwrap_or(U256::from(1_000_000_000u64));
+    let network = provider.get_gas_price().await.unwrap_or(U256::from(1_000_000_000u64));
     let network_mgwei = (network.as_u128() / WEI_PER_MGWEI as u128) as u64;
 
     let chosen = choose_gas_price_mgwei(network_mgwei, min_mgwei, max_mgwei, rng);
@@ -591,18 +564,9 @@ fn generate_dry_run_plan(
 
 /// Pure, deterministic gas price (mgwei) selector given a network sample + bounds + RNG.
 /// This is the core logic extracted from `random_gas_price` so it can be TDD'd in isolation.
-fn choose_gas_price_mgwei(
-    network_mgwei: u64,
-    min_mgwei: u64,
-    max_mgwei: u64,
-    rng: &mut StdRng,
-) -> u64 {
-    let floor = min_mgwei
-        .max((network_mgwei * 9).saturating_div(10))
-        .min(100_000);
-    let ceiling = max_mgwei
-        .max((network_mgwei * 11).saturating_div(10))
-        .min(100_000);
+fn choose_gas_price_mgwei(network_mgwei: u64, min_mgwei: u64, max_mgwei: u64, rng: &mut StdRng) -> u64 {
+    let floor = min_mgwei.max((network_mgwei * 9).saturating_div(10)).min(100_000);
+    let ceiling = max_mgwei.max((network_mgwei * 11).saturating_div(10)).min(100_000);
     let effective_floor = floor.min(ceiling);
     rng.gen_range(effective_floor..=ceiling)
 }
@@ -623,11 +587,7 @@ fn format_funding_prompt(available: usize, workers: usize) -> String {
 /// Asks the user for confirmation via the provided reader.
 /// Returns true if the user typed "y" (case-insensitive).
 /// This makes the interactive prompt fully unit-testable.
-fn confirm_funding(
-    available: usize,
-    workers: usize,
-    mut reader: impl std::io::BufRead,
-) -> Result<bool> {
+fn confirm_funding(available: usize, workers: usize, mut reader: impl std::io::BufRead) -> Result<bool> {
     println!("{}", format_funding_prompt(available, workers));
     let mut input = String::new();
     reader.read_line(&mut input)?;
@@ -648,12 +608,7 @@ fn calculate_forward_amount(remaining: U256, gas_price: U256) -> U256 {
 }
 
 /// Return the destination for the current hop (last hop goes to real target).
-fn get_next_hop_address(
-    hop_index: usize,
-    hop_count: usize,
-    target: Address,
-    proxy_addrs: &[Address],
-) -> Address {
+fn get_next_hop_address(hop_index: usize, hop_count: usize, target: Address, proxy_addrs: &[Address]) -> Address {
     if hop_index == hop_count - 1 {
         target
     } else {
@@ -719,10 +674,8 @@ impl Funder {
         let delays: Vec<u64> = match spread_delay_ms {
             Some(ms_per_target) if ms_per_target > 0 && available > 0 => {
                 let mut rng = StdRng::from_entropy();
-                (0..available)
-                    .map(|_| rng.gen_range(0..=ms_per_target))
-                    .collect()
-            }
+                (0..available).map(|_| rng.gen_range(0..=ms_per_target)).collect()
+            },
             _ => vec![0; available],
         };
         let delays = Arc::new(delays);
@@ -740,10 +693,7 @@ impl Funder {
         println!("Senders (≥{:.3} ETH): {}", args.min_balance, senders_len);
         println!("Targets (≤{:.3} ETH): {}", args.max_balance, targets_count);
         println!("To fund:            {}", assigned);
-        println!(
-            "Target amount:     {:.2}-{:.2} ETH",
-            args.min_target, args.max_target
-        );
+        println!("Target amount:     {:.2}-{:.2} ETH", args.min_target, args.max_target);
         println!("Hops per target:   {}-{}", args.min_hops, args.max_hops);
         println!("Workers:            {}", workers);
         println!(
@@ -752,16 +702,10 @@ impl Funder {
         );
 
         if senders.is_empty() {
-            anyhow::bail!(
-                "No wallets with balance ≥ {} ETH found as senders",
-                args.min_balance
-            );
+            anyhow::bail!("No wallets with balance ≥ {} ETH found as senders", args.min_balance);
         }
         if targets_all.is_empty() {
-            anyhow::bail!(
-                "No wallets with balance ≤ {} ETH found as targets",
-                args.max_balance
-            );
+            anyhow::bail!("No wallets with balance ≤ {} ETH found as targets", args.max_balance);
         }
 
         // ── Dry-run ──────────────────────────────────────────────────────────
@@ -792,11 +736,7 @@ impl Funder {
             assigned, workers
         );
         let exec_start = std::time::Instant::now();
-        let targets_to_fund: Vec<_> = targets_all
-            .into_iter()
-            .take(available)
-            .enumerate()
-            .collect();
+        let targets_to_fund: Vec<_> = targets_all.into_iter().take(available).enumerate().collect();
         let worker_queues = distribute_round_robin(targets_to_fund, workers);
         let state = Arc::new(TokioMutex::new(SenderState {
             use_counts: vec![0; senders.len()],
@@ -840,15 +780,11 @@ impl Funder {
                     }
 
                     let sender_list_idx = loop {
-                        match st
-                            .lock()
-                            .await
-                            .try_pick_and_lock(&senders_clone, max_ps, &mut rng)
-                        {
+                        match st.lock().await.try_pick_and_lock(&senders_clone, max_ps, &mut rng) {
                             Some(idx) => break idx,
                             None => {
                                 tokio::time::sleep(Duration::from_millis(200)).await;
-                            }
+                            },
                         }
                     };
                     // Resolve senders-list index to the actual wallet index in the full wallet list.
@@ -889,30 +825,19 @@ impl Funder {
                         match result {
                             Ok(_) => {
                                 guard.funded += 1;
-                            }
+                            },
                             Err(e) => {
-                                runner_log(
-                                    worker_id,
-                                    "Funder",
-                                    format!("FAILED target {:?}: {:#}", target, e),
-                                );
+                                runner_log(worker_id, "Funder", format!("FAILED target {:?}: {:#}", target, e));
                                 guard.failed += 1;
-                            }
+                            },
                         }
                     }
 
                     if more_targets_left && max_worker_interval_secs > 0 {
-                        let rest_secs = choose_worker_rest_secs(
-                            min_worker_interval_secs,
-                            max_worker_interval_secs,
-                            &mut rng,
-                        );
+                        let rest_secs =
+                            choose_worker_rest_secs(min_worker_interval_secs, max_worker_interval_secs, &mut rng);
                         if rest_secs > 0 {
-                            runner_log(
-                                worker_id,
-                                "Funder",
-                                format!("Resting {}s before next cycle", rest_secs),
-                            );
+                            runner_log(worker_id, "Funder", format!("Resting {}s before next cycle", rest_secs));
                             tokio::time::sleep(Duration::from_secs(rest_secs)).await;
                         }
                     }
@@ -935,10 +860,7 @@ impl Funder {
 
         let durs = &final_state.durations;
         println!("\n=== Done ===");
-        println!(
-            "Funded: {}, Failed: {}",
-            final_state.funded, final_state.failed
-        );
+        println!("Funded: {}, Failed: {}", final_state.funded, final_state.failed);
         println!("Total duration: {:02}:{:02}:{:02}", hours, mins, secs);
         if !durs.is_empty() {
             let total_secs: u64 = durs.iter().map(|d| d.as_secs()).sum();
@@ -947,9 +869,15 @@ impl Funder {
             let max_d = durs.iter().max().unwrap();
             println!(
                 "Per-worker: min {:02}:{:02}:{:02}, max {:02}:{:02}:{:02}, avg {:02}:{:02}:{:02} ({} workers)",
-                min_d.as_secs() / 3600, (min_d.as_secs() % 3600) / 60, min_d.as_secs() % 60,
-                max_d.as_secs() / 3600, (max_d.as_secs() % 3600) / 60, max_d.as_secs() % 60,
-                (avg_secs as u64) / 3600, ((avg_secs as u64) % 3600) / 60, (avg_secs as u64) % 60,
+                min_d.as_secs() / 3600,
+                (min_d.as_secs() % 3600) / 60,
+                min_d.as_secs() % 60,
+                max_d.as_secs() / 3600,
+                (max_d.as_secs() % 3600) / 60,
+                max_d.as_secs() % 60,
+                (avg_secs as u64) / 3600,
+                ((avg_secs as u64) % 3600) / 60,
+                (avg_secs as u64) % 60,
                 durs.len()
             );
         }
@@ -986,10 +914,8 @@ impl Funder {
                 "timestamp": chrono::Utc::now().to_rfc3339()
             });
 
-            let json_str =
-                serde_json::to_string_pretty(&data).context("Failed to serialize JSON log")?;
-            std::fs::write(json_path, &json_str)
-                .context(format!("Failed to write JSON log to {}", json_path))?;
+            let json_str = serde_json::to_string_pretty(&data).context("Failed to serialize JSON log")?;
+            std::fs::write(json_path, &json_str).context(format!("Failed to write JSON log to {}", json_path))?;
             println!("JSON log written to {}", json_path);
         }
 
@@ -1086,7 +1012,7 @@ impl Funder {
                     Err(e) => {
                         warn!("Wallet {idx}: decrypt failed: {e}, skipping");
                         return None;
-                    }
+                    },
                 };
                 let key = &decrypted.evm_private_key;
                 let wallet: LocalWallet = match key.parse() {
@@ -1094,7 +1020,7 @@ impl Funder {
                     Err(e) => {
                         warn!("Wallet {idx}: key parse failed: {e}, skipping");
                         return None;
-                    }
+                    },
                 };
                 let address = wallet.address();
                 let balance = match prov.get_balance(address, None).await {
@@ -1102,7 +1028,7 @@ impl Funder {
                     Err(_) => {
                         warn!("Wallet {idx}: balance query failed, skipping");
                         return None;
-                    }
+                    },
                 };
                 info!("Wallet {idx}: {:?} — {:.6} ETH", address, balance);
                 Some(WalletInfo {
@@ -1121,7 +1047,10 @@ impl Funder {
         }
 
         if wallets.is_empty() {
-            warn!("All {} wallets failed to decrypt, parse, or return a balance. No senders or targets available.", total);
+            warn!(
+                "All {} wallets failed to decrypt, parse, or return a balance. No senders or targets available.",
+                total
+            );
         }
         eprintln!("[Funder] Loaded {} wallets", wallets.len());
         Ok(wallets)
@@ -1230,10 +1159,7 @@ async fn main() -> Result<()> {
 
     // Config
     let config = SepoliaConfig::load(&args.config).context("Failed to load config")?;
-    println!(
-        "Config: chain_id={}, rpc={}",
-        config.chain_id, config.rpc_url
-    );
+    println!("Config: chain_id={}, rpc={}", config.chain_id, config.rpc_url);
 
     // Wallet manager
     let manager = if let Some(ref dir) = config.wallet_dir {
@@ -1245,24 +1171,16 @@ async fn main() -> Result<()> {
     println!("Found {} wallet files", total);
 
     // Password
-    let password = env::var("WALLET_PASSWORD")
-        .map_err(|_| anyhow::anyhow!("WALLET_PASSWORD not set. Set it before running: $env:WALLET_PASSWORD=\"your_password\""))?;
+    let password = env::var("WALLET_PASSWORD").map_err(|_| {
+        anyhow::anyhow!("WALLET_PASSWORD not set. Set it before running: $env:WALLET_PASSWORD=\"your_password\"")
+    })?;
 
     // Provider
     let client = reqwest::Client::new();
-    let provider = Provider::new(Http::new_with_client(
-        reqwest::Url::parse(&config.rpc_url)?,
-        client,
-    ));
+    let provider = Provider::new(Http::new_with_client(reqwest::Url::parse(&config.rpc_url)?, client));
 
     // Build and run
-    let funder = Funder::new(
-        manager,
-        provider,
-        password,
-        config.chain_id,
-        args.max_targets,
-    );
+    let funder = Funder::new(manager, provider, password, config.chain_id, args.max_targets);
     funder.run(&args).await
 }
 
@@ -1284,11 +1202,7 @@ mod tests {
 
     #[test]
     fn test_pick_sender_returns_valid_index() {
-        let senders = vec![
-            dummy_wallet(0, 1.0),
-            dummy_wallet(1, 1.0),
-            dummy_wallet(2, 1.0),
-        ];
+        let senders = vec![dummy_wallet(0, 1.0), dummy_wallet(1, 1.0), dummy_wallet(2, 1.0)];
         let use_counts = vec![0, 0, 0];
         let mut rng = StdRng::seed_from_u64(42);
         let idx = pick_sender(&senders, &use_counts, 10, &mut rng);
@@ -1297,11 +1211,7 @@ mod tests {
 
     #[test]
     fn test_pick_sender_respects_use_counts_and_max_per_sender() {
-        let senders = vec![
-            dummy_wallet(0, 1.0),
-            dummy_wallet(1, 1.0),
-            dummy_wallet(2, 1.0),
-        ];
+        let senders = vec![dummy_wallet(0, 1.0), dummy_wallet(1, 1.0), dummy_wallet(2, 1.0)];
         let use_counts = vec![5, 5, 0]; // only index 2 is eligible
         let mut rng = StdRng::seed_from_u64(42);
         let idx = pick_sender(&senders, &use_counts, 5, &mut rng);
@@ -1320,11 +1230,7 @@ mod tests {
 
     #[test]
     fn test_pick_sender_prefers_under_limit_even_with_rng() {
-        let senders = vec![
-            dummy_wallet(0, 1.0),
-            dummy_wallet(1, 1.0),
-            dummy_wallet(2, 1.0),
-        ];
+        let senders = vec![dummy_wallet(0, 1.0), dummy_wallet(1, 1.0), dummy_wallet(2, 1.0)];
         let use_counts = vec![3, 3, 0];
         let mut rng = StdRng::seed_from_u64(123);
         for _ in 0..20 {
@@ -1339,10 +1245,7 @@ mod tests {
         let lengths: Vec<usize> = queues.iter().map(|queue| queue.len()).collect();
         assert_eq!(lengths, vec![55, 55, 55, 55, 55]);
 
-        let mut flattened: Vec<usize> = queues
-            .into_iter()
-            .flat_map(|queue| queue.into_iter())
-            .collect();
+        let mut flattened: Vec<usize> = queues.into_iter().flat_map(|queue| queue.into_iter()).collect();
         flattened.sort_unstable();
         assert_eq!(flattened, (0..275).collect::<Vec<_>>());
     }
@@ -1430,11 +1333,7 @@ mod tests {
 
     #[test]
     fn test_sender_state_combines_use_count_and_lock_correctly() {
-        let senders = vec![
-            dummy_wallet(0, 1.0),
-            dummy_wallet(1, 1.0),
-            dummy_wallet(2, 1.0),
-        ];
+        let senders = vec![dummy_wallet(0, 1.0), dummy_wallet(1, 1.0), dummy_wallet(2, 1.0)];
         let mut state = SenderState {
             use_counts: vec![2, 2, 0],
             locked_senders: HashSet::new(),
@@ -1524,11 +1423,7 @@ mod tests {
 
     #[test]
     fn test_filter_targets_keeps_only_below_max() {
-        let wallets = vec![
-            dummy_wallet(0, 0.01),
-            dummy_wallet(1, 0.5),
-            dummy_wallet(2, 1.0),
-        ];
+        let wallets = vec![dummy_wallet(0, 0.01), dummy_wallet(1, 0.5), dummy_wallet(2, 1.0)];
         let targets = filter_targets(&wallets, 0.1);
         assert_eq!(targets.len(), 1);
         assert_eq!(targets[0].idx, 0);
@@ -1571,11 +1466,7 @@ mod tests {
 
     #[test]
     fn test_select_targets_to_fund_caps_correctly() {
-        let targets = vec![
-            dummy_wallet(0, 0.01),
-            dummy_wallet(1, 0.02),
-            dummy_wallet(2, 0.03),
-        ];
+        let targets = vec![dummy_wallet(0, 0.01), dummy_wallet(1, 0.02), dummy_wallet(2, 0.03)];
         let selected = select_targets_to_fund(&targets, Some(2));
         assert_eq!(selected.len(), 2);
     }
@@ -1585,11 +1476,7 @@ mod tests {
     #[test]
     fn test_generate_dry_run_plan_allocates_all_targets() {
         let senders = vec![dummy_wallet(0, 1.0), dummy_wallet(1, 1.0)];
-        let targets = vec![
-            dummy_wallet(2, 0.01),
-            dummy_wallet(3, 0.01),
-            dummy_wallet(4, 0.01),
-        ];
+        let targets = vec![dummy_wallet(2, 0.01), dummy_wallet(3, 0.01), dummy_wallet(4, 0.01)];
         let mut rng = StdRng::seed_from_u64(42);
         let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng);
         assert_eq!(plan.len(), 3);
@@ -1881,13 +1768,8 @@ mod tests {
             1,
             None,
         );
-        let wallets = vec![
-            dummy_wallet(0, 0.8),
-            dummy_wallet(1, 0.005),
-            dummy_wallet(2, 1.5),
-        ];
-        let (senders, targets, available, max_per) =
-            funder.prepare_funding_sets(&wallets, 0.5, 0.010);
+        let wallets = vec![dummy_wallet(0, 0.8), dummy_wallet(1, 0.005), dummy_wallet(2, 1.5)];
+        let (senders, targets, available, max_per) = funder.prepare_funding_sets(&wallets, 0.5, 0.010);
         assert_eq!(senders.len(), 2); // wallets 0 (0.8) and 2 (1.5)
         assert_eq!(targets.len(), 1); // wallet 1
         assert_eq!(available, 1);
@@ -1948,9 +1830,8 @@ mod tests {
         );
         let senders = vec![dummy_wallet(0, 1.0)];
         let targets = vec![dummy_wallet(1, 0.005)];
-        let output = std::panic::AssertUnwindSafe(|| {
-            funder.execute_dry_run(&senders, &targets, 0.02, 0.04, 3, 5, None)
-        });
+        let output =
+            std::panic::AssertUnwindSafe(|| funder.execute_dry_run(&senders, &targets, 0.02, 0.04, 3, 5, None));
         // Should not panic
         let _ = output;
     }
@@ -1981,10 +1862,7 @@ mod tests {
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let wallets = rt.block_on(funder.load_wallets(10)).unwrap();
-        assert!(
-            wallets.is_empty(),
-            "all decryption failures should yield empty result"
-        );
+        assert!(wallets.is_empty(), "all decryption failures should yield empty result");
 
         // Cleanup
         let _ = std::fs::remove_file(&wallet_path);

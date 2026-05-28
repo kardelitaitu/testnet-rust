@@ -64,13 +64,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // If the method doesn't exist or reverts, we'll get an error.
 
             let call_future = if name.contains("deploy(uint256,bytes32,bytes)") {
-                contract
-                    .method::<_, ()>("deploy", (U256::from(salt), dummy_hash, dummy_data.clone()))
+                contract.method::<_, ()>("deploy", (U256::from(salt), dummy_hash, dummy_data.clone()))
             } else if name.contains("deploy2") {
                 contract.method::<_, ()>("deploy2", (U256::from(salt), dummy_data.clone()))
             } else if name.contains("create2(bytes,bytes32)") {
-                contract
-                    .method::<_, ()>("create2", (dummy_data.clone(), H256::from_low_u64_be(salt)))
+                contract.method::<_, ()>("create2", (dummy_data.clone(), H256::from_low_u64_be(salt)))
             // salt might be bytes32
             } else {
                 contract.method::<_, ()>("create2", (dummy_data.clone(),))
@@ -87,15 +85,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if msg.contains("execution reverted") {
                                 println!("✓ {} - method exists (reverted as expected)", name);
                             } else {
-                                println!(
-                                    "? {} - error: {}",
-                                    name,
-                                    msg.lines().next().unwrap_or("unknown")
-                                );
+                                println!("? {} - error: {}", name, msg.lines().next().unwrap_or("unknown"));
                             }
-                        }
+                        },
                     }
-                }
+                },
                 Err(e) => println!("✗ {} - method encoding failed: {}", name, e),
             }
         }

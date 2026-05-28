@@ -1,10 +1,9 @@
-use super::{SepoliaTask, TaskContext, TaskResult};
+use super::{confirm_with_retry, SepoliaTask, TaskContext, TaskResult};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::middleware::SignerMiddleware;
 use ethers::prelude::*;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// USDT+ (T+) on Sepolia
 const USDT_PLUS: &str = "0xe20534a32f9162488a90026f268a74fbe28d272d";
@@ -43,16 +42,13 @@ impl SepoliaTask for SendRandomUsdtPlusTask {
             .await
             .context("Failed to query USDT+ balance")?;
 
-        // --- 2. Calculate 0.5% = balance * 5 / 1000 ---
-        let amount = balance * U256::from(5) / U256::from(1000);
+        // --- 2. Calculate 0.2% = balance * 2 / 1000 ---
+        let amount = balance * U256::from(2) / U256::from(1000);
 
         if amount.is_zero() {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "USDT+ balance is zero or 0.5% rounds to 0 (balance: {})",
-                    balance
-                ),
+                message: format!("USDT+ balance is zero or 0.2% rounds to 0 (balance: {})", balance),
             });
         }
 
@@ -78,17 +74,11 @@ impl SepoliaTask for SendRandomUsdtPlusTask {
             .gas(100_000)
             .gas_price(max_fee);
 
-        let tx = transfer_call
-            .send()
-            .await
-            .context("Failed to send USDT+ transfer")?;
+        let tx = transfer_call.send().await.context("Failed to send USDT+ transfer")?;
 
         let tx_hash = tx.tx_hash();
 
-        let receipt = tx
-            .confirmations(1)
-            .interval(Duration::from_millis(500))
-            .await?;
+        let receipt = confirm_with_retry(tx_hash, provider).await?;
 
         let success = receipt.is_some_and(|r| r.status == Some(1.into()));
 
@@ -96,10 +86,14 @@ impl SepoliaTask for SendRandomUsdtPlusTask {
 
         Ok(TaskResult {
             success,
-            message: format!(
-                "Sent {} USDT+ to {} (tx: {:?})",
-                readable_amount, random_addr_hex, tx_hash
-            ),
+            message: if success {
+                format!(
+                    "Sent {} USDT+ to {} (tx: {:?})",
+                    readable_amount, random_addr_hex, tx_hash
+                )
+            } else {
+                format!("Failed to send USDT+ - receipt not confirmed (tx: {:?})", tx_hash)
+            },
         })
     }
 }

@@ -75,8 +75,7 @@ impl TempoTask for MultiSendConcurrentMemeTask {
 
         let mut rng = rand::rngs::OsRng;
         let token_addr_str = meme_tokens.choose(&mut rng).unwrap();
-        let token_addr =
-            Address::from_str(token_addr_str).context("Invalid token address from DB")?;
+        let token_addr = Address::from_str(token_addr_str).context("Invalid token address from DB")?;
         let symbol = token_addr_str.get(..8).unwrap_or("MEME").to_string();
 
         let count = 2; // Fixed to 2 recipients
@@ -109,29 +108,22 @@ impl TempoTask for MultiSendConcurrentMemeTask {
                     balance = TempoTokens::get_token_balance(client, token_addr, address).await?;
                     total_impact = balance * U256::from(3) / U256::from(100);
                     amount_per_recipient = total_impact / U256::from(count);
-                }
+                },
                 Err(e) => {
                     return Err(anyhow::anyhow!("Minting failed for {}: {:?}", symbol, e));
-                }
+                },
             }
         }
 
         if amount_per_recipient.is_zero() {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Insufficient balance for {} even after mint attempt",
-                    symbol
-                ),
+                message: format!("Insufficient balance for {} even after mint attempt", symbol),
                 tx_hash: None,
             });
         }
 
-        tracing::debug!(
-            "Executing {} Concurrent {} Transfers (3% total)...",
-            count,
-            symbol
-        );
+        tracing::debug!("Executing {} Concurrent {} Transfers (3% total)...", count, symbol);
 
         let mut futures = Vec::new();
         let mut recipients = Vec::new();
@@ -175,21 +167,21 @@ impl TempoTask for MultiSendConcurrentMemeTask {
                             } else {
                                 tracing::warn!("  [{}] Failed: transaction reverted", i + 1);
                             }
-                        }
+                        },
                         Err(e) => {
                             tracing::warn!("  [{}] Failed to get receipt: {:?}", i + 1, e);
                             if first_error.is_none() {
                                 first_error = Some(anyhow::anyhow!(e));
                             }
-                        }
+                        },
                     }
-                }
+                },
                 Err(e) => {
                     tracing::warn!("  [{}] Tx failed: {:?}", i + 1, e);
                     if first_error.is_none() {
                         first_error = Some(anyhow::anyhow!(e));
                     }
-                }
+                },
             }
         }
 
@@ -206,15 +198,8 @@ impl TempoTask for MultiSendConcurrentMemeTask {
 
         Ok(TaskResult {
             success: success_count > 0,
-            message: format!(
-                "Completed {}/{} concurrent meme transfers.",
-                success_count, count
-            ),
-            tx_hash: if last_hash.is_empty() {
-                None
-            } else {
-                Some(last_hash)
-            },
+            message: format!("Completed {}/{} concurrent meme transfers.", success_count, count),
+            tx_hash: if last_hash.is_empty() { None } else { Some(last_hash) },
         })
     }
 }

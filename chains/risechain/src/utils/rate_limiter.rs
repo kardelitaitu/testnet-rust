@@ -180,10 +180,7 @@ impl PerWalletRateLimiter {
         let new_backoff = (current * config.backoff_factor as u64).min(config.max_backoff_ms);
         backoffs.insert(wallet_id.to_string(), new_backoff);
 
-        debug!(
-            "Wallet {} received 429, backing off for {}ms",
-            wallet_id, new_backoff
-        );
+        debug!("Wallet {} received 429, backing off for {}ms", wallet_id, new_backoff);
     }
 
     pub fn on_success(&self, wallet_id: &str) {

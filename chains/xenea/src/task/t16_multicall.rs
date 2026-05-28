@@ -50,10 +50,7 @@ impl Task<TaskContext> for MulticallTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         let multicall_abi_json = r#"[
@@ -62,8 +59,7 @@ impl Task<TaskContext> for MulticallTask {
         ]"#;
 
         let multicall_abi: abi::Abi = serde_json::from_str(multicall_abi_json)?;
-        let multicall_contract =
-            Contract::new(multicall_address, multicall_abi, Arc::new(provider.clone()));
+        let multicall_contract = Contract::new(multicall_address, multicall_abi, Arc::new(provider.clone()));
 
         // 3. Build native-only calls: getEthBalance for wallet + random addresses
         let mut rng = OsRng;
@@ -100,10 +96,7 @@ impl Task<TaskContext> for MulticallTask {
         match pending_tx {
             Ok(pending) => Ok(TaskResult {
                 success: true,
-                message: format!(
-                    "Multicall aggregate submitted for {} getEthBalance calls",
-                    call_count
-                ),
+                message: format!("Multicall aggregate submitted for {} getEthBalance calls", call_count),
                 tx_hash: Some(format!("{:?}", pending.tx_hash())),
             }),
             Err(e) => {
@@ -114,7 +107,7 @@ impl Task<TaskContext> for MulticallTask {
                     message: format!("Failed to submit multicall tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

@@ -44,25 +44,16 @@ impl Task<TaskContext> for ERC1155BatchTask {
             .from(address);
 
         let pending_deploy = client.send_transaction(tx, None).await?;
-        let deploy_receipt = pending_deploy
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = pending_deploy.await?.context("Failed to get deploy receipt")?;
         if deploy_receipt.status != Some(U64::from(1)) {
-            return Err(anyhow::anyhow!(
-                "Deployment failed. Receipt: {:?}",
-                deploy_receipt
-            ));
+            return Err(anyhow::anyhow!("Deployment failed. Receipt: {:?}", deploy_receipt));
         }
-        let nft_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let nft_address = deploy_receipt.contract_address.context("No contract address")?;
         let contract = Contract::new(nft_address, abi, client.clone());
         debug!("Deployed TestERC1155 at {:?}", nft_address);
 
         let mut rng = OsRng;
-        let ids: Vec<U256> = (0..5)
-            .map(|_| U256::from(rng.gen_range(1..10000)))
-            .collect();
+        let ids: Vec<U256> = (0..5).map(|_| U256::from(rng.gen_range(1..10000))).collect();
         let amounts: Vec<U256> = (0..5).map(|_| U256::from(rng.gen_range(1..100))).collect();
         let data = format!("Batch mint for {:?}", address);
 
@@ -86,9 +77,7 @@ impl Task<TaskContext> for ERC1155BatchTask {
             .from(address);
 
         let pending_tx = client.send_transaction(mint_tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         let total_minted: U256 = amounts.iter().fold(U256::zero(), |acc, &x| acc + x);
 

@@ -37,11 +37,7 @@ impl Task<TaskContext> for ERC4626VaultTask {
         ]"#;
         let weth_abi_parsed: abi::Abi = serde_json::from_str(weth_abi)?;
         let weth = Contract::new(weth_address, weth_abi_parsed, Arc::new(provider.clone()));
-        let weth_bal: U256 = weth
-            .method("balanceOf", address)?
-            .call()
-            .await
-            .unwrap_or_default();
+        let weth_bal: U256 = weth.method("balanceOf", address)?.call().await.unwrap_or_default();
 
         Ok(TaskResult {
             success: true,

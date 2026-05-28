@@ -28,9 +28,7 @@ impl Task<TaskContext> for CreateMemeTask {
             let prefixes = [
                 "Dog", "Cat", "Pepe", "Elon", "Moon", "Safe", "Rich", "Shiba", "Giga", "Turbo",
             ];
-            let suffixes = [
-                "Inu", "Coin", "Token", "Moon", "Rocket", "Mars", "Alpha", "Chad", "Wif",
-            ];
+            let suffixes = ["Inu", "Coin", "Token", "Moon", "Rocket", "Mars", "Alpha", "Chad", "Wif"];
 
             let prefix = prefixes.choose(&mut rng).unwrap_or(&"Pepe");
             let suffix = suffixes.choose(&mut rng).unwrap_or(&"Coin");
@@ -57,41 +55,28 @@ impl Task<TaskContext> for CreateMemeTask {
         let gas_price = U256::from(1_100_000_000u64);
         let deploy_gas_limit = crate::utils::gas::GasManager::LIMIT_DEPLOY;
         let mint_gas_limit = crate::utils::gas::GasManager::LIMIT_SEND_MEME;
-        let estimated_gas =
-            U256::from(deploy_gas_limit.as_u64() + mint_gas_limit.as_u64()) * gas_price;
+        let estimated_gas = U256::from(deploy_gas_limit.as_u64() + mint_gas_limit.as_u64()) * gas_price;
 
         // 3. Balance check
         let balance = provider.get_balance(address, None).await?;
         if balance < estimated_gas {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Insufficient funds: need {} Wei, have {} Wei",
-                    estimated_gas, balance
-                ),
+                message: format!("Insufficient funds: need {} Wei, have {} Wei", estimated_gas, balance),
                 tx_hash: None,
             });
         }
 
         // 4. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
         // 5. Deploy (wait for address)
-        let input = abi
-            .constructor()
-            .context("No constructor found")?
-            .encode_input(
-                bytecode.to_vec(),
-                &[
-                    abi::Token::String(name.clone()),
-                    abi::Token::String(symbol.clone()),
-                ],
-            )?;
+        let input = abi.constructor().context("No constructor found")?.encode_input(
+            bytecode.to_vec(),
+            &[abi::Token::String(name.clone()), abi::Token::String(symbol.clone())],
+        )?;
 
         let deploy_nonce = nonce_manager.next().await?;
         let deploy_tx = TransactionRequest::new()
@@ -108,7 +93,7 @@ impl Task<TaskContext> for CreateMemeTask {
                 match pending.await {
                     Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
                         receipt.contract_address.context("No contract address")?
-                    }
+                    },
                     _ => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -116,9 +101,9 @@ impl Task<TaskContext> for CreateMemeTask {
                             message: format!("MEME deploy failed (tx: {})", tx_hash),
                             tx_hash: Some(tx_hash),
                         });
-                    }
+                    },
                 }
-            }
+            },
             Err(e) => {
                 debug!("CreateMeme deploy submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -127,7 +112,7 @@ impl Task<TaskContext> for CreateMemeTask {
                     message: format!("Failed to submit MEME deploy tx: {}", e),
                     tx_hash: None,
                 });
-            }
+            },
         };
 
         debug!("Deployed MEME token at {:?}", token_address);
@@ -162,8 +147,8 @@ impl Task<TaskContext> for CreateMemeTask {
 
         match pending_mint {
             Ok(pending) => {
-                let minted_display = ethers::utils::format_units(minted_amount, 18)
-                    .unwrap_or_else(|_| minted_amount.to_string());
+                let minted_display =
+                    ethers::utils::format_units(minted_amount, 18).unwrap_or_else(|_| minted_amount.to_string());
                 info!(
                     "Created Meme Token: {} ({}) at {:?} and minted {}",
                     name, symbol, token_address, minted_display
@@ -180,7 +165,7 @@ impl Task<TaskContext> for CreateMemeTask {
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })
-            }
+            },
             Err(e) => {
                 debug!("CreateMeme mint submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -189,7 +174,7 @@ impl Task<TaskContext> for CreateMemeTask {
                     message: format!("Failed to submit MEME mint tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

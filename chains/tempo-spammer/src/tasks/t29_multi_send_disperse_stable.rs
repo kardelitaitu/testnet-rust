@@ -130,12 +130,12 @@ impl TempoTask for MultiSendDisperseStableTask {
                     Ok(pending) => {
                         last_tx_hash = Some(format!("{:?}", *pending.tx_hash()));
                         let _ = pending.get_receipt().await;
-                    }
+                    },
                     Err(e) => {
                         if first_error.is_none() {
                             first_error = Some(e);
                         }
-                    }
+                    },
                 }
             }
         }

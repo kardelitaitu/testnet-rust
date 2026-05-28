@@ -1,6 +1,4 @@
-use core_logic::error::{
-    ConfigError, CoreError, DatabaseError, NetworkError, SecurityError, WalletError,
-};
+use core_logic::error::{ConfigError, CoreError, DatabaseError, NetworkError, SecurityError, WalletError};
 
 // ─── CoreError ─────────────────────────────────────────
 
@@ -63,20 +61,17 @@ fn test_core_error_from_config() {
     };
     let core: CoreError = config_err.into();
     match core {
-        CoreError::Config(_) => {} // expected
+        CoreError::Config(_) => {}, // expected
         _ => panic!("Expected Config variant"),
     }
 }
 
 #[test]
 fn test_core_error_from_wallet() {
-    let wallet_err = WalletError::NotFound {
-        index: 5,
-        total: 10,
-    };
+    let wallet_err = WalletError::NotFound { index: 5, total: 10 };
     let core: CoreError = wallet_err.into();
     match core {
-        CoreError::Wallet(_) => {} // expected
+        CoreError::Wallet(_) => {}, // expected
         _ => panic!("Expected Wallet variant"),
     }
 }
@@ -89,7 +84,7 @@ fn test_core_error_from_network() {
     };
     let core: CoreError = net_err.into();
     match core {
-        CoreError::Network(_) => {} // expected
+        CoreError::Network(_) => {}, // expected
         _ => panic!("Expected Network variant"),
     }
 }
@@ -101,7 +96,7 @@ fn test_core_error_from_security() {
     };
     let core: CoreError = sec_err.into();
     match core {
-        CoreError::Security(_) => {} // expected
+        CoreError::Security(_) => {}, // expected
         _ => panic!("Expected Security variant"),
     }
 }
@@ -161,10 +156,7 @@ fn test_wallet_error_decryption_failed() {
 
 #[test]
 fn test_wallet_error_not_found() {
-    let err = WalletError::NotFound {
-        index: 99,
-        total: 5,
-    };
+    let err = WalletError::NotFound { index: 99, total: 5 };
     let msg = format!("{}", err);
     assert!(msg.contains("99"));
     assert!(msg.contains("5"));
@@ -213,9 +205,7 @@ fn test_database_error_lock_timeout() {
 
 #[test]
 fn test_database_error_transaction_failed() {
-    let err = DatabaseError::TransactionFailed {
-        msg: "deadlock".into(),
-    };
+    let err = DatabaseError::TransactionFailed { msg: "deadlock".into() };
     let msg = format!("{}", err);
     assert!(msg.contains("deadlock"));
 }

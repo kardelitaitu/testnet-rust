@@ -62,10 +62,9 @@ impl TempoTokens {
 
     pub fn get_random_memo() -> String {
         const WORDS: &[&str] = &[
-            "happy", "bright", "ocean", "swift", "calm", "brave", "gentle", "wild", "sweet",
-            "clear", "warm", "cool", "fresh", "peace", "dream", "hope", "joy", "love", "grace",
-            "faith", "luck", "joy", "harmony", "serenity", "sunset", "sunrise", "mountain",
-            "river", "forest", "sky", "star", "moon",
+            "happy", "bright", "ocean", "swift", "calm", "brave", "gentle", "wild", "sweet", "clear", "warm", "cool",
+            "fresh", "peace", "dream", "hope", "joy", "love", "grace", "faith", "luck", "joy", "harmony", "serenity",
+            "sunset", "sunrise", "mountain", "river", "forest", "sky", "star", "moon",
         ];
 
         let mut rng = rand::rngs::OsRng;
@@ -84,19 +83,13 @@ impl TempoTokens {
         format!("{} {}", words.join(" "), number)
     }
 
-    pub async fn get_token_balance(
-        client: &crate::TempoClient,
-        token: Address,
-        wallet: Address,
-    ) -> Result<U256> {
+    pub async fn get_token_balance(client: &crate::TempoClient, token: Address, wallet: Address) -> Result<U256> {
         let mut calldata = Vec::new();
         calldata.extend_from_slice(&[0x70, 0xa0, 0x82, 0x31]);
         calldata.extend_from_slice(&[0u8; 12]);
         calldata.extend_from_slice(wallet.as_slice());
 
-        let query = TransactionRequest::default()
-            .to(token)
-            .input(calldata.into());
+        let query = TransactionRequest::default().to(token).input(calldata.into());
 
         let data = client.provider.call(query).await?;
         let bytes = data.as_ref();
@@ -110,9 +103,7 @@ impl TempoTokens {
         let mut calldata = Vec::new();
         calldata.extend_from_slice(&[0x31, 0x3c, 0xe5, 0x67]);
 
-        let query = TransactionRequest::default()
-            .to(token)
-            .input(calldata.into());
+        let query = TransactionRequest::default().to(token).input(calldata.into());
 
         let data = client.provider.call(query).await?;
         let bytes = data.as_ref();
@@ -183,9 +174,7 @@ mod tests {
     #[test]
     fn test_get_path_usd_address() {
         let addr = TempoTokens::get_path_usd_address();
-        let expected: Address = "0x20c0000000000000000000000000000000000000"
-            .parse()
-            .unwrap();
+        let expected: Address = "0x20c0000000000000000000000000000000000000".parse().unwrap();
         assert_eq!(addr, expected);
     }
 
@@ -203,11 +192,7 @@ mod tests {
         assert!(!memo.is_empty());
         // Should have words and a number: "word1 word2 123"
         let parts: Vec<&str> = memo.split(' ').collect();
-        assert!(
-            parts.len() >= 3,
-            "memo should have words + number: got '{}'",
-            memo
-        );
+        assert!(parts.len() >= 3, "memo should have words + number: got '{}'", memo);
         // Last part should be numeric
         let last = parts.last().unwrap();
         assert!(
@@ -230,10 +215,7 @@ mod tests {
 
     #[test]
     fn test_format_amount_u128() {
-        assert_eq!(
-            TempoTokens::format_amount_u128(5_000_000_000_000_000_000, 18),
-            "5"
-        );
+        assert_eq!(TempoTokens::format_amount_u128(5_000_000_000_000_000_000, 18), "5");
     }
 
     #[test]
@@ -260,9 +242,7 @@ mod tests {
 
     #[test]
     fn test_token_info_new() {
-        let expected_addr: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-            .parse()
-            .unwrap();
+        let expected_addr: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap();
         let t = TokenInfo::new("TEST", "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false);
         assert_eq!(t.symbol, "TEST");
         assert!(!t.is_system);
@@ -322,10 +302,7 @@ mod tests {
     fn test_format_compact_colored_ansi_wrapping() {
         let amount = U256::from(5_000_000_000_000_000_000_000u128);
         let result = TempoTokens::format_compact_colored(amount, 18);
-        assert!(
-            result.starts_with("\x1b[38;5;208m"),
-            "should start with ANSI orange"
-        );
+        assert!(result.starts_with("\x1b[38;5;208m"), "should start with ANSI orange");
         assert!(result.ends_with("\x1b[0m"), "should end with ANSI reset");
     }
 

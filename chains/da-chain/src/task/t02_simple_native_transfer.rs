@@ -8,8 +8,7 @@ use rand::{Rng, SeedableRng};
 use std::fs;
 
 fn get_random_recipient() -> Result<Address> {
-    let content =
-        fs::read_to_string("chains/da-chain/address.txt").context("Failed to read address.txt")?;
+    let content = fs::read_to_string("chains/da-chain/address.txt").context("Failed to read address.txt")?;
 
     let addresses: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
     if addresses.is_empty() {
@@ -63,10 +62,7 @@ impl DaChainTask for SimpleNativeTransferTask {
 
         Ok(TaskResult {
             success: true,
-            message: format!(
-                "Sent {} DACC to {:?} (tx: {:?})",
-                amount_str, recipient, tx_hash
-            ),
+            message: format!("Sent {} DACC to {:?} (tx: {:?})", amount_str, recipient, tx_hash),
         })
     }
 }

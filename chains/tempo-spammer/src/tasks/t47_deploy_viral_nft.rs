@@ -99,12 +99,9 @@ impl TempoTask for DeployViralNftTask {
                         continue;
                     }
 
-                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
-                        && attempt < max_retries
+                    if (err_str.contains("nonce too low") || err_str.contains("already known")) && attempt < max_retries
                     {
-                        tracing::warn!(
-                            "Nonce error on deploy_viral_nft, resetting cache and retrying..."
-                        );
+                        tracing::warn!("Nonce error on deploy_viral_nft, resetting cache and retrying...");
                         client.reset_nonce_cache().await;
                         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
@@ -115,7 +112,7 @@ impl TempoTask for DeployViralNftTask {
                     } else {
                         return Err(e).context("Failed to send deploy tx");
                     }
-                }
+                },
             }
         };
         let deploy_hash = *pending_deploy.tx_hash();
@@ -129,10 +126,7 @@ impl TempoTask for DeployViralNftTask {
         } else {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Deployment failed (no contract address). Tx: {:?}",
-                    deploy_hash
-                ),
+                message: format!("Deployment failed (no contract address). Tx: {:?}", deploy_hash),
                 tx_hash: Some(format!("{:?}", deploy_hash)),
             });
         };
@@ -151,10 +145,7 @@ impl TempoTask for DeployViralNftTask {
 
         Ok(TaskResult {
             success: true,
-            message: format!(
-                "Deployed ViralNFT {} ({}) at {:?}",
-                name, symbol, contract_addr
-            ),
+            message: format!("Deployed ViralNFT {} ({}) at {:?}", name, symbol, contract_addr),
             tx_hash: Some(format!("{:?}", deploy_hash)),
         })
     }
@@ -209,12 +200,11 @@ fn generate_random_metadata() -> (String, String) {
         "Nano",
     ];
     let nouns = vec![
-        "Doge", "Pepe", "Punk", "Cat", "Ape", "Wojak", "Moon", "Gem", "Artifact", "Coin", "Inu",
-        "Kitten", "Bot", "Droid", "Mecha", "Dragon", "Phoenix", "Wizard", "Knight", "Ninja",
-        "Samurai", "Alien", "UFO", "Rocket", "Star", "Comet", "Planet", "World", "Land", "City",
-        "Tower", "Castle", "Sword", "Shield", "Scroll", "Potion", "Orb", "Crystal", "Diamond",
-        "Gold", "Token", "Pass", "Key", "Ticket", "Card", "Badge", "Relic", "Totem", "Statue",
-        "Monument",
+        "Doge", "Pepe", "Punk", "Cat", "Ape", "Wojak", "Moon", "Gem", "Artifact", "Coin", "Inu", "Kitten", "Bot",
+        "Droid", "Mecha", "Dragon", "Phoenix", "Wizard", "Knight", "Ninja", "Samurai", "Alien", "UFO", "Rocket",
+        "Star", "Comet", "Planet", "World", "Land", "City", "Tower", "Castle", "Sword", "Shield", "Scroll", "Potion",
+        "Orb", "Crystal", "Diamond", "Gold", "Token", "Pass", "Key", "Ticket", "Card", "Badge", "Relic", "Totem",
+        "Statue", "Monument",
     ];
 
     let mut rng = rand::thread_rng();
@@ -227,12 +217,11 @@ fn generate_random_metadata() -> (String, String) {
 
     // Correct list for `nouns`:
     let nouns_fixed = vec![
-        "Doge", "Pepe", "Punk", "Cat", "Ape", "Wojak", "Moon", "Gem", "Artifact", "Coin", "Inu",
-        "Kitten", "Bot", "Droid", "Mecha", "Dragon", "Phoenix", "Wizard", "Knight", "Ninja",
-        "Samurai", "Alien", "UFO", "Rocket", "Star", "Comet", "Planet", "World", "Land", "City",
-        "Tower", "Castle", "Sword", "Shield", "Scroll", "Potion", "Orb", "Crystal", "Diamond",
-        "Gold", "Token", "Pass", "Key", "Ticket", "Card", "Badge", "Relic", "Totem", "Statue",
-        "Monument",
+        "Doge", "Pepe", "Punk", "Cat", "Ape", "Wojak", "Moon", "Gem", "Artifact", "Coin", "Inu", "Kitten", "Bot",
+        "Droid", "Mecha", "Dragon", "Phoenix", "Wizard", "Knight", "Ninja", "Samurai", "Alien", "UFO", "Rocket",
+        "Star", "Comet", "Planet", "World", "Land", "City", "Tower", "Castle", "Sword", "Shield", "Scroll", "Potion",
+        "Orb", "Crystal", "Diamond", "Gold", "Token", "Pass", "Key", "Ticket", "Card", "Badge", "Relic", "Totem",
+        "Statue", "Monument",
     ];
 
     let noun = nouns_fixed.choose(&mut rng).unwrap_or(&"Doge");

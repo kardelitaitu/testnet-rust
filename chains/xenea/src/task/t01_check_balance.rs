@@ -24,20 +24,12 @@ impl Task<TaskContext> for XeneaCheckBalanceTask {
         let wbtc_addr: Address = "0xF32D39ff9f6Aa7a7a64d7a4F00a54826Ef791a55".parse()?;
         let xenea_addr: Address = "0xd6e1afe5cA8D00A2EFC01B89997abE2De47fdfAf".parse()?;
 
-        let tokens = vec![
-            ("WETH", weth_addr),
-            ("WBTC", wbtc_addr),
-            ("XENE", xenea_addr),
-        ];
+        let tokens = vec![("WETH", weth_addr), ("WBTC", wbtc_addr), ("XENE", xenea_addr)];
 
         let mut token_line = String::new();
         for (idx, (name, addr)) in tokens.into_iter().enumerate() {
             let contract = Contract::new(addr, p_abi.clone(), client.clone());
-            let bal: U256 = contract
-                .method("balanceOf", address)?
-                .call()
-                .await
-                .unwrap_or_default();
+            let bal: U256 = contract.method("balanceOf", address)?.call().await.unwrap_or_default();
             let dec: u8 = contract.method("decimals", ())?.call().await.unwrap_or(18);
             let raw_fmt = ethers::utils::format_units(bal, dec as u32).unwrap_or("0".into());
             let val_f64: f64 = raw_fmt.parse().unwrap_or(0.0);

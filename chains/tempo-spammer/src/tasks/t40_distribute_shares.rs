@@ -77,8 +77,7 @@ impl TempoTask for DistributeSharesTask {
         let selected_count = rng.gen_range(5..=count.min(15));
         let mut selected_payees = payees.into_iter().collect::<Vec<_>>();
         selected_payees.shuffle(&mut rng);
-        let selected_payees: Vec<Address> =
-            selected_payees.into_iter().take(selected_count).collect();
+        let selected_payees: Vec<Address> = selected_payees.into_iter().take(selected_count).collect();
 
         // 2. Generate random shares
         let shares = generate_random_shares(selected_count, 10000);
@@ -178,7 +177,7 @@ impl TempoTask for DistributeSharesTask {
                             predicted_address
                         ),
                     });
-                }
+                },
                 (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("nonce too low") && retry_count < MAX_RETRIES {
@@ -195,7 +194,7 @@ impl TempoTask for DistributeSharesTask {
                     } else {
                         return Err(e).context("Pipeline transaction failed");
                     }
-                }
+                },
             }
         }
     }

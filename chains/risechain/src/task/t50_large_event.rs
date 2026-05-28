@@ -52,20 +52,12 @@ impl Task<TaskContext> for LargeEventDataTask {
             .from(address);
 
         let deploy_pending = client.send_transaction(deploy_tx, None).await?;
-        let deploy_receipt = deploy_pending
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = deploy_pending.await?.context("Failed to get deploy receipt")?;
 
-        let contract_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let contract_address = deploy_receipt.contract_address.context("No contract address")?;
 
         let large_event_abi: abi::Abi = serde_json::from_str(large_event_abi_json)?;
-        let large_event_contract = Contract::new(
-            contract_address,
-            large_event_abi,
-            Arc::new(provider.clone()),
-        );
+        let large_event_contract = Contract::new(contract_address, large_event_abi, Arc::new(provider.clone()));
 
         let mut rng = OsRng;
         let mut large_data = vec![0u8; 256];
@@ -73,8 +65,7 @@ impl Task<TaskContext> for LargeEventDataTask {
             *byte = rng.gen();
         }
 
-        let emit_data =
-            large_event_contract.encode("emitLargeData", Bytes::from(large_data.clone()))?;
+        let emit_data = large_event_contract.encode("emitLargeData", Bytes::from(large_data.clone()))?;
 
         let emit_tx = Eip1559TransactionRequest::new()
             .to(contract_address)
@@ -87,11 +78,7 @@ impl Task<TaskContext> for LargeEventDataTask {
         let emit_pending = client.send_transaction(emit_tx, None).await?;
         let emit_receipt = emit_pending.await?.context("Failed to get emit receipt")?;
 
-        let event_data_size = emit_receipt
-            .logs
-            .first()
-            .map(|log| log.data.len())
-            .unwrap_or(0);
+        let event_data_size = emit_receipt.logs.first().map(|log| log.data.len()).unwrap_or(0);
 
         Ok(TaskResult {
             success: emit_receipt.status == Some(U64::from(1)),

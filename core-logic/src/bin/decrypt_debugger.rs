@@ -33,18 +33,9 @@ fn main() -> Result<()> {
         .get("ciphertext")
         .and_then(|v| v.as_str())
         .context("Missing ciphertext")?;
-    let iv = encrypted
-        .get("iv")
-        .and_then(|v| v.as_str())
-        .context("Missing iv")?;
-    let salt = encrypted
-        .get("salt")
-        .and_then(|v| v.as_str())
-        .context("Missing salt")?;
-    let tag = encrypted
-        .get("tag")
-        .and_then(|v| v.as_str())
-        .context("Missing tag")?; // AES-GCM tag often appended or separate
+    let iv = encrypted.get("iv").and_then(|v| v.as_str()).context("Missing iv")?;
+    let salt = encrypted.get("salt").and_then(|v| v.as_str()).context("Missing salt")?;
+    let tag = encrypted.get("tag").and_then(|v| v.as_str()).context("Missing tag")?; // AES-GCM tag often appended or separate
 
     println!("Ciphertext: {}...", &ciphertext[..20.min(ciphertext.len())]);
     println!("IV: {}", iv);
@@ -56,10 +47,10 @@ fn main() -> Result<()> {
         Ok(plaintext) => {
             println!("SUCCESS!");
             println!("Decrypted: {}", plaintext);
-        }
+        },
         Err(e) => {
             println!("Failed: {}", e);
-        }
+        },
     }
 
     Ok(())

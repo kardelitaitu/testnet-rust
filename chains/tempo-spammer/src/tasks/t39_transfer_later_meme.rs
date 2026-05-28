@@ -105,11 +105,11 @@ impl TempoTask for TransferLaterMemeTask {
                     let _ = pending.get_receipt().await;
                     // Optimistically assume mint worked for calculation or just set balance
                     balance = mint_amount;
-                }
+                },
                 Err(_) => {
                     // If mint fails, we can't do 1% transfer effectively, but let's try 0
                     balance = U256::ZERO;
-                }
+                },
             }
         }
 
@@ -172,13 +172,12 @@ impl TempoTask for TransferLaterMemeTask {
             match client.provider.send_raw_transaction(&signed_buf).await {
                 Ok(pending) => {
                     break *pending.tx_hash();
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     attempt += 1;
 
-                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
-                        && attempt < max_retries
+                    if (err_str.contains("nonce too low") || err_str.contains("already known")) && attempt < max_retries
                     {
                         tracing::warn!(
                             "Nonce error on raw tx send, attempt {}/{}, resetting cache...",
@@ -208,7 +207,7 @@ impl TempoTask for TransferLaterMemeTask {
                     } else {
                         return Err(e).context("Failed to send raw Tempo tx");
                     }
-                }
+                },
             }
         };
 

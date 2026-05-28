@@ -30,22 +30,16 @@ impl Task<TaskContext> for VerifySignatureTask {
         let message = format!("Verify signature test #{}", random_value);
         let message_hash = ethers::utils::hash_message(&message);
 
-        let signature = wallet
-            .sign_hash(message_hash)
-            .context("Failed to sign message")?;
+        let signature = wallet.sign_hash(message_hash).context("Failed to sign message")?;
 
-        let recovered = signature
-            .recover(message_hash)
-            .context("Failed to recover signer")?;
+        let recovered = signature.recover(message_hash).context("Failed to recover signer")?;
 
         let is_valid = recovered == address;
 
         let (max_fee, priority_fee) = ctx.gas_manager.get_fees().await?;
         let gas_limit = crate::utils::gas::GasManager::LIMIT_SEND_MEME;
 
-        let data = Bytes::from(ethers::abi::encode(&[ethers::abi::Token::String(
-            message.clone(),
-        )]));
+        let data = Bytes::from(ethers::abi::encode(&[ethers::abi::Token::String(message.clone())]));
 
         let tx = Eip1559TransactionRequest::new()
             .to(address)
@@ -61,9 +55,7 @@ impl Task<TaskContext> for VerifySignatureTask {
             wallet.clone(),
         ));
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         Ok(TaskResult {
             success: receipt.status == Some(U64::from(1)) && is_valid,

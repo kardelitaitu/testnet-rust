@@ -38,10 +38,7 @@ fn load_wallet_manager(config: &ArcConfig) -> Result<WalletManager> {
     }
 }
 
-async fn resolve_wallet_password(
-    manager: &WalletManager,
-    total_wallets: usize,
-) -> Result<Option<String>> {
+async fn resolve_wallet_password(manager: &WalletManager, total_wallets: usize) -> Result<Option<String>> {
     if total_wallets == 0 {
         return Ok(None);
     }
@@ -65,12 +62,10 @@ async fn resolve_wallet_password(
                     .get_wallet(0, password.as_deref())
                     .await
                     .context("Interactive password also failed")?;
-            }
+            },
             Err(_) => {
-                anyhow::bail!(
-                    "Cannot prompt for password. Set WALLET_PASSWORD before running this binary."
-                );
-            }
+                anyhow::bail!("Cannot prompt for password. Set WALLET_PASSWORD before running this binary.");
+            },
         }
     }
 
@@ -125,7 +120,7 @@ async fn main() -> Result<()> {
             Err(e) => {
                 eprintln!("[arc-balance-dump] skipping wallet {}: {}", idx, e);
                 continue;
-            }
+            },
         };
 
         let address = if !wallet.address().trim().is_empty() {
@@ -134,7 +129,7 @@ async fn main() -> Result<()> {
                 Err(e) => {
                     eprintln!("[arc-balance-dump] skipping wallet {}: {}", idx, e);
                     continue;
-                }
+                },
             }
         } else if !wallet.private_key().trim().is_empty() {
             match wallet.private_key().parse::<LocalWallet>() {
@@ -142,7 +137,7 @@ async fn main() -> Result<()> {
                 Err(e) => {
                     eprintln!("[arc-balance-dump] skipping wallet {}: {}", idx, e);
                     continue;
-                }
+                },
             }
         } else {
             eprintln!(
@@ -155,12 +150,9 @@ async fn main() -> Result<()> {
         let balance = match provider.get_balance(address, None).await {
             Ok(balance) => balance,
             Err(e) => {
-                eprintln!(
-                    "[arc-balance-dump] skipping wallet {} balance check: {}",
-                    idx, e
-                );
+                eprintln!("[arc-balance-dump] skipping wallet {} balance check: {}", idx, e);
                 continue;
-            }
+            },
         };
 
         writeln!(writer, "{:?},{}", address, format_balance_4dp(balance)?)?;
@@ -168,11 +160,7 @@ async fn main() -> Result<()> {
     }
 
     writer.flush()?;
-    println!(
-        "Wrote {} wallet balance rows to {}",
-        written,
-        output_path.display()
-    );
+    println!("Wrote {} wallet balance rows to {}", written, output_path.display());
 
     Ok(())
 }

@@ -1,4 +1,18 @@
 rpc_url = "https://sepolia.drpc.org"
+
+# Optional: RPC URL rotation — picked randomly each task. Falls back to rpc_url if empty.
+rpc_urls = [
+    "https://sepolia.drpc.org",
+    "https://sepolia.gateway.tenderly.co",
+    "https://gateway.tenderly.co/public/sepolia",
+    "https://ethereum-sepolia-rpc.publicnode.com",
+    "https://1rpc.io/sepolia",
+    "https://eth-sepolia.api.onfinality.io/public",
+    "https://ethereum-sepolia-public.nodies.app",
+    "https://0xrpc.io/sep",
+    "https://sepolia.rpc.sentio.xyz",
+    "https://rpc.sepolia.ethpandaops.io",
+]
 chain_id = 11155111
 explorer = "https://sepolia.etherscan.io"
 symbol = "ETH"
@@ -31,28 +45,36 @@ task_timeout_secs = 120
 #
 [task_limits]
 01_checkbalance = 1
-02_mintusdtplus = 30
-03_mintusdcplus = 30
-04_redeemusdtplus = 1
-05_redeemusdcplus = 1
+02_mintusdtplus = 20
+03_mintusdcplus = 20
+04_redeemusdtplus = 3
+05_redeemusdcplus = 3
 06_stakeusdtplus = 1
 07_stakeusdcplus = 1
 08_unstaketplus = 1
 09_unstakecplus = 1
-10_aaveusdtfaucet = 2
-11_aaveusdcfaucet = 2
-12_bridgetplus = 0
-13_bridgecplus = 1
-14_sendrandomusdtplus = 0
-15_sendrandomusdcplus = 0
+10_aaveusdtfaucet = 5
+11_aaveusdcfaucet = 5
+12_bridgetplus = 1
+13_bridgecplus = 0
+14_sendrandomusdtplus = 5
+15_sendrandomusdcplus = 5
 16_bridgebacktplus = 0
 17_bridgebackcplus = 0
-18_receivetplus = 0
-19_receivecplus = 1
-20_aavewbtcfaucet = 1
+18_receivetplus = 1
+19_receivecplus = 0
+20_aavewbtcfaucet = 0
 21_redeemtoausdt = 0
 22_redeemtoausdc = 0
 
 
 # Command to Run
 # cargo run -p sepolia-overlayer --bin sepolia-daily -- --config chains/sepolia-overlayer/config.toml --base-config chains/sepolia-overlayer/config-base.toml
+
+# ── Per-Task Timeout Overrides ────────────────────────────────────────
+# Override timeout (seconds) for specific tasks. Falls back to task_timeout_secs.
+[task_timeouts]
+16_bridgebacktplus = 300
+17_bridgebackcplus = 300
+18_receivetplus = 300
+19_receivecplus = 300

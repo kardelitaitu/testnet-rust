@@ -64,32 +64,17 @@ impl Task<TaskContext> for PausableContractTask {
             Err(_) => unavailable.push("  getOwner()".to_string()),
         }
 
-        match contract
-            .method::<_, bool>("isPauser", address)?
-            .call()
-            .await
-        {
+        match contract.method::<_, bool>("isPauser", address)?.call().await {
             Ok(p) => available.push(format!("  isPauser({:?}): {}", address, p)),
             Err(_) => unavailable.push("  isPauser()".to_string()),
         }
 
-        match contract
-            .method::<_, H256>("DEFAULT_ADMIN_ROLE", ())?
-            .call()
-            .await
-        {
+        match contract.method::<_, H256>("DEFAULT_ADMIN_ROLE", ())?.call().await {
             Ok(r) => {
-                let has_admin: bool = contract
-                    .method("hasRole", (r, address))?
-                    .call()
-                    .await
-                    .unwrap_or(false);
+                let has_admin: bool = contract.method("hasRole", (r, address))?.call().await.unwrap_or(false);
                 available.push(format!("  DEFAULT_ADMIN_ROLE(): 0x{}", hex::encode(r)));
-                available.push(format!(
-                    "  hasRole(DEFAULT_ADMIN, {:?}): {}",
-                    address, has_admin
-                ));
-            }
+                available.push(format!("  hasRole(DEFAULT_ADMIN, {:?}): {}", address, has_admin));
+            },
             Err(_) => unavailable.push("  DEFAULT_ADMIN_ROLE()/hasRole()".to_string()),
         }
 

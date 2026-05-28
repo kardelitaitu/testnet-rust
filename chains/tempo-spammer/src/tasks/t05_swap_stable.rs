@@ -54,9 +54,7 @@ impl TempoTask for SwapStableTask {
                 calldata.extend_from_slice(&[0u8; 12]); // 12 bytes padding
                 calldata.extend_from_slice(address.as_slice()); // 20 bytes address
 
-                let balance_data = TransactionRequest::default()
-                    .to(token_addr)
-                    .input(calldata.into());
+                let balance_data = TransactionRequest::default().to(token_addr).input(calldata.into());
 
                 let balance = if let Ok(data) = client.provider.call(balance_data).await {
                     let bytes = data.as_ref();
@@ -86,8 +84,7 @@ impl TempoTask for SwapStableTask {
             }
 
             // Pick random token_in
-            let (token_in_name, token_in_addr, balance) =
-                *tokens_with_balance.choose(&mut rand::thread_rng()).unwrap();
+            let (token_in_name, token_in_addr, balance) = *tokens_with_balance.choose(&mut rand::thread_rng()).unwrap();
 
             // Pick token_out from a DIFFERENT system token
             let (token_out_name, token_out_addr) = loop {
@@ -130,16 +127,14 @@ impl TempoTask for SwapStableTask {
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("nonce too low") || err_str.contains("already known") {
-                        tracing::warn!(
-                            "Nonce error on approval (swap), resetting cache and retrying..."
-                        );
+                        tracing::warn!("Nonce error on approval (swap), resetting cache and retrying...");
                         client.reset_nonce_cache().await;
                         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                         client.provider.send_transaction(approve_tx).await?
                     } else {
                         return Err(e.into());
                     }
-                }
+                },
             };
             let approve_receipt = approve_pending.get_receipt().await?;
 
@@ -188,7 +183,7 @@ impl TempoTask for SwapStableTask {
                     } else {
                         return Err(e.into());
                     }
-                }
+                },
             };
 
             let tx_hash = *pending.tx_hash();

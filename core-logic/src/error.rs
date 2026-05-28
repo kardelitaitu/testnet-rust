@@ -201,10 +201,7 @@ mod tests {
         let err = ConfigError::MissingField {
             field: "rpc_url".into(),
         };
-        assert_eq!(
-            err.to_string(),
-            "Missing required configuration field: 'rpc_url'"
-        );
+        assert_eq!(err.to_string(), "Missing required configuration field: 'rpc_url'");
     }
 
     #[test]
@@ -239,19 +236,13 @@ mod tests {
     #[test]
     fn test_wallet_error_not_found() {
         let err = WalletError::NotFound { index: 5, total: 3 };
-        assert_eq!(
-            err.to_string(),
-            "Wallet not found at index 5 (total wallets: 3)"
-        );
+        assert_eq!(err.to_string(), "Wallet not found at index 5 (total wallets: 3)");
     }
 
     #[test]
     fn test_wallet_error_invalid_key_format() {
         let err = WalletError::InvalidKeyFormat;
-        assert_eq!(
-            err.to_string(),
-            "Invalid private key format: expected hex string"
-        );
+        assert_eq!(err.to_string(), "Invalid private key format: expected hex string");
     }
 
     #[test]
@@ -282,9 +273,7 @@ mod tests {
 
     #[test]
     fn test_database_error_not_found() {
-        let err = DatabaseError::NotFound {
-            key: "wallet_5".into(),
-        };
+        let err = DatabaseError::NotFound { key: "wallet_5".into() };
         assert!(err.to_string().contains("wallet_5"));
     }
 
@@ -372,7 +361,7 @@ mod tests {
         };
         let core: CoreError = config_err.into();
         match core {
-            CoreError::Config(_) => {}
+            CoreError::Config(_) => {},
             _ => panic!("Expected CoreError::Config variant"),
         }
         assert!(core.to_string().contains("cfg.toml"));
@@ -383,7 +372,7 @@ mod tests {
         let wallet_err = WalletError::InvalidKeyFormat;
         let core: CoreError = wallet_err.into();
         match core {
-            CoreError::Wallet(_) => {}
+            CoreError::Wallet(_) => {},
             _ => panic!("Expected CoreError::Wallet variant"),
         }
     }
@@ -396,7 +385,7 @@ mod tests {
         };
         let core: CoreError = net_err.into();
         match core {
-            CoreError::Network(_) => {}
+            CoreError::Network(_) => {},
             _ => panic!("Expected CoreError::Network variant"),
         }
     }
@@ -406,7 +395,7 @@ mod tests {
         let sec_err = SecurityError::PasswordRequired;
         let core: CoreError = sec_err.into();
         match core {
-            CoreError::Security(_) => {}
+            CoreError::Security(_) => {},
             _ => panic!("Expected CoreError::Security variant"),
         }
     }

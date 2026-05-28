@@ -82,11 +82,7 @@ async fn main() -> Result<()> {
     }
 
     // Interactive password prompt if env var not set or invalid
-    if wallet_manager
-        .get_wallet(0, wallet_password.as_deref())
-        .await
-        .is_err()
-    {
+    if wallet_manager.get_wallet(0, wallet_password.as_deref()).await.is_err() {
         println!("\n⚠️  Wallet decryption failed (password not set or invalid).");
         let input = Password::with_theme(&ColorfulTheme::default())
             .with_prompt("Enter wallet password")
@@ -95,14 +91,8 @@ async fn main() -> Result<()> {
         wallet_password = Some(input);
 
         // Validate again
-        if let Err(e) = wallet_manager
-            .get_wallet(0, wallet_password.as_deref())
-            .await
-        {
-            return Err(anyhow::anyhow!(
-                "Decryption failed with provided password: {}",
-                e
-            ));
+        if let Err(e) = wallet_manager.get_wallet(0, wallet_password.as_deref()).await {
+            return Err(anyhow::anyhow!("Decryption failed with provided password: {}", e));
         }
         println!("✅ Password accepted.");
     }
@@ -112,7 +102,7 @@ async fn main() -> Result<()> {
         Ok(db) => std::sync::Arc::new(db),
         Err(e) => {
             return Err(anyhow::anyhow!("Failed to initialize database: {}", e));
-        }
+        },
     };
 
     // 4. Define The Sequence
@@ -238,7 +228,7 @@ async fn main() -> Result<()> {
                             }
                             tokio::time::sleep(Duration::from_millis(1000)).await;
                             continue;
-                        }
+                        },
                     };
 
                     let proxy_idx_str = client
@@ -248,16 +238,10 @@ async fn main() -> Result<()> {
 
                     // 2. Instantiate Task
                     let task: Box<dyn TempoTask> = match task_id {
-                        2 => {
-                            Box::new(tempo_spammer::tasks::t02_claim_faucet::ClaimFaucetTask::new())
-                        }
-                        4 => Box::new(
-                            tempo_spammer::tasks::t04_create_stable::CreateStableTask::new(),
-                        ),
+                        2 => Box::new(tempo_spammer::tasks::t02_claim_faucet::ClaimFaucetTask::new()),
+                        4 => Box::new(tempo_spammer::tasks::t04_create_stable::CreateStableTask::new()),
                         7 => Box::new(tempo_spammer::tasks::t07_mint_stable::MintStableTask::new()),
-                        21 => {
-                            Box::new(tempo_spammer::tasks::t21_create_meme::CreateMemeTask::new())
-                        }
+                        21 => Box::new(tempo_spammer::tasks::t21_create_meme::CreateMemeTask::new()),
                         22 => Box::new(tempo_spammer::tasks::t22_mint_meme::MintMemeTask::new()),
                         _ => {
                             println!(
@@ -265,7 +249,7 @@ async fn main() -> Result<()> {
                                 wallet_idx, task_id
                             );
                             break; // Skip non-implemented tasks
-                        }
+                        },
                     };
 
                     println!(
@@ -273,8 +257,7 @@ async fn main() -> Result<()> {
                         wallet_idx, task_id, proxy_idx_str, attempt
                     );
 
-                    let context =
-                        TaskContext::new(client, config.clone(), db.clone(), Arc::new(GasManager));
+                    let context = TaskContext::new(client, config.clone(), db.clone(), Arc::new(GasManager));
                     let start = std::time::Instant::now();
 
                     // 3. Run Task
@@ -303,7 +286,7 @@ async fn main() -> Result<()> {
                                 );
                                 false
                             }
-                        }
+                        },
                         Ok(Err(e)) => {
                             println!(
                                 "❌ [Wallet {:02}] Task {:02} | {:.2}s | Error: {:?}",
@@ -313,7 +296,7 @@ async fn main() -> Result<()> {
                                 e
                             );
                             false
-                        }
+                        },
                         Err(_) => {
                             println!(
                                 "❌ [Wallet {:02}] Task {:02} | {:.2}s | Timeout",
@@ -322,7 +305,7 @@ async fn main() -> Result<()> {
                                 duration.as_secs_f64()
                             );
                             false
-                        }
+                        },
                     };
 
                     if success {

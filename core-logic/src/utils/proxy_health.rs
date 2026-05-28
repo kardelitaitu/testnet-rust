@@ -83,20 +83,14 @@ impl ProxyHealthManager {
         health_map.get(proxy_url).map(|h| {
             let status = if let Some(paused) = h.paused_until {
                 if Instant::now() < paused {
-                    format!(
-                        "PAUSED ({}s remaining)",
-                        (paused - Instant::now()).as_secs()
-                    )
+                    format!("PAUSED ({}s remaining)", (paused - Instant::now()).as_secs())
                 } else {
                     format!("active ({} failures)", h.failure_count)
                 }
             } else {
                 format!("active ({} failures)", h.failure_count)
             };
-            format!(
-                "{} success, {} - {}",
-                h.success_count, h.failure_count, status
-            )
+            format!("{} success, {} - {}", h.success_count, h.failure_count, status)
         })
     }
 
@@ -280,11 +274,7 @@ mod tests {
         let status = mgr.get_status("http://proxy:8080").await;
         assert!(status.is_some());
         let s = status.unwrap();
-        assert!(
-            s.contains("PAUSED"),
-            "paused proxy should show PAUSED: {}",
-            s
-        );
+        assert!(s.contains("PAUSED"), "paused proxy should show PAUSED: {}", s);
         assert!(s.contains("remaining"), "should show time remaining: {}", s);
     }
 

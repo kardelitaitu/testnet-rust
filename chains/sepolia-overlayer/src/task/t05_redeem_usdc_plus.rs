@@ -1,11 +1,10 @@
-use super::{SepoliaTask, TaskContext, TaskResult};
+use super::{confirm_with_retry, SepoliaTask, TaskContext, TaskResult};
 use crate::utils::calc::calc_pct_rounded;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::middleware::SignerMiddleware;
 use ethers::prelude::*;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// USDC+ (C+) on Sepolia — the overlayer contract we redeem from
 const USDC_PLUS: &str = "0xe815718d44694ec4637cb775c468d87f6e15b538";
@@ -26,10 +25,7 @@ async fn get_cplus_balance(provider: &Provider<Http>, wallet: Address) -> Result
         serde_json::from_str::<ethers::abi::Abi>(REDEEM_ABI)?,
         Arc::new(provider.clone()),
     );
-    Ok(contract
-        .method::<_, U256>("balanceOf", wallet)?
-        .call()
-        .await?)
+    Ok(contract.method::<_, U256>("balanceOf", wallet)?.call().await?)
 }
 
 pub struct RedeemUsdcPlusTask;
@@ -93,25 +89,20 @@ impl SepoliaTask for RedeemUsdcPlusTask {
             .method::<((Address, Address, Address, U256, U256),), H256>("redeem", (order,))?
             .gas(250_000)
             .gas_price(max_fee);
-        let redeem_tx = redeem_call
-            .send()
-            .await
-            .context("Failed to send redeem tx")?;
+        let redeem_tx = redeem_call.send().await.context("Failed to send redeem tx")?;
 
         let tx_hash = redeem_tx.tx_hash();
 
-        let receipt = redeem_tx
-            .confirmations(1)
-            .interval(Duration::from_millis(500))
-            .await?;
+        let receipt = confirm_with_retry(tx_hash, provider).await?;
 
         let success = receipt.is_some_and(|r| r.status == Some(1.into()));
         Ok(TaskResult {
             success,
-            message: format!(
-                "Redeemed {} C+ → {} USDC (tx: {:?})",
-                whole_cplus, whole_cplus, tx_hash
-            ),
+            message: if success {
+                format!("Redeemed {} C+ → {} USDC (tx: {:?})", whole_cplus, whole_cplus, tx_hash)
+            } else {
+                format!("Failed to redeem C+ - receipt not confirmed (tx: {:?})", tx_hash)
+            },
         })
     }
 }

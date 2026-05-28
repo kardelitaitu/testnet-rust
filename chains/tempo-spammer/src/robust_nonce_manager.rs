@@ -269,21 +269,10 @@ impl RobustNonceManager {
         // Track the reservation
         {
             let mut requests = state.requests.lock().await;
-            requests.insert(
-                nonce,
-                (
-                    request_id,
-                    NonceState::Reserved {
-                        since: Instant::now(),
-                    },
-                ),
-            );
+            requests.insert(nonce, (request_id, NonceState::Reserved { since: Instant::now() }));
         }
 
-        debug!(
-            "Reserved nonce {} for {:?} (request {})",
-            nonce, address, request_id
-        );
+        debug!("Reserved nonce {} for {:?} (request {})", nonce, address, request_id);
 
         Some(NonceReservation {
             request_id,
@@ -334,15 +323,7 @@ impl RobustNonceManager {
             let mut requests = state.requests.lock().await;
             if let Some((req_id, _)) = requests.get(&nonce) {
                 let req_id = *req_id;
-                requests.insert(
-                    nonce,
-                    (
-                        req_id,
-                        NonceState::InFlight {
-                            since: Instant::now(),
-                        },
-                    ),
-                );
+                requests.insert(nonce, (req_id, NonceState::InFlight { since: Instant::now() }));
             }
 
             state.in_flight.lock().await.insert(nonce);
@@ -359,10 +340,7 @@ impl RobustNonceManager {
             let mut requests = state.requests.lock().await;
             if let Some((req_id, _)) = requests.get(&nonce) {
                 let req_id = *req_id;
-                requests.insert(
-                    nonce,
-                    (req_id, NonceState::Confirmed { at: Instant::now() }),
-                );
+                requests.insert(nonce, (req_id, NonceState::Confirmed { at: Instant::now() }));
             }
 
             state.in_flight.lock().await.remove(&nonce);
@@ -390,15 +368,7 @@ impl RobustNonceManager {
             let mut requests = state.requests.lock().await;
             if let Some((req_id, _)) = requests.get(&nonce) {
                 let req_id = *req_id;
-                requests.insert(
-                    nonce,
-                    (
-                        req_id,
-                        NonceState::Failed {
-                            error: error.clone(),
-                        },
-                    ),
-                );
+                requests.insert(nonce, (req_id, NonceState::Failed { error: error.clone() }));
             }
 
             state.in_flight.lock().await.remove(&nonce);
@@ -446,20 +416,14 @@ impl RobustNonceManager {
     /// 1. Mark the failed nonce
     /// 2. Sync with blockchain to get actual state
     /// 3. Adjust cached nonce if needed
-    pub async fn handle_nonce_error(
-        &self,
-        address: Address,
-        attempted_nonce: u64,
-        actual_next_nonce: u64,
-    ) {
+    pub async fn handle_nonce_error(&self, address: Address, attempted_nonce: u64, actual_next_nonce: u64) {
         let error = format!(
             "nonce too low: attempted {}, actual next is {}",
             attempted_nonce, actual_next_nonce
         );
 
         // DO NOT recycle this nonce, it is dead
-        self.mark_failed(address, attempted_nonce, error.clone(), false)
-            .await;
+        self.mark_failed(address, attempted_nonce, error.clone(), false).await;
 
         // Update wallet state
         if let Some(state) = self.wallets.read().await.get(&address) {
@@ -467,9 +431,7 @@ impl RobustNonceManager {
 
             // If actual next nonce is higher than our cache, update it
             if actual_next_nonce > current_cached {
-                state
-                    .cached_nonce
-                    .store(actual_next_nonce, Ordering::SeqCst);
+                state.cached_nonce.store(actual_next_nonce, Ordering::SeqCst);
 
                 // BULK INVALIDATION: Mark all reserved/in-flight nonces < actual_next_nonce as failed
                 let mut requests = state.requests.lock().await;
@@ -502,10 +464,7 @@ impl RobustNonceManager {
                     if let Some(pos) = failed_queue.iter().position(|&x| x == stale) {
                         failed_queue.remove(pos);
                     }
-                    warn!(
-                        "Invalidated stale nonce {} for {:?} due to chain sync",
-                        stale, address
-                    );
+                    warn!("Invalidated stale nonce {} for {:?} due to chain sync", stale, address);
                 }
 
                 warn!(
@@ -701,9 +660,7 @@ mod tests {
         // Reserve and fail nonce 5
         let res = manager.reserve_nonce(address).await.unwrap();
         assert_eq!(res.nonce, 5);
-        manager
-            .mark_failed(address, 5, "test error".to_string(), true)
-            .await;
+        manager.mark_failed(address, 5, "test error".to_string(), true).await;
 
         // Next reservation should reuse nonce 5
         let res2 = manager.reserve_nonce(address).await.unwrap();

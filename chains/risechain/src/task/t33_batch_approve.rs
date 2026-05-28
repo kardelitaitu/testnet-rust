@@ -34,8 +34,7 @@ impl Task<TaskContext> for BatchApproveTask {
         ];
 
         let amount: u128 = 500_000_000; // 500k USDC (6 decimals)
-        let amount_formatted =
-            ethers::utils::format_units(amount, 6u32).unwrap_or_else(|_| amount.to_string());
+        let amount_formatted = ethers::utils::format_units(amount, 6u32).unwrap_or_else(|_| amount.to_string());
 
         let (max_fee, priority_fee) = ctx.gas_manager.get_fees().await?;
         let gas_limit = crate::utils::gas::GasManager::LIMIT_SEND_MEME;
@@ -80,7 +79,7 @@ impl Task<TaskContext> for BatchApproveTask {
                     if receipt.status == Some(U64::from(1)) {
                         successes += 1;
                     }
-                }
+                },
                 (_, _) => tx_hashes.push("failed".to_string()),
             }
         }

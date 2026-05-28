@@ -1,9 +1,6 @@
 use crate::{
     subblock::{PartialValidatorKey, has_sub_block_nonce_key_prefix},
-    transaction::{
-        AASigned, TempoSignature, TempoSignedAuthorization,
-        key_authorization::SignedKeyAuthorization,
-    },
+    transaction::{AASigned, TempoSignature, TempoSignedAuthorization, key_authorization::SignedKeyAuthorization},
 };
 use alloy_consensus::{SignableTransaction, Transaction, crypto::RecoveryError};
 use alloy_eips::{Typed2718, eip2930::AccessList, eip7702::SignedAuthorization};
@@ -86,10 +83,7 @@ fn rlp_header(payload_length: usize) -> alloy_rlp::Header {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "reth-codec", derive(reth_codecs::Compact))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(compact, rlp)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
 pub struct Call {
     /// Call target.
     pub to: TxKind,
@@ -263,9 +257,7 @@ pub fn validate_calls(calls: &[Call], has_authorization_list: bool) -> Result<()
     // All subsequent calls must be CALL.
     for call in calls_iter {
         if call.to.is_create() {
-            return Err(
-                "only one CREATE call is allowed per transaction, and it must be the first call of the batch",
-            );
+            return Err("only one CREATE call is allowed per transaction, and it must be the first call of the batch");
         }
     }
 
@@ -477,11 +469,7 @@ impl TempoTransaction {
     /// Public version for normal RLP encoding
     pub(crate) fn rlp_encoded_fields_length_default(&self) -> usize {
         self.rlp_encoded_fields_length(
-            |signature| {
-                signature.map_or(1, |s| {
-                    rlp_header(s.rlp_rs_len() + s.v().length()).length_with_payload()
-                })
-            },
+            |signature| signature.map_or(1, |s| rlp_header(s.rlp_rs_len() + s.v().length()).length_with_payload()),
             false,
         )
     }
@@ -667,11 +655,7 @@ impl Transaction for TempoTransaction {
     }
 
     fn effective_gas_price(&self, base_fee: Option<u64>) -> u128 {
-        alloy_eips::eip1559::calc_effective_gas_price(
-            self.max_fee_per_gas,
-            self.max_priority_fee_per_gas,
-            base_fee,
-        )
+        alloy_eips::eip1559::calc_effective_gas_price(self.max_fee_per_gas, self.max_priority_fee_per_gas, base_fee)
     }
 
     #[inline]
@@ -693,9 +677,7 @@ impl Transaction for TempoTransaction {
     #[inline]
     fn value(&self) -> U256 {
         // Return sum of all call values
-        self.calls
-            .iter()
-            .fold(U256::ZERO, |acc, call| acc + call.value)
+        self.calls.iter().fold(U256::ZERO, |acc, call| acc + call.value)
     }
 
     #[inline]
@@ -872,11 +854,11 @@ impl<'a> arbitrary::Arbitrary<'a> for TempoTransaction {
                 // Generate a value greater than valid_after
                 let offset: u64 = u.int_in_range(1..=1000)?;
                 Some(after.saturating_add(offset))
-            }
+            },
             None => {
                 // Similarly avoid Some(0) for valid_before
                 u.arbitrary::<Option<u64>>()?.filter(|v| *v != 0)
-            }
+            },
         };
 
         Ok(Self {
@@ -932,9 +914,7 @@ mod serde_input {
         Ok(helper
             .input
             .or(helper.data)
-            .ok_or(serde::de::Error::missing_field(
-                "missing `input` or `data` field",
-            ))?
+            .ok_or(serde::de::Error::missing_field("missing `input` or `data` field"))?
             .into_owned())
     }
 }
@@ -947,8 +927,7 @@ mod tests {
         transaction::{
             KeyAuthorization, TempoSignedAuthorization,
             tt_signature::{
-                PrimitiveSignature, SIGNATURE_TYPE_P256, SIGNATURE_TYPE_WEBAUTHN, TempoSignature,
-                derive_p256_address,
+                PrimitiveSignature, SIGNATURE_TYPE_P256, SIGNATURE_TYPE_WEBAUTHN, TempoSignature, derive_p256_address,
             },
         },
     };
@@ -1006,9 +985,7 @@ mod tests {
         assert!(tx4.validate().is_ok());
 
         // Invalid: empty calls
-        let tx5 = TempoTransaction {
-            ..Default::default()
-        };
+        let tx5 = TempoTransaction { ..Default::default() };
         assert!(tx5.validate().is_err());
     }
 
@@ -1073,10 +1050,7 @@ mod tests {
         // Verify fields
         assert_eq!(decoded.chain_id, tx.chain_id);
         assert_eq!(decoded.fee_token, tx.fee_token);
-        assert_eq!(
-            decoded.max_priority_fee_per_gas,
-            tx.max_priority_fee_per_gas
-        );
+        assert_eq!(decoded.max_priority_fee_per_gas, tx.max_priority_fee_per_gas);
         assert_eq!(decoded.max_fee_per_gas, tx.max_fee_per_gas);
         assert_eq!(decoded.gas_limit, tx.gas_limit);
         assert_eq!(decoded.calls.len(), 1);
@@ -1132,10 +1106,8 @@ mod tests {
 
     #[test]
     fn test_p256_address_derivation() {
-        let pub_key_x =
-            hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").into();
-        let pub_key_y =
-            hex!("fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321").into();
+        let pub_key_x = hex!("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").into();
+        let pub_key_y = hex!("fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321").into();
 
         let addr1 = derive_p256_address(&pub_key_x, &pub_key_y);
         let addr2 = derive_p256_address(&pub_key_x, &pub_key_y);
@@ -1563,16 +1535,10 @@ mod tests {
         let hash4 = tx_with_payer_with_token.signature_hash();
 
         // Without fee_payer: user includes fee_token, so hash1 != hash2
-        assert_ne!(
-            hash1, hash2,
-            "User hash changes with fee_token when no fee_payer"
-        );
+        assert_ne!(hash1, hash2, "User hash changes with fee_token when no fee_payer");
 
         // With fee_payer: user skips fee_token, so hash3 == hash4
-        assert_eq!(
-            hash3, hash4,
-            "User hash ignores fee_token when fee_payer is present"
-        );
+        assert_eq!(hash3, hash4, "User hash ignores fee_token when fee_payer is present");
 
         // Hashes without fee_payer should differ from hashes with fee_payer
         // (because skip_fee_token logic changes)
@@ -1696,8 +1662,7 @@ mod tests {
             tempo_authorization_list: vec![],
         };
 
-        let signature =
-            TempoSignature::Primitive(PrimitiveSignature::Secp256k1(Signature::test_signature()));
+        let signature = TempoSignature::Primitive(PrimitiveSignature::Secp256k1(Signature::test_signature()));
         let signed = AASigned::new_unhashed(tx, signature);
 
         // Test direct RLP encoding/decoding
@@ -1705,8 +1670,7 @@ mod tests {
         signed.rlp_encode(&mut buf);
 
         // Decode
-        let decoded =
-            AASigned::rlp_decode(&mut buf.as_slice()).expect("Should decode AASigned RLP");
+        let decoded = AASigned::rlp_decode(&mut buf.as_slice()).expect("Should decode AASigned RLP");
         assert_eq!(decoded.tx().key_authorization, None);
     }
 
@@ -1736,16 +1700,14 @@ mod tests {
             tempo_authorization_list: vec![],
         };
 
-        let signature =
-            TempoSignature::Primitive(PrimitiveSignature::Secp256k1(Signature::test_signature()));
+        let signature = TempoSignature::Primitive(PrimitiveSignature::Secp256k1(Signature::test_signature()));
         let signed = AASigned::new_unhashed(tx, signature);
         let envelope = TempoTxEnvelope::AA(signed);
 
         // Encode and decode the envelope
         let mut buf = Vec::new();
         envelope.encode_2718(&mut buf);
-        let decoded = TempoTxEnvelope::decode_2718(&mut buf.as_slice())
-            .expect("Should decode envelope successfully");
+        let decoded = TempoTxEnvelope::decode_2718(&mut buf.as_slice()).expect("Should decode envelope successfully");
 
         // Verify it's the same
         if let TempoTxEnvelope::AA(aa_signed) = decoded {
@@ -1776,10 +1738,7 @@ mod tests {
         buf.truncate(original_len - 2); // Remove 2 bytes from the end
 
         let result = Call::decode(&mut buf.as_slice());
-        assert!(
-            result.is_err(),
-            "Decoding should fail when header length doesn't match"
-        );
+        assert!(result.is_err(), "Decoding should fail when header length doesn't match");
         // The error could be InputTooShort or UnexpectedLength depending on what field is truncated
         assert!(matches!(
             result.unwrap_err(),
@@ -1822,10 +1781,7 @@ mod tests {
         buf.truncate(original_len - 5); // Remove 5 bytes from the end
 
         let result = TempoTransaction::decode(&mut buf.as_slice());
-        assert!(
-            result.is_err(),
-            "Decoding should fail when data is truncated"
-        );
+        assert!(result.is_err(), "Decoding should fail when data is truncated");
         // The error could be InputTooShort or UnexpectedLength depending on what field is truncated
         assert!(matches!(
             result.unwrap_err(),
@@ -1898,12 +1854,7 @@ mod tests {
             ..Default::default()
         };
         assert!(tx_invalid.validate().is_err());
-        assert!(
-            tx_invalid
-                .validate()
-                .unwrap_err()
-                .contains("only one CREATE")
-        );
+        assert!(tx_invalid.validate().unwrap_err().contains("only one CREATE"));
     }
 
     #[test]

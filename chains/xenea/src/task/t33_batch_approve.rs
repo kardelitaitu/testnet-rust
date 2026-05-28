@@ -47,8 +47,7 @@ impl Task<TaskContext> for BatchApproveTask {
         let spender = AddressCache::get_random().context("Failed to get random address")?;
 
         let amount: u128 = 1_000_000_000_000_000_000_000_000_000u128; // effectively unlimited (1e27)
-        let amount_formatted =
-            ethers::utils::format_units(amount, 18u32).unwrap_or_else(|_| amount.to_string());
+        let amount_formatted = ethers::utils::format_units(amount, 18u32).unwrap_or_else(|_| amount.to_string());
 
         let gas_price = U256::from(1_100_000_000u64);
         let gas_limit = crate::utils::gas::GasManager::LIMIT_SEND_MEME;
@@ -69,10 +68,7 @@ impl Task<TaskContext> for BatchApproveTask {
         }
 
         // 4. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
         let mut tx_hashes = Vec::new();
@@ -109,12 +105,12 @@ impl Task<TaskContext> for BatchApproveTask {
                         token_address,
                         pending.tx_hash()
                     );
-                }
+                },
                 Err(e) => {
                     debug!("BatchApprove token {} submit failed: {}", i + 1, e);
                     tx_hashes.push("failed".to_string());
                     let _ = nonce_manager.resync().await;
-                }
+                },
             }
         }
 

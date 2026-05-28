@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use config::{Config, File};
 use core_logic::config::{ProxyConfig, SpamConfig};
+use rand::Rng;
 use serde::Deserialize;
 
 /// Per-task daily run limit. Task not present → default limit = 1.
@@ -11,6 +12,10 @@ pub type TaskLimits = HashMap<String, u32>;
 #[derive(Debug, Deserialize, Clone)]
 pub struct SepoliaConfig {
     pub rpc_url: String,
+    /// Optional list of RPC URLs for rotation. When set, `get_rpc_url()`
+    /// picks randomly from this list. Falls back to `rpc_url` if empty.
+    #[serde(default)]
+    pub rpc_urls: Vec<String>,
     pub chain_id: u64,
     pub explorer: String,
     pub symbol: String,
@@ -30,15 +35,27 @@ pub struct SepoliaConfig {
     /// Timeout for one daily task attempt, in seconds.
     #[serde(default)]
     pub task_timeout_secs: Option<u64>,
+    /// Per-task timeout overrides (seconds). Falls back to `task_timeout_secs`.
+    /// Example: {"16_bridgeBackTplus" = 300, "18_receiveTplus" = 300}
+    #[serde(default)]
+    pub task_timeouts: Option<HashMap<String, u64>>,
 }
 
 impl SepoliaConfig {
     pub fn load(path: &str) -> Result<Self> {
-        let settings = Config::builder()
-            .add_source(File::with_name(path))
-            .build()?;
+        let settings = Config::builder().add_source(File::with_name(path)).build()?;
 
         settings.try_deserialize().map_err(|e| anyhow::anyhow!(e))
+    }
+
+    /// Pick a random RPC URL from `rpc_urls`, or fall back to `rpc_url`.
+    pub fn get_rpc_url(&self) -> String {
+        if !self.rpc_urls.is_empty() {
+            let idx = rand::thread_rng().gen_range(0..self.rpc_urls.len());
+            self.rpc_urls[idx].clone()
+        } else {
+            self.rpc_url.clone()
+        }
     }
 
     pub fn to_spam_config(&self) -> SpamConfig {
@@ -77,10 +94,7 @@ max_delay_ms = 15000
     #[test]
     fn test_sepolia_config_deserialize() {
         let settings = Config::builder()
-            .add_source(config::File::from_str(
-                test_config_toml(),
-                config::FileFormat::Toml,
-            ))
+            .add_source(config::File::from_str(test_config_toml(), config::FileFormat::Toml))
             .build()
             .unwrap();
         let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
@@ -122,10 +136,7 @@ tps = 5
     #[test]
     fn test_sepolia_config_to_spam_config() {
         let settings = Config::builder()
-            .add_source(config::File::from_str(
-                test_config_toml(),
-                config::FileFormat::Toml,
-            ))
+            .add_source(config::File::from_str(test_config_toml(), config::FileFormat::Toml))
             .build()
             .unwrap();
         let cfg: SepoliaConfig = settings.try_deserialize().unwrap();
@@ -199,7 +210,7 @@ private_key_file = "my_keys.json"
         match spam.wallet_source {
             core_logic::config::WalletSource::File { path, .. } => {
                 assert_eq!(path, "my_keys.json");
-            }
+            },
             _ => panic!("Expected File wallet source"),
         }
     }
@@ -224,7 +235,7 @@ tps = 10
         match spam.wallet_source {
             core_logic::config::WalletSource::File { path, .. } => {
                 assert_eq!(path, "", "Empty path fallback when no private_key_file");
-            }
+            },
             _ => panic!("Expected File wallet source"),
         }
     }
@@ -417,16 +428,8 @@ tps = 10
             .find(|(k, _)| k.eq_ignore_ascii_case("19_receiveCplus"))
             .map(|(_, &v)| v);
 
-        assert_eq!(
-            t18_val,
-            Some(2),
-            "t18 should resolve via case-insensitive match"
-        );
-        assert_eq!(
-            t19_val,
-            Some(3),
-            "t19 should resolve via case-insensitive match"
-        );
+        assert_eq!(t18_val, Some(2), "t18 should resolve via case-insensitive match");
+        assert_eq!(t19_val, Some(3), "t19 should resolve via case-insensitive match");
     }
 
     #[test]
@@ -490,12 +493,9 @@ wallet_dir = "chains/sepolia-overlayer/wallets-json-sepolia-overlayer"
         // WalletSource should use private_key_file path (empty default when unset)
         match spam.wallet_source {
             core_logic::config::WalletSource::File { path, encrypted } => {
-                assert_eq!(
-                    path, "",
-                    "private_key_file not set, should default to empty string"
-                );
+                assert_eq!(path, "", "private_key_file not set, should default to empty string");
                 assert!(encrypted);
-            }
+            },
             _ => panic!("Expected File wallet source"),
         }
     }

@@ -68,7 +68,7 @@ use rand::distributions::{Distribution, WeightedIndex};
 use rand::Rng;
 use reqwest::Client;
 use tokio::time::{sleep, Duration};
-use tracing::{info, warn, Instrument};
+use tracing::{info, Instrument};
 
 use core_logic::database::DatabaseManager;
 use std::sync::Arc;
@@ -177,9 +177,7 @@ impl EvmSpammer {
             Box::new(RiseToWethTask),
         ];
 
-        let gas_manager = Arc::new(crate::utils::gas::GasManager::new(Arc::new(
-            provider.clone(),
-        )));
+        let gas_manager = Arc::new(crate::utils::gas::GasManager::new(Arc::new(provider.clone())));
 
         // Calculate weights
         let weights: Vec<u32> = tasks
@@ -206,7 +204,7 @@ impl EvmSpammer {
                     tracing::error!(target: "smart_main", "Critical error creating distribution: {}", e);
                     WeightedIndex::new(vec![1]).expect("Failed to create fallback distribution")
                 })
-            }
+            },
         };
 
         Ok(Self {
@@ -231,10 +229,7 @@ impl Spammer for EvmSpammer {
         Err(anyhow::anyhow!("Use new_with_signer construction"))
     }
 
-    async fn start(
-        &self,
-        cancellation_token: CancellationToken,
-    ) -> Result<core_logic::traits::SpammerStats> {
+    async fn start(&self, cancellation_token: CancellationToken) -> Result<core_logic::traits::SpammerStats> {
         // Create context span
         let span = tracing::info_span!(
             "spammer_context",
@@ -281,104 +276,16 @@ impl Spammer for EvmSpammer {
                                 Err(_) => "???".to_string(),
                             };
 
-                            use colored::*;
-                            // Helper for coloring
-                            fn format_colored_message(msg: &str) -> String {
-                                // Regex to find addresses 0x... and numbers
-                                use regex::Regex;
-
-                                // Color Addresses (Orange approx) -> using custom color if terminal supports, or Yellow/Red mix?
-                                // colored crate supports .truecolor(r,g,b) or .custom("color")?
-                                // Actually colored::Color::TrueColor usually works on modern terms.
-                                // User asked for Orange. RGB (255, 165, 0).
-                                // User asked for Orange. RGB (255, 165, 0).
-
-                                // Replace numbers (decimals or integers) that are NOT part of address (hard with pure regex replacement on string that already has ansi codes).
-                                // better approach: Regex find all tokens, colorize based on type.
-                                // Simplest: Just regex numbers that are surrounded by space or start/end of string?
-                                // \b\d+(\.\d+)?\b
-                                // CAUTION: If we run this AFTER address coloring, the ANSI codes themselves have numbers (e.g. [38;2;...]).
-                                // So we must be careful.
-                                // Strategy: Capture text parts, reconstruct.
-                                // OR: strict regex that excludes the ANSI patterns.
-
-                                // Let's try to match numbers that are likely amounts/blocks.
-                                // Given complexity, let's just color numbers in the raw message FIRST, BUT addresses contain numbers.
-                                // Addresses start with 0x.
-
-                                // CORRECT APPROACH:
-                                // 1. Identify addresses and color them.
-                                // 2. Identify numbers that are NOT inside addresses and color them.
-                                // This is hard to do in two passes on string.
-                                // One pass regex: (0x[a-fA-F0-9]+)|(\d+(\.\d+)?)
-                                let token_regex =
-                                    Regex::new(r"(0x[a-fA-F0-9]+)|(\d+(\.\d+)?)").unwrap();
-
-                                let final_str = token_regex
-                                    .replace_all(msg, |caps: &regex::Captures| {
-                                        if let Some(addr) = caps.get(1) {
-                                            addr.as_str().truecolor(255, 165, 0).to_string()
-                                        // Orange
-                                        } else {
-                                            // Number
-                                            caps[0].yellow().to_string()
-                                        }
-                                    })
-                                    .to_string();
-
-                                final_str
-                            }
-
-                            // Clip content to ensure total line length < 200 chars
-                            // Overhead is ~75 chars, so 125 chars for message is safe.
-                            let raw_msg = res.message.replace("\n", " | ");
-                            let msg_limit = 125;
-                            let clipped_msg = if raw_msg.chars().count() > msg_limit {
-                                let truncated: String =
-                                    raw_msg.chars().take(msg_limit - 3).collect();
-                                format!("{}...", truncated)
-                            } else {
-                                raw_msg
-                            };
-
-                            let colored_msg = format_colored_message(&clipped_msg);
-                            let colored_block = format_colored_message(&block_num); // It's just a number
-
-                            // Smart duration color
-                            let dur_secs = duration.as_secs_f64();
-                            let dur_str = format!("{:.1}s", dur_secs);
-                            let colored_dur = if dur_secs < 5.0 {
-                                dur_str.green()
-                            } else if dur_secs < 10.0 {
-                                dur_str.truecolor(255, 165, 0) // Orange
-                            } else {
-                                dur_str.red()
-                            };
-
-                            // Status color
-                            let status_str = "Success".green().bold();
-
-                            // User requested format: Success [TaskName] Message (B: X) in Ys
-                            info!(
-                                target: "task_result",
-                                "[WK:{}][WL:{}][P:{}] {} [{}] {} (B: {}) in {}",
+                            core_logic::daily_log!(
                                 self.wallet_id,
                                 self.wallet_id,
-                                self.proxy_id,
-                                status_str,
+                                &self.proxy_id,
+                                "OK",
                                 task.name(),
-                                colored_msg,
-                                colored_block,
-                                colored_dur
+                                format!("{} (B: {}) in {:.1}s", res.message, block_num, duration.as_secs_f64())
                             );
 
                             if let Some(db) = &self.db {
-                                // DB expects clean string? remove ansi? Or keep it?
-                                // Usually clean. Removing ANSI is annoying.
-                                // Let's just log the RAW params to DB for now, modifying message would require re-cleaning.
-                                // Current implementation passed regex-replaced string to `info!`.
-                                // Code block re-uses `res.message` for DB. Excellent.
-
                                 let _ = db
                                     .log_task_result(
                                         &self.wallet_id,
@@ -390,35 +297,19 @@ impl Spammer for EvmSpammer {
                                     )
                                     .await;
                             }
-                        }
+                        },
                         Err(e) => {
                             stats.failed += 1;
                             let duration = start_time.elapsed();
-                            use colored::*; // Ensure trait is in scope
                             let raw_err = format!("{:#}", e).replace("\n", " | ");
-                            let msg_limit = 125;
-                            let clipped_err = if raw_err.chars().count() > msg_limit {
-                                let truncated: String =
-                                    raw_err.chars().take(msg_limit - 3).collect();
-                                format!("{}...", truncated)
-                            } else {
-                                raw_err
-                            };
 
-                            // Status color
-                            // Added trailing space for alignment with "Success" (7 chars)
-                            let status_str = "Failed ".red().bold();
-
-                            warn!(
-                                target: "task_result",
-                                "[WK:{}][WL:{}][P:{}] {} [{}] {} in {:.1}s",
+                            core_logic::daily_log!(
                                 self.wallet_id,
                                 self.wallet_id,
-                                self.proxy_id,
-                                status_str,
+                                &self.proxy_id,
+                                "ERROR",
                                 task.name(),
-                                clipped_err,
-                                duration.as_secs_f64()
+                                format!("{} in {:.1}s", raw_err, duration.as_secs_f64())
                             );
 
                             if let Some(db) = &self.db {
@@ -433,19 +324,18 @@ impl Spammer for EvmSpammer {
                                     )
                                     .await;
                             }
-                        }
+                        },
                     }
                 }
 
                 // Rate limit logic
-                let sleep_ms = if let (Some(min), Some(max)) =
-                    (self.rise_config.min_delay_ms, self.rise_config.max_delay_ms)
-                {
-                    let mut rng = OsRng;
-                    rng.gen_range(min..=max)
-                } else {
-                    1000 / self.config.target_tps.max(1) as u64
-                };
+                let sleep_ms =
+                    if let (Some(min), Some(max)) = (self.rise_config.min_delay_ms, self.rise_config.max_delay_ms) {
+                        let mut rng = OsRng;
+                        rng.gen_range(min..=max)
+                    } else {
+                        1000 / self.config.target_tps.max(1) as u64
+                    };
 
                 // Use tokio::select! to listen for cancellation DURING sleep
                 tokio::select! {

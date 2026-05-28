@@ -137,7 +137,5 @@ pub use client_pool::ClientPool;
 pub use config::TempoSpammerConfig;
 pub use nonce_manager::NonceManager;
 pub use proxy_health::ProxyBanlist;
-pub use robust_nonce_manager::{
-    NonceManagerConfig, NonceReservation, NonceStats, RobustNonceManager,
-};
+pub use robust_nonce_manager::{NonceManagerConfig, NonceReservation, NonceStats, RobustNonceManager};
 pub use tasks::{ProxyConfig, TaskContext, TempoTask};

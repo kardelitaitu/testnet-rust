@@ -56,10 +56,8 @@ impl TempoTask for CreateStableTask {
         let client = &ctx.client;
         let address = ctx.address();
 
-        let factory_address =
-            Address::from_str(TIP20_FACTORY_ADDRESS).context("Invalid factory address")?;
-        let quote_token =
-            Address::from_str(QUOTE_TOKEN_ADDRESS).context("Invalid quote token address")?;
+        let factory_address = Address::from_str(TIP20_FACTORY_ADDRESS).context("Invalid factory address")?;
+        let quote_token = Address::from_str(QUOTE_TOKEN_ADDRESS).context("Invalid quote token address")?;
 
         // Generate random name and symbol
         let name = generate_random_name();
@@ -111,16 +109,13 @@ impl TempoTask for CreateStableTask {
                 } else {
                     return Err(e).context("Failed to send createToken transaction");
                 }
-            }
+            },
         };
 
         let tx_hash = *pending.tx_hash();
         tracing::debug!("CreateToken tx sent: {:?}", tx_hash);
 
-        let receipt = pending
-            .get_receipt()
-            .await
-            .context("Failed to get receipt")?;
+        let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
         tracing::debug!("CreateToken tx confirmed: {:?}", receipt.transaction_hash);
 
@@ -129,9 +124,8 @@ impl TempoTask for CreateStableTask {
 
         // Parse token address from logs
         let mut token_address = Address::ZERO;
-        let event_sig = alloy_primitives::keccak256(
-            b"TokenCreated(address,string,string,string,address,address,bytes32)",
-        );
+        let event_sig =
+            alloy_primitives::keccak256(b"TokenCreated(address,string,string,string,address,address,bytes32)");
 
         for log in receipt.inner.logs() {
             if log.address() == factory_address {
@@ -192,7 +186,7 @@ impl TempoTask for CreateStableTask {
                 } else {
                     return Err(e).context("Failed to grant role");
                 }
-            }
+            },
         };
         grant_pending
             .get_receipt()
@@ -206,8 +200,7 @@ impl TempoTask for CreateStableTask {
 
         // Mint tokens (TIP-20 has 6 decimals, mint random amount between 100K and 10M)
         let hundred_k_units = rand::thread_rng().gen_range(1..=100);
-        let mint_amount =
-            U256::from(hundred_k_units * 100_000) * U256::from(10u64).pow(U256::from(6));
+        let mint_amount = U256::from(hundred_k_units * 100_000) * U256::from(10u64).pow(U256::from(6));
         tracing::debug!("Minting {} tokens...", hundred_k_units * 100_000);
 
         let mint_call = ITIP20Mintable::mintCall {
@@ -240,7 +233,7 @@ impl TempoTask for CreateStableTask {
                 } else {
                     Err(e).context("Failed to send mint tx")
                 }
-            }
+            },
         };
 
         let mint_receipt = match mint_result {
@@ -250,25 +243,19 @@ impl TempoTask for CreateStableTask {
                     // Mint receipt failed (likely Unauthorized)
                     return Ok(TaskResult {
                         success: false,
-                        message: format!(
-                            "Token created at {:?} but mint failed: {}",
-                            token_address, e
-                        ),
+                        message: format!("Token created at {:?} but mint failed: {}", token_address, e),
                         tx_hash: Some(format!("{:?}", tx_hash)),
                     });
-                }
+                },
             },
             Err(e) => {
                 // Mint send failed
                 return Ok(TaskResult {
                     success: false,
-                    message: format!(
-                        "Token created at {:?} but mint tx failed: {}",
-                        token_address, e
-                    ),
+                    message: format!("Token created at {:?} but mint tx failed: {}", token_address, e),
                     tx_hash: Some(format!("{:?}", tx_hash)),
                 });
-            }
+            },
         };
 
         // Log to database
@@ -296,16 +283,14 @@ impl TempoTask for CreateStableTask {
 
 fn generate_random_name() -> String {
     let prefixes = [
-        "Alpha", "Beta", "Gamma", "Delta", "Omega", "Nova", "Stellar", "Crypto", "Digital", "Meta",
-        "Prime", "Ultra", "Hyper", "Mega", "Super", "Quantum", "Titan", "Phoenix", "Dragon",
-        "Imperial", "Royal", "Crown", "Noble", "Grand", "Major", "Premier", "Elite", "Classic",
-        "Pure", "Solid",
+        "Alpha", "Beta", "Gamma", "Delta", "Omega", "Nova", "Stellar", "Crypto", "Digital", "Meta", "Prime", "Ultra",
+        "Hyper", "Mega", "Super", "Quantum", "Titan", "Phoenix", "Dragon", "Imperial", "Royal", "Crown", "Noble",
+        "Grand", "Major", "Premier", "Elite", "Classic", "Pure", "Solid",
     ];
     let suffixes = [
-        "Dollar", "Coin", "Cash", "Pay", "Money", "Finance", "Capital", "Fund", "Bank", "Trust",
-        "Vault", "Reserve", "Exchange", "Wallet", "Card", "Token", "Note", "Bills", "Shares",
-        "Bonds", "Assets", "Wealth", "Prosper", "Growth", "Equity", "Stocks", "Funds", "Credits",
-        "Points",
+        "Dollar", "Coin", "Cash", "Pay", "Money", "Finance", "Capital", "Fund", "Bank", "Trust", "Vault", "Reserve",
+        "Exchange", "Wallet", "Card", "Token", "Note", "Bills", "Shares", "Bonds", "Assets", "Wealth", "Prosper",
+        "Growth", "Equity", "Stocks", "Funds", "Credits", "Points",
     ];
     let mut rng = rand::thread_rng();
     format!(

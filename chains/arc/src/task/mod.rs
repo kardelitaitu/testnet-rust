@@ -47,12 +47,7 @@ mod tests {
             Box::new(SendEurcTask),
             Box::new(SendCirbtcTask),
         ];
-        let expected = [
-            "01_checkBalance",
-            "02_sendUsdc",
-            "03_sendEurc",
-            "04_sendCirbtc",
-        ];
+        let expected = ["01_checkBalance", "02_sendUsdc", "03_sendEurc", "04_sendCirbtc"];
         assert_eq!(tasks.len(), expected.len());
         for (i, task) in tasks.iter().enumerate() {
             assert_eq!(task.name(), expected[i], "Task {} name mismatch", i);
@@ -69,11 +64,7 @@ mod tests {
         ];
         let mut seen = std::collections::HashSet::new();
         for task in &tasks {
-            assert!(
-                seen.insert(task.name()),
-                "Duplicate task name: {}",
-                task.name()
-            );
+            assert!(seen.insert(task.name()), "Duplicate task name: {}", task.name());
         }
     }
 
@@ -88,15 +79,8 @@ mod tests {
         for task in &tasks {
             let name = task.name();
             assert!(name.len() >= 3, "Task '{}' too short", name);
-            let _: u32 = name[..2]
-                .parse()
-                .expect("Task name should start with 2-digit number");
-            assert_eq!(
-                name.as_bytes()[2],
-                b'_',
-                "Task '{}' missing separator",
-                name
-            );
+            let _: u32 = name[..2].parse().expect("Task name should start with 2-digit number");
+            assert_eq!(name.as_bytes()[2], b'_', "Task '{}' missing separator", name);
         }
     }
 }

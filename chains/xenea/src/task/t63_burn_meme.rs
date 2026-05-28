@@ -67,10 +67,7 @@ impl Task<TaskContext> for BurnMemeTask {
         }
 
         // 4. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         // 4b. Check native balance for gas
@@ -103,7 +100,7 @@ impl Task<TaskContext> for BurnMemeTask {
                     ),
                     tx_hash: None,
                 });
-            }
+            },
         };
 
         let tx = TransactionRequest::new()
@@ -119,8 +116,8 @@ impl Task<TaskContext> for BurnMemeTask {
 
         match pending_tx {
             Ok(pending) => {
-                let burn_display = ethers::utils::format_units(burn_amount, 18)
-                    .unwrap_or_else(|_| burn_amount.to_string());
+                let burn_display =
+                    ethers::utils::format_units(burn_amount, 18).unwrap_or_else(|_| burn_amount.to_string());
                 Ok(TaskResult {
                     success: true,
                     message: format!(
@@ -131,7 +128,7 @@ impl Task<TaskContext> for BurnMemeTask {
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })
-            }
+            },
             Err(e) => {
                 debug!("BurnMeme tx submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -140,7 +137,7 @@ impl Task<TaskContext> for BurnMemeTask {
                     message: format!("Failed to submit MEME burn tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

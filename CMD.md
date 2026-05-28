@@ -92,14 +92,79 @@ Gas behavior:
 
 ## 5) Sepolia (`sepolia-overlayer`)
 
-Wallet balance dump:
+### Main spammer
 ```powershell
-$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin wallet-balance-dump -- --config chains/sepolia-overlayer/config.toml --output wallet-balances.txt
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer -- --config chains/sepolia-overlayer/config.toml
 ```
 
-Funder:
+### Debugger interactive
 ```powershell
-$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin sepolia-funder -- --config chains/sepolia-overlayer/config.toml
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin sepolia-debug_task -- --config chains/sepolia-overlayer/config.toml
+```
+
+### Daily runner (scheduled task execution)
+```powershell
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin sepolia-daily -- `
+    --config chains/sepolia-overlayer/config.toml `
+    --base-config chains/sepolia-overlayer/config-base.toml `
+    --workers 25 --db-path sepolia-overlayer-daily.db `
+    --min-gwei 1.03 --max-gwei 1.25
+```
+
+Startup script: `_start-overlayer-daily.bat`
+
+### Funder (multi-hop obfuscated ETH funding)
+
+Dry run (no txs sent):
+```powershell
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin sepolia-funder -- `
+    --config chains/sepolia-overlayer/config.toml `
+    --min-balance 0.05 --max-balance 0.01 `
+    --min-target 0.02 --max-target 0.04 `
+    --min-hops 3 --max-hops 5 --dry-run
+```
+
+Real execution:
+```powershell
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin sepolia-funder -- `
+    --config chains/sepolia-overlayer/config.toml `
+    --min-balance 0.05 --max-balance 0.01 `
+    --min-target 0.02 --max-target 0.04 `
+    --workers 10 --spread-hours 4
+```
+
+Startup script: `_start-overlayer-fund.bat`
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--config` | `chains/sepolia-overlayer/config.toml` | Config path |
+| `--min-balance` | `0.500` | Minimum ETH balance to be a sender |
+| `--max-balance` | `0.010` | Maximum ETH balance to be a target |
+| `--min-target` | `0.020` | Min ETH to send per target (randomized) |
+| `--max-target` | `0.040` | Max ETH to send per target (randomized) |
+| `--min-hops` | `5` | Minimum proxy hops per target |
+| `--max-hops` | `7` | Maximum proxy hops per target |
+| `--min-delay-secs` | `15` | Min delay between hops (seconds) |
+| `--max-delay-secs` | `30` | Max delay between hops (seconds) |
+| `--min-gwei` | `1.2` | Floor gas price (gwei) |
+| `--max-gwei` | `1.5` | Ceiling gas price (gwei) |
+| `--workers` | `1` | Number of concurrent funding workers |
+| `--min-worker-interval-secs` | `30` | Min pause between worker cycles (s) |
+| `--max-worker-interval-secs` | `30` | Max pause between worker cycles (s) |
+| `--spread-hours` | *none* | Spread funding across N hours |
+| `--max-targets` | *all* | Cap on how many targets to fund |
+| `--load-concurrency` | `100` | Concurrent wallet decryptions at startup |
+| `--dry-run` | `false` | Print plan, send no txs |
+| `--yes` | `false` | Skip confirmation prompt |
+| `--json-log` | *none* | Write structured JSON log (duration, stats) |
+
+See `chains/sepolia-overlayer/sepolia-funder.md` for full architecture and design docs.
+
+### Wallet balance dump
+```powershell
+$env:WALLET_PASSWORD="password"; cargo run -p sepolia-overlayer --bin wallet-balance-dump -- `
+    --config chains/sepolia-overlayer/config.toml `
+    --output wallet-balances.txt
 ```
 
 ## 6) Robinhood (`robinhood-spammer`)
@@ -119,7 +184,38 @@ Runner:
 cargo run -p robinhood-spammer --bin robinhood-runner -- --config chains/robinhood/config.toml
 ```
 
-## 7) Tempo (`tempo-spammer`)
+## 7) Arc (`arc-project`)
+
+Main:
+```powershell
+$env:WALLET_PASSWORD="password"; cargo run -p arc-project -- --config chains/arc/config.toml
+```
+
+Alternative (binary direct after build):
+```powershell
+$env:WALLET_PASSWORD="password"; .\target\debug\arc-project.exe --config chains/arc/config.toml
+```
+
+Run debugger interactive:
+```powershell
+$env:WALLET_PASSWORD="password"; cargo run -p arc-project --bin arc-debug_task -- --config chains/arc/config.toml
+```
+
+Run one task:
+```powershell
+$env:WALLET_PASSWORD="password"; cargo run -p arc-project --bin arc-debug_task -- --config chains/arc/config.toml --task 1
+```
+
+Wallet balance dump:
+```powershell
+$env:WALLET_PASSWORD="password"; cargo run -p arc-project --bin arc-balance-dump -- --config chains/arc/config.toml
+```
+
+Startup scripts:
+- `_start-arc.bat` — run spammer
+- `_start-arc-checkbalance.bat` — dump wallet balances
+
+## 8) Tempo (`tempo-spammer`)
 
 Main:
 ```powershell
@@ -138,7 +234,7 @@ cargo run -p tempo-spammer --bin wallet-check -- --config chains/tempo-spammer/c
 Alternative:
 - Build once, run `target\debug\tempo-*.exe` directly.
 
-## 8) Useful Environment Variables
+## 9) Useful Environment Variables
 
 ```powershell
 $env:WALLET_PASSWORD="your_password"
@@ -146,7 +242,7 @@ $env:RUST_BACKTRACE=1
 $env:RUST_LOG="debug"
 ```
 
-## 9) Quick Troubleshooting
+## 10) Quick Troubleshooting
 
 1. Wallet decrypt fails:
 - Verify `WALLET_PASSWORD`.
@@ -164,7 +260,7 @@ $env:RUST_LOG="debug"
 - Lower worker count / TPS / semaphores.
 - Retry without proxies to isolate network issues.
 
-## 10) MCP Quick Start (Smoke Test)
+## 11) MCP Quick Start (Smoke Test)
 
 Goal: verify MCP can access this repo and run at least one external-tool path.
 

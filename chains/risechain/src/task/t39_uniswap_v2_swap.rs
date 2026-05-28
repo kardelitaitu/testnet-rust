@@ -56,11 +56,7 @@ impl Task<TaskContext> for UniswapV2SwapTask {
         let erc20_abi_parsed: abi::Abi = serde_json::from_str(erc20_abi)?;
         let wbtc_contract = Contract::new(wbtc_address, erc20_abi_parsed.clone(), client.clone());
 
-        let decimals: u8 = wbtc_contract
-            .method("decimals", ())?
-            .call()
-            .await
-            .unwrap_or(18); // Default fallback
+        let decimals: u8 = wbtc_contract.method("decimals", ())?.call().await.unwrap_or(18); // Default fallback
 
         let balance: U256 = wbtc_contract
             .method("balanceOf", address)?
@@ -224,8 +220,7 @@ impl Task<TaskContext> for UniswapV2SwapTask {
 
                 // Transfer WBTC to Pair
                 debug!("Transferring {} WBTC to Pair...", amount_in);
-                let transfer_data =
-                    wbtc_contract.encode("transfer", (router_address, amount_in))?;
+                let transfer_data = wbtc_contract.encode("transfer", (router_address, amount_in))?;
                 let transfer_tx = Eip1559TransactionRequest::new()
                     .to(wbtc_address)
                     .data(transfer_data)
@@ -237,16 +232,8 @@ impl Task<TaskContext> for UniswapV2SwapTask {
                 debug!("Transferred.");
 
                 // Call swap(amount0Out, amount1Out, to, data)
-                let amount0_out = if t0 == wbtc_address {
-                    U256::zero()
-                } else {
-                    amount_out
-                };
-                let amount1_out = if t0 == wbtc_address {
-                    amount_out
-                } else {
-                    U256::zero()
-                };
+                let amount0_out = if t0 == wbtc_address { U256::zero() } else { amount_out };
+                let amount1_out = if t0 == wbtc_address { amount_out } else { U256::zero() };
 
                 debug!("Calling swap({}, {})", amount0_out, amount1_out);
 
@@ -254,10 +241,8 @@ impl Task<TaskContext> for UniswapV2SwapTask {
                     {"constant":false,"inputs":[{"name":"amount0Out","type":"uint256"},{"name":"amount1Out","type":"uint256"},{"name":"to","type":"address"},{"name":"data","type":"bytes"}],"name":"swap","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"}
                 ]"#;
                 let swap_low_abi_parsed: abi::Abi = serde_json::from_str(swap_low_abi)?;
-                let pair_swap_contract =
-                    Contract::new(router_address, swap_low_abi_parsed, client.clone());
-                let swap_data = pair_swap_contract
-                    .encode("swap", (amount0_out, amount1_out, address, Bytes::new()))?;
+                let pair_swap_contract = Contract::new(router_address, swap_low_abi_parsed, client.clone());
+                let swap_data = pair_swap_contract.encode("swap", (amount0_out, amount1_out, address, Bytes::new()))?;
                 let swap_tx = Eip1559TransactionRequest::new()
                     .to(router_address)
                     .data(swap_data)
@@ -280,8 +265,7 @@ impl Task<TaskContext> for UniswapV2SwapTask {
                     {"constant":false,"inputs":[{"name":"wad","type":"uint256"}],"name":"withdraw","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"}
                 ]"#;
                 let weth_unwrap_abi: abi::Abi = serde_json::from_str(weth_abi_unwrap)?;
-                let weth_contract_full =
-                    Contract::new(weth_address, weth_unwrap_abi, client.clone());
+                let weth_contract_full = Contract::new(weth_address, weth_unwrap_abi, client.clone());
 
                 let user_weth_bal: U256 = weth_contract_full
                     .method("balanceOf", address)?
@@ -310,10 +294,10 @@ impl Task<TaskContext> for UniswapV2SwapTask {
                     message: format!("Swapped {} WBTC -> {} WETH -> ETH", amount_in, amount_out),
                     tx_hash: Some(format!("{:?}", receipt.transaction_hash)),
                 });
-            }
+            },
             Err(_) => {
                 debug!("Contract does NOT have token0() -> Likely a Router.");
-            }
+            },
         }
 
         // Fallback for Non-Pair (Router) kept for structure validity, though unused
@@ -335,13 +319,7 @@ impl Task<TaskContext> for UniswapV2SwapTask {
 
         let swap_data = router_contract.encode(
             "swapExactTokensForTokens",
-            (
-                amount_in,
-                U256::from(0),
-                path,
-                address,
-                U256::from(deadline),
-            ),
+            (amount_in, U256::from(0), path, address, U256::from(deadline)),
         )?;
 
         let swap_tx = Eip1559TransactionRequest::new()
@@ -362,8 +340,7 @@ impl Task<TaskContext> for UniswapV2SwapTask {
             ));
         }
 
-        let amount_float =
-            ethers::utils::format_units(amount_in, decimals as u32).unwrap_or("???".to_string());
+        let amount_float = ethers::utils::format_units(amount_in, decimals as u32).unwrap_or("???".to_string());
 
         Ok(TaskResult {
             success: true,

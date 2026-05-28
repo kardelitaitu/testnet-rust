@@ -159,14 +159,14 @@ impl TempoTask for BatchSwapTask {
                 Ok(pending) => {
                     success_hashes.push(*pending.tx_hash());
                     last_submitted_nonce = tx_nonce;
-                }
+                },
                 Err(e) => {
                     tracing::error!("Failed to submit transaction at nonce {}: {}", tx_nonce, e);
                     if first_error.is_none() {
                         first_error = Some(e);
                     }
                     break; // CRITICAL: Stop on first failure
-                }
+                },
             }
         }
 

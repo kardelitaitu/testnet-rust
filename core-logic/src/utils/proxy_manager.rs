@@ -132,9 +132,7 @@ mod tests {
 
     #[test]
     fn test_skips_comments() {
-        let tp = TempProxy::new(
-            "# this is a comment\n10.0.0.1:3128\n# another comment\n10.0.0.2:3128:user:pass",
-        );
+        let tp = TempProxy::new("# this is a comment\n10.0.0.1:3128\n# another comment\n10.0.0.2:3128:user:pass");
         let proxies = ProxyManager::load_proxies_from(tp.path.to_str().unwrap()).unwrap();
         assert_eq!(proxies.len(), 2);
     }

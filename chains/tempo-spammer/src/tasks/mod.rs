@@ -529,11 +529,7 @@ mod share_tests {
     fn test_generate_random_shares_sum_matches_total() {
         let shares = generate_random_shares(5, 1000);
         let sum: u64 = shares.iter().sum();
-        assert_eq!(
-            sum, 1000,
-            "shares should sum to total: {:?} sums to {}",
-            shares, sum
-        );
+        assert_eq!(sum, 1000, "shares should sum to total: {:?} sums to {}", shares, sum);
     }
 
     #[test]
@@ -618,18 +614,13 @@ pub fn get_random_address() -> Result<Address> {
     };
 
     let content = fs::read_to_string(path).context("Failed to read address.txt")?;
-    let addresses: Vec<&str> = content
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .collect();
+    let addresses: Vec<&str> = content.lines().filter(|line| !line.trim().is_empty()).collect();
 
     if addresses.is_empty() {
         return Ok(generate_random_address());
     }
 
-    let random_address = addresses
-        .choose(&mut rand::rngs::OsRng)
-        .unwrap_or(&addresses[0]);
+    let random_address = addresses.choose(&mut rand::rngs::OsRng).unwrap_or(&addresses[0]);
 
     Address::from_str(random_address.trim()).context("Invalid address in address.txt")
 }
@@ -658,11 +649,7 @@ pub fn get_n_random_addresses(n: usize) -> Result<Vec<Address>> {
         return Ok(Vec::new());
     }
 
-    let mut unique_vec: Vec<Address> = addresses
-        .into_iter()
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect();
+    let mut unique_vec: Vec<Address> = addresses.into_iter().collect::<HashSet<_>>().into_iter().collect();
 
     let mut rng = rand::rngs::OsRng;
     unique_vec.shuffle(&mut rng);
@@ -699,9 +686,9 @@ pub fn generate_random_shares(count: usize, total: u64) -> Vec<u64> {
     let current_sum: u64 = int_shares.iter().sum();
     if current_sum > total {
         let mut diff = current_sum - total;
-        for i in 0..count {
-            if int_shares[i] > 1 {
-                int_shares[i] -= 1;
+        for elem in int_shares.iter_mut().take(count) {
+            if *elem > 1 {
+                *elem -= 1;
                 diff -= 1;
                 if diff == 0 {
                     break;
@@ -737,9 +724,7 @@ pub fn load_proxies(path: &str) -> Result<Vec<ProxyConfig>> {
             if line.starts_with("http") && line.contains('@') {
                 if let Ok(u) = url::Url::parse(line) {
                     let host = u.host_str().unwrap_or("").to_string();
-                    let port = u
-                        .port()
-                        .unwrap_or(if u.scheme() == "https" { 443 } else { 80 });
+                    let port = u.port().unwrap_or(if u.scheme() == "https" { 443 } else { 80 });
                     let username = if !u.username().is_empty() {
                         Some(u.username().to_string())
                     } else {
@@ -793,8 +778,8 @@ pub fn load_proxies(path: &str) -> Result<Vec<ProxyConfig>> {
 
 pub mod prelude {
     pub use super::{
-        GasManager, TaskContext, TaskResult, TempoTask, generate_random_shares,
-        get_n_random_addresses, get_random_address, load_proxies as load_proxy_config,
+        GasManager, TaskContext, TaskResult, TempoTask, generate_random_shares, get_n_random_addresses,
+        get_random_address, load_proxies as load_proxy_config,
     };
 }
 

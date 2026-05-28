@@ -26,7 +26,7 @@ fn test_spam_config_deserialize_file_wallet() {
         WalletSource::File { path, encrypted } => {
             assert_eq!(path, "wallet-json");
             assert!(*encrypted);
-        }
+        },
         _ => panic!("Expected File wallet source"),
     }
 }
@@ -41,7 +41,7 @@ fn test_spam_config_deserialize_env_wallet() {
     match &config.wallet_source {
         WalletSource::Env { key } => {
             assert_eq!(key, "PRIVATE_KEY");
-        }
+        },
         _ => panic!("Expected Env wallet source"),
     }
 }
@@ -142,22 +142,20 @@ fn test_wallet_source_file_serialize() {
         WalletSource::File { path, encrypted } => {
             assert_eq!(path, "keys.json");
             assert!(!encrypted);
-        }
+        },
         _ => panic!("Expected File"),
     }
 }
 
 #[test]
 fn test_wallet_source_env_serialize() {
-    let source = WalletSource::Env {
-        key: "MY_KEY".into(),
-    };
+    let source = WalletSource::Env { key: "MY_KEY".into() };
     let toml_str = toml::to_string(&source).unwrap();
     let deserialized: WalletSource = toml::from_str(&toml_str).unwrap();
     match deserialized {
         WalletSource::Env { key } => {
             assert_eq!(key, "MY_KEY");
-        }
+        },
         _ => panic!("Expected Env"),
     }
 }

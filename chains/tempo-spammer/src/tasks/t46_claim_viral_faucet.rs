@@ -46,9 +46,7 @@ impl TempoTask for ClaimViralFaucetTask {
 
         // 1. Load Faucets from DB
         let faucets: Vec<String> = if let Some(db) = &ctx.db {
-            db.get_all_assets_by_type("viral_faucet")
-                .await
-                .unwrap_or_default()
+            db.get_all_assets_by_type("viral_faucet").await.unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -80,9 +78,7 @@ impl TempoTask for ClaimViralFaucetTask {
 
             for token in &system_tokens {
                 // Check balance
-                let balance_call = ViralFaucet::getBalanceCall {
-                    token: token.address,
-                };
+                let balance_call = ViralFaucet::getBalanceCall { token: token.address };
                 let balance_tx = TransactionRequest::default()
                     .to(faucet_addr)
                     .input(balance_call.abi_encode().into());
@@ -125,22 +121,18 @@ impl TempoTask for ClaimViralFaucetTask {
                             .max_priority_fee_per_gas(1_500_000_000u128);
 
                         // Send with retry logic for nonce errors (1 retry)
-                        let pending = match client.provider.send_transaction(claim_tx.clone()).await
-                        {
+                        let pending = match client.provider.send_transaction(claim_tx.clone()).await {
                             Ok(p) => p,
                             Err(e) => {
                                 let err_str = e.to_string().to_lowercase();
-                                if err_str.contains("nonce too low")
-                                    || err_str.contains("already known")
-                                {
+                                if err_str.contains("nonce too low") || err_str.contains("already known") {
                                     tracing::warn!(
                                         "Nonce error on claim_viral_faucet, resetting cache and retrying..."
                                     );
                                     client.reset_nonce_cache().await;
                                     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                                     // Rebuild with fresh nonce
-                                    let fresh_nonce =
-                                        client.get_pending_nonce(&ctx.config.rpc_url).await?;
+                                    let fresh_nonce = client.get_pending_nonce(&ctx.config.rpc_url).await?;
                                     let retry_tx = TransactionRequest::default()
                                         .to(faucet_addr)
                                         .input(claim_call.abi_encode().into())
@@ -156,13 +148,10 @@ impl TempoTask for ClaimViralFaucetTask {
                                 } else {
                                     return Err(e).context("Claim failed");
                                 }
-                            }
+                            },
                         };
                         let tx_hash = *pending.tx_hash();
-                        let receipt = pending
-                            .get_receipt()
-                            .await
-                            .context("Failed to get receipt")?;
+                        let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
                         if receipt.inner.status() {
                             return Ok(TaskResult {

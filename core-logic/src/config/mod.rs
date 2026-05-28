@@ -75,16 +75,14 @@ mod tests {
             WalletSource::File { path, encrypted } => {
                 assert_eq!(path, "/tmp/keys.json");
                 assert!(!encrypted);
-            }
+            },
             _ => panic!("Expected File variant"),
         }
     }
 
     #[test]
     fn test_wallet_source_env_variant() {
-        let src = WalletSource::Env {
-            key: "MY_KEY".into(),
-        };
+        let src = WalletSource::Env { key: "MY_KEY".into() };
         match src {
             WalletSource::Env { key } => assert_eq!(key, "MY_KEY"),
             _ => panic!("Expected Env variant"),
@@ -159,7 +157,7 @@ wallet_source = { File = { path = "wallets.json", encrypted = true } }
             WalletSource::File { path, encrypted } => {
                 assert_eq!(path, "wallets.json");
                 assert!(encrypted);
-            }
+            },
             _ => panic!("Expected File variant"),
         }
     }
@@ -191,7 +189,7 @@ wallet_source = { Env = { key = "PRIVATE_KEY" } }
             WalletSource::File { path, encrypted } => {
                 assert_eq!(path, "/tmp/wallet.json");
                 assert!(!encrypted);
-            }
+            },
             _ => panic!("Expected File variant"),
         }
     }

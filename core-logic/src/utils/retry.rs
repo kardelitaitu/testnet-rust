@@ -70,11 +70,7 @@ impl RetryConfig {
     }
 }
 
-pub async fn with_retry<T, F, Fut>(
-    config: RetryConfig,
-    operation_name: &str,
-    operation: F,
-) -> Result<T>
+pub async fn with_retry<T, F, Fut>(config: RetryConfig, operation_name: &str, operation: F) -> Result<T>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<T>>,
@@ -86,13 +82,10 @@ where
                     debug!("{} succeeded on attempt {}", operation_name, attempt + 1);
                 }
                 return Ok(result);
-            }
+            },
             Err(e) => {
                 if attempt == config.max_retries {
-                    debug!(
-                        "{} failed after {} retries",
-                        operation_name, config.max_retries
-                    );
+                    debug!("{} failed after {} retries", operation_name, config.max_retries);
                     let error_msg = format!("{}", e);
                     return Err(e).context(format!(
                         "{} failed after {} attempts. Last error: {}",
@@ -111,18 +104,14 @@ where
                 );
 
                 tokio::time::sleep(delay).await;
-            }
+            },
         }
     }
 
     unreachable!()
 }
 
-pub async fn with_retry_async<T, F, Fut>(
-    config: RetryConfig,
-    operation_name: &str,
-    mut operation: F,
-) -> Result<T>
+pub async fn with_retry_async<T, F, Fut>(config: RetryConfig, operation_name: &str, mut operation: F) -> Result<T>
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T>>,
@@ -134,13 +123,10 @@ where
                     debug!("{} succeeded on attempt {}", operation_name, attempt + 1);
                 }
                 return Ok(result);
-            }
+            },
             Err(e) => {
                 if attempt == config.max_retries {
-                    debug!(
-                        "{} failed after {} retries",
-                        operation_name, config.max_retries
-                    );
+                    debug!("{} failed after {} retries", operation_name, config.max_retries);
                     let error_msg = format!("{}", e);
                     return Err(e).context(format!(
                         "{} failed after {} attempts. Last error: {}",
@@ -159,7 +145,7 @@ where
                 );
 
                 tokio::time::sleep(delay).await;
-            }
+            },
         }
     }
 
@@ -250,11 +236,11 @@ impl CircuitBreaker {
             Ok(result) => {
                 self.on_success();
                 Ok(result)
-            }
+            },
             Err(e) => {
                 self.on_failure();
                 Err(e)
-            }
+            },
         }
     }
 
@@ -282,17 +268,12 @@ impl CircuitBreaker {
 
     fn on_failure(&self) {
         let failures = self.failure_count.fetch_add(1, Ordering::SeqCst) + 1;
-        self.last_failure.store(
-            chrono::Utc::now().timestamp_millis() as u64,
-            Ordering::SeqCst,
-        );
+        self.last_failure
+            .store(chrono::Utc::now().timestamp_millis() as u64, Ordering::SeqCst);
 
         if failures >= self.config.failure_threshold {
             self.state.store(STATE_OPEN, Ordering::SeqCst);
-            warn!(
-                "Circuit breaker {} OPEN after {} failures",
-                self.name, failures
-            );
+            warn!("Circuit breaker {} OPEN after {} failures", self.name, failures);
         }
     }
 
@@ -325,9 +306,7 @@ pub fn is_transient_error(error: &anyhow::Error) -> bool {
         "busy",
     ];
 
-    transient_patterns
-        .iter()
-        .any(|pattern| error_msg.contains(pattern))
+    transient_patterns.iter().any(|pattern| error_msg.contains(pattern))
 }
 
 #[cfg(test)]
@@ -376,9 +355,7 @@ mod retry_config_tests {
 
     #[test]
     fn test_calculate_delay_caps_at_max() {
-        let cfg = RetryConfig::new(3, 1000)
-            .with_max_delay(3000)
-            .without_jitter();
+        let cfg = RetryConfig::new(3, 1000).with_max_delay(3000).without_jitter();
         let d = cfg.calculate_delay(2);
         assert_eq!(d, Duration::from_millis(3000));
     }
@@ -489,20 +466,51 @@ mod concurrent_circuit_breaker_tests {
                 }
             }));
         }
-        for h in handles { h.await.unwrap(); }
+        for h in handles {
+            h.await.unwrap();
+        }
         assert_eq!(cb.state(), "OPEN");
     }
 }
 
 #[cfg(test)]
-mod transient_error_tests {
+mod proptests {
     use super::*;
+    use proptest::prelude::*;
 
-#[test]
-    fn test_is_transient() {
-        assert!(is_transient_error(&anyhow::anyhow!("timeout")));
-        assert!(is_transient_error(&anyhow::anyhow!("rate limited")));
-        assert!(!is_transient_error(&anyhow::anyhow!("fatal error")));
+    proptest! {
+        #[test]
+        fn proptest_calculate_delay_never_exceeds_max(
+            base_delay in 1u64..10_000,
+            max_delay in 10_001u64..3600_000,
+            attempt in 0u32..50,
+            jitter in any::<bool>()
+        ) {
+            let config = RetryConfig::new(3, base_delay).with_max_delay(max_delay).with_jitter(jitter);
+            let delay = config.calculate_delay(attempt);
+
+            // Jitter can go up to 150% of the max_delay if not carefully capped
+            // Current code min(max_delay, exponential) then apply jitter
+            // So max possible is max_delay * 1.5
+            let max_possible = if jitter { (max_delay as f64 * 1.51) as u64 } else { max_delay };
+
+            assert!(delay.as_millis() as u64 <= max_possible,
+                "Delay {}ms exceeded max possible {}ms (base: {}, max: {}, attempt: {})",
+                delay.as_millis(), max_possible, base_delay, max_delay, attempt);
+        }
+
+        #[test]
+        fn proptest_calculate_delay_monotonic_without_jitter(
+            base_delay in 1u64..1000,
+            max_delay in 10_000u64..60_000,
+            attempt in 0u32..20
+        ) {
+            let config = RetryConfig::new(3, base_delay).with_max_delay(max_delay).without_jitter();
+            let d1 = config.calculate_delay(attempt);
+            let d2 = config.calculate_delay(attempt + 1);
+
+            assert!(d2 >= d1, "Delay must be monotonic (d1: {:?}, d2: {:?})", d1, d2);
+        }
     }
 }
 
@@ -516,17 +524,13 @@ mod with_retry_tests {
     async fn test_with_retry_success_first_try() {
         let attempts = Arc::new(AtomicU32::new(0));
         let a = attempts.clone();
-        let result = with_retry(
-            RetryConfig::new(3, 5).without_jitter(),
-            "test",
-            move || {
-                let a = a.clone();
-                async move {
-                    a.fetch_add(1, Ordering::SeqCst);
-                    Ok::<_, anyhow::Error>(42)
-                }
-            },
-        )
+        let result = with_retry(RetryConfig::new(3, 5).without_jitter(), "test", move || {
+            let a = a.clone();
+            async move {
+                a.fetch_add(1, Ordering::SeqCst);
+                Ok::<_, anyhow::Error>(42)
+            }
+        })
         .await;
         assert!(result.is_ok());
         assert_eq!(*result.as_ref().unwrap(), 42);
@@ -537,21 +541,17 @@ mod with_retry_tests {
     async fn test_with_retry_fail_then_succeed() {
         let attempts = Arc::new(AtomicU32::new(0));
         let a = attempts.clone();
-        let result = with_retry(
-            RetryConfig::new(3, 5).without_jitter(),
-            "test",
-            move || {
-                let a = a.clone();
-                async move {
-                    let count = a.fetch_add(1, Ordering::SeqCst);
-                    if count < 2 {
-                        Err(anyhow::anyhow!("transient timeout"))
-                    } else {
-                        Ok::<_, anyhow::Error>(99)
-                    }
+        let result = with_retry(RetryConfig::new(3, 5).without_jitter(), "test", move || {
+            let a = a.clone();
+            async move {
+                let count = a.fetch_add(1, Ordering::SeqCst);
+                if count < 2 {
+                    Err(anyhow::anyhow!("transient timeout"))
+                } else {
+                    Ok::<_, anyhow::Error>(99)
                 }
-            },
-        )
+            }
+        })
         .await;
         assert!(result.is_ok(), "Should succeed after 2 failures");
         assert_eq!(*result.as_ref().unwrap(), 99);
@@ -561,17 +561,13 @@ mod with_retry_tests {
     async fn test_with_retry_max_retries_exceeded() {
         let attempts = Arc::new(AtomicU32::new(0));
         let a = attempts.clone();
-        let result = with_retry(
-            RetryConfig::new(2, 5).without_jitter(),
-            "test",
-            move || {
-                let a = a.clone();
-                async move {
-                    a.fetch_add(1, Ordering::SeqCst);
-                    Err::<i32, _>(anyhow::anyhow!("persistent error"))
-                }
-            },
-        )
+        let result = with_retry(RetryConfig::new(2, 5).without_jitter(), "test", move || {
+            let a = a.clone();
+            async move {
+                a.fetch_add(1, Ordering::SeqCst);
+                Err::<i32, _>(anyhow::anyhow!("persistent error"))
+            }
+        })
         .await;
         assert!(result.is_err());
         assert_eq!(attempts.load(Ordering::SeqCst), 3, "Should try 3 times total");
@@ -581,17 +577,13 @@ mod with_retry_tests {
     async fn test_with_retry_async_success() {
         let attempts = Arc::new(AtomicU32::new(0));
         let a = attempts.clone();
-        let result = with_retry_async(
-            RetryConfig::new(3, 5).without_jitter(),
-            "test",
-            move || {
-                let a = a.clone();
-                async move {
-                    a.fetch_add(1, Ordering::SeqCst);
-                    Ok::<_, anyhow::Error>(42)
-                }
-            },
-        )
+        let result = with_retry_async(RetryConfig::new(3, 5).without_jitter(), "test", move || {
+            let a = a.clone();
+            async move {
+                a.fetch_add(1, Ordering::SeqCst);
+                Ok::<_, anyhow::Error>(42)
+            }
+        })
         .await;
         assert!(result.is_ok());
         assert_eq!(*result.as_ref().unwrap(), 42);
@@ -602,21 +594,17 @@ mod with_retry_tests {
     async fn test_with_retry_async_fail_then_succeed() {
         let attempts = Arc::new(AtomicU32::new(0));
         let a = attempts.clone();
-        let result = with_retry_async(
-            RetryConfig::new(3, 5).without_jitter(),
-            "test",
-            move || {
-                let a = a.clone();
-                async move {
-                    let count = a.fetch_add(1, Ordering::SeqCst);
-                    if count < 1 {
-                        Err(anyhow::anyhow!("transient timeout"))
-                    } else {
-                        Ok::<_, anyhow::Error>(42)
-                    }
+        let result = with_retry_async(RetryConfig::new(3, 5).without_jitter(), "test", move || {
+            let a = a.clone();
+            async move {
+                let count = a.fetch_add(1, Ordering::SeqCst);
+                if count < 1 {
+                    Err(anyhow::anyhow!("transient timeout"))
+                } else {
+                    Ok::<_, anyhow::Error>(42)
                 }
-            },
-        )
+            }
+        })
         .await;
         assert!(result.is_ok(), "Should succeed after failure");
     }
@@ -659,9 +647,7 @@ mod with_retry_tests {
         tokio::time::sleep(Duration::from_millis(250)).await;
         cb.last_failure.store(0, std::sync::atomic::Ordering::SeqCst);
 
-        let result = cb
-            .execute(|| async { Err::<i32, _>(anyhow::anyhow!("fail")) })
-            .await;
+        let result = cb.execute(|| async { Err::<i32, _>(anyhow::anyhow!("fail")) }).await;
         assert!(result.is_err());
         assert_eq!(cb.state(), "OPEN");
     }

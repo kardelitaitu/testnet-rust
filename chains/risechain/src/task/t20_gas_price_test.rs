@@ -31,8 +31,7 @@ impl Task<TaskContext> for GasPriceTestTask {
         let recipient = AddressCache::get_random().context("Failed to get random address")?;
 
         let balance = provider.get_balance(address, None).await?;
-        let balance_eth =
-            ethers::utils::format_units(balance, "ether").unwrap_or_else(|_| balance.to_string());
+        let balance_eth = ethers::utils::format_units(balance, "ether").unwrap_or_else(|_| balance.to_string());
         tracing::debug!(target: "smart_main", "Wallet balance: {} ETH", balance_eth);
 
         let mut rng = OsRng;
@@ -50,8 +49,7 @@ impl Task<TaskContext> for GasPriceTestTask {
         let min_amount = U256::from(5_000_000_000_000u64);
         let amount_wei = amount_wei.max(min_amount);
 
-        let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-            .unwrap_or_else(|_| amount_wei.to_string());
+        let amount_eth = ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
 
         tracing::debug!(target: "smart_main", "Sending {}% of balance = {} wei", percentage, amount_wei);
 
@@ -70,14 +68,12 @@ impl Task<TaskContext> for GasPriceTestTask {
         use ethers::middleware::SignerMiddleware;
         let client = Arc::new(SignerMiddleware::new(provider.clone(), wallet.clone()));
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
-        let priority_fee_gwei = ethers::utils::format_units(priority_fee, "gwei")
-            .unwrap_or_else(|_| priority_fee.to_string());
-        let max_fee_gwei = ethers::utils::format_units(test_max_fee, "gwei")
-            .unwrap_or_else(|_| test_max_fee.to_string());
+        let priority_fee_gwei =
+            ethers::utils::format_units(priority_fee, "gwei").unwrap_or_else(|_| priority_fee.to_string());
+        let max_fee_gwei =
+            ethers::utils::format_units(test_max_fee, "gwei").unwrap_or_else(|_| test_max_fee.to_string());
 
         Ok(TaskResult {
             success: receipt.status == Some(U64::from(1)),

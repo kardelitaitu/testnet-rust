@@ -43,16 +43,10 @@ impl Task<TaskContext> for Erc1155MintTask {
         let contract_address = if let Some(db) = &ctx.db {
             match db.get_all_assets_by_type("ERC1155").await {
                 Ok(contracts) if !contracts.is_empty() => {
-                    let addr_str = contracts
-                        .choose(&mut rng)
-                        .context("Failed to pick contract")?;
+                    let addr_str = contracts.choose(&mut rng).context("Failed to pick contract")?;
                     debug!("Using existing ERC1155: {}", addr_str);
-                    Some(
-                        addr_str
-                            .parse::<Address>()
-                            .context("Invalid address in DB")?,
-                    )
-                }
+                    Some(addr_str.parse::<Address>().context("Invalid address in DB")?)
+                },
                 _ => None,
             }
         } else {
@@ -79,10 +73,7 @@ impl Task<TaskContext> for Erc1155MintTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
@@ -111,9 +102,7 @@ impl Task<TaskContext> for Erc1155MintTask {
                         let tx_hash = format!("{:?}", pending.tx_hash());
                         match pending.await {
                             Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
-                                let addr = receipt
-                                    .contract_address
-                                    .context("No contract address in receipt")?;
+                                let addr = receipt.contract_address.context("No contract address in receipt")?;
                                 if let Some(db) = &ctx.db {
                                     let _ = db
                                         .log_asset_creation(
@@ -126,7 +115,7 @@ impl Task<TaskContext> for Erc1155MintTask {
                                         .await;
                                 }
                                 addr
-                            }
+                            },
                             _ => {
                                 let _ = nonce_manager.resync().await;
                                 return Ok(TaskResult {
@@ -134,9 +123,9 @@ impl Task<TaskContext> for Erc1155MintTask {
                                     message: format!("ERC1155 deploy failed (tx: {})", tx_hash),
                                     tx_hash: Some(tx_hash),
                                 });
-                            }
+                            },
                         }
-                    }
+                    },
                     Err(e) => {
                         debug!("ERC1155 deploy submit failed, resyncing nonce: {}", e);
                         let _ = nonce_manager.resync().await;
@@ -145,9 +134,9 @@ impl Task<TaskContext> for Erc1155MintTask {
                             message: format!("Failed to submit ERC1155 deploy tx: {}", e),
                             tx_hash: None,
                         });
-                    }
+                    },
                 }
-            }
+            },
         };
 
         debug!("Using ERC1155 at {:?}", contract_address);
@@ -157,12 +146,7 @@ impl Task<TaskContext> for Erc1155MintTask {
         let mint_nonce = nonce_manager.next().await?;
         let mint_data = contract.encode(
             "mint",
-            (
-                recipient,
-                U256::from(token_id),
-                U256::from(amount),
-                Bytes::from(vec![]),
-            ),
+            (recipient, U256::from(token_id), U256::from(amount), Bytes::from(vec![])),
         )?;
 
         let mint_tx = TransactionRequest::new()
@@ -192,7 +176,7 @@ impl Task<TaskContext> for Erc1155MintTask {
                     message: format!("Failed to submit ERC1155 mint tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

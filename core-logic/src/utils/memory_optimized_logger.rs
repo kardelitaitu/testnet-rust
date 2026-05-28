@@ -56,10 +56,7 @@ impl MemoryOptimizedFileAppender {
             .context("Failed to open log file")?;
 
         Ok(Self {
-            writer: Arc::new(Mutex::new(BufWriter::with_capacity(
-                config.buffer_size,
-                file,
-            ))),
+            writer: Arc::new(Mutex::new(BufWriter::with_capacity(config.buffer_size, file))),
             current_file: file_path,
             config,
             last_flush: Instant::now(),
@@ -102,13 +99,7 @@ impl MemoryOptimizedFileAppender {
         self.cleanup_old_files()?;
 
         // Create new file
-        let new_file_path = Self::generate_file_path(
-            Path::new(&self.current_file)
-                .parent()
-                .unwrap()
-                .to_str()
-                .unwrap(),
-        );
+        let new_file_path = Self::generate_file_path(Path::new(&self.current_file).parent().unwrap().to_str().unwrap());
 
         let file = OpenOptions::new()
             .create(true)
@@ -129,9 +120,7 @@ impl MemoryOptimizedFileAppender {
 
         let mut log_files: Vec<_> = std::fs::read_dir(log_dir)?
             .filter_map(|entry| entry.ok())
-            .filter(|entry| {
-                entry.path().is_file() && entry.path().extension().is_some_and(|ext| ext == "log")
-            })
+            .filter(|entry| entry.path().is_file() && entry.path().extension().is_some_and(|ext| ext == "log"))
             .collect();
 
         // Sort by modified time (oldest first)
@@ -177,9 +166,7 @@ where
         // Only log INFO and above to file to save space/memory
         if event.metadata().level() <= &Level::INFO {
             let mut message = String::new();
-            let mut visitor = MessageVisitor {
-                message: &mut message,
-            };
+            let mut visitor = MessageVisitor { message: &mut message };
             event.record(&mut visitor);
 
             if let Ok(mut appender) = self.file_appender.lock() {
@@ -232,8 +219,7 @@ pub fn setup_memory_optimized_logger() -> Result<()> {
                 .with_filter(console_filter),
         );
 
-    tracing::subscriber::set_global_default(subscriber)
-        .context("Failed to set global subscriber")?;
+    tracing::subscriber::set_global_default(subscriber).context("Failed to set global subscriber")?;
 
     Ok(())
 }
@@ -282,12 +268,7 @@ mod tests {
         // All other chars should be digits
         for (i, c) in ts.char_indices() {
             if i != 8 {
-                assert!(
-                    c.is_ascii_digit(),
-                    "expected digit at pos {} in '{}'",
-                    i,
-                    ts
-                );
+                assert!(c.is_ascii_digit(), "expected digit at pos {} in '{}'", i, ts);
             }
         }
     }
@@ -317,8 +298,7 @@ mod tests {
     fn test_appender_write_and_verify_content() {
         let dir = tempfile::tempdir().unwrap();
         let config = MemoryOptimizedLoggerConfig::default();
-        let mut appender =
-            MemoryOptimizedFileAppender::new(dir.path().to_str().unwrap(), config.clone()).unwrap();
+        let mut appender = MemoryOptimizedFileAppender::new(dir.path().to_str().unwrap(), config.clone()).unwrap();
 
         // Write some content
         let result = appender.write("test message");
@@ -334,21 +314,11 @@ mod tests {
         let file_path = &appender.current_file;
         assert!(Path::new(file_path).exists(), "log file should exist");
         let content = std::fs::read_to_string(file_path).unwrap();
-        assert!(
-            content.contains("test message"),
-            "file should contain written message"
-        );
-        assert!(
-            content.contains("second line"),
-            "file should contain second message"
-        );
+        assert!(content.contains("test message"), "file should contain written message");
+        assert!(content.contains("second line"), "file should contain second message");
         // Each line should have timestamp prefix
         for line in content.lines() {
-            assert!(
-                line.len() > 20,
-                "each line should have timestamp + message: '{}'",
-                line
-            );
+            assert!(line.len() > 20, "each line should have timestamp + message: '{}'", line);
         }
     }
 
@@ -361,8 +331,7 @@ mod tests {
             flush_interval_ms: 1,
             buffer_size: 1024,
         };
-        let mut appender =
-            MemoryOptimizedFileAppender::new(dir.path().to_str().unwrap(), config).unwrap();
+        let mut appender = MemoryOptimizedFileAppender::new(dir.path().to_str().unwrap(), config).unwrap();
 
         for i in 0..10 {
             appender
@@ -379,10 +348,6 @@ mod tests {
             .filter(|e| e.path().extension().map_or(false, |ext| ext == "log"))
             .collect();
 
-        assert!(
-            log_files.len() <= 2,
-            "at most 2 log files, got {}",
-            log_files.len()
-        );
+        assert!(log_files.len() <= 2, "at most 2 log files, got {}", log_files.len());
     }
 }

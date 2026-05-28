@@ -114,7 +114,7 @@ async fn main() -> Result<()> {
             } else {
                 return Err(anyhow::anyhow!("Failed to initialize database: {}", e));
             }
-        }
+        },
     };
 
     let client_pool = tempo_spammer::ClientPool::new(
@@ -131,56 +131,306 @@ async fn main() -> Result<()> {
 
     // 5. Define Tasks (Must match tempo-debug.rs list)
     let tasks: Vec<(usize, &str, &str, Box<dyn TempoTask>)> = vec![
-        (1, "01_deploy_contract", "Deploy Counter Contract", Box::new(tempo_spammer::tasks::t01_deploy_contract::DeployContractTask::new())),
-        (2, "02_claim_faucet", "Claim Faucet", Box::new(tempo_spammer::tasks::t02_claim_faucet::ClaimFaucetTask::new())),
-        (3, "03_send_token", "Send Token", Box::new(tempo_spammer::tasks::t03_send_token::SendTokenTask::new())),
-        (4, "04_create_stable", "Create Stablecoin", Box::new(tempo_spammer::tasks::t04_create_stable::CreateStableTask::new())),
-        (5, "05_swap_stable", "Swap Stablecoin", Box::new(tempo_spammer::tasks::t05_swap_stable::SwapStableTask::new())),
-        (6, "06_add_liquidity", "Add Liquidity", Box::new(tempo_spammer::tasks::t06_add_liquidity::AddLiquidityTask::new())),
-        (7, "07_mint_stable", "Mint Stablecoin", Box::new(tempo_spammer::tasks::t07_mint_stable::MintStableTask::new())),
-        (8, "08_burn_stable", "Burn Stablecoin", Box::new(tempo_spammer::tasks::t08_burn_stable::BurnStableTask::new())),
-        (9, "09_transfer_token", "Transfer Token", Box::new(tempo_spammer::tasks::t09_transfer_token::TransferTokenTask::new())),
-        (10, "10_transfer_memo", "Transfer with Memo", Box::new(tempo_spammer::tasks::t10_transfer_memo::TransferMemoTask::new())),
-        (11, "11_limit_order", "Limit Order", Box::new(tempo_spammer::tasks::t11_limit_order::LimitOrderTask::new())),
-        (12, "12_remove_liquidity", "Remove Liquidity", Box::new(tempo_spammer::tasks::t12_remove_liquidity::RemoveLiquidityTask::new())),
-        (13, "13_grant_role", "Grant Role", Box::new(tempo_spammer::tasks::t13_grant_role::GrantRoleTask::new())),
-        (14, "14_nft_create_mint", "NFT Create & Mint", Box::new(tempo_spammer::tasks::t14_nft_create_mint::NftCreateMintTask::new())),
-        (15, "15_mint_domain", "Mint Domain", Box::new(tempo_spammer::tasks::t15_mint_domain::MintDomainTask::new())),
-        (16, "16_mint_random_nft", "Mint Random NFT", Box::new(tempo_spammer::tasks::t16_mint_random_nft::MintRandomNftTask::new())),
-        (17, "17_batch_eip7702", "Batch EIP-7702", Box::new(tempo_spammer::tasks::t17_batch_eip7702::BatchEip7702Task::new())),
-        (18, "18_tip403_policies", "TIP-403 Policies", Box::new(tempo_spammer::tasks::t18_tip403_policies::Tip403PoliciesTask::new())),
-        (19, "19_wallet_analytics", "Wallet Analytics", Box::new(tempo_spammer::tasks::t19_wallet_analytics::WalletAnalyticsTask::new())),
-        (20, "20_wallet_activity", "Wallet Activity", Box::new(tempo_spammer::tasks::t20_wallet_activity::WalletActivityTask::new())),
-        (21, "21_create_meme", "Create Meme", Box::new(tempo_spammer::tasks::t21_create_meme::CreateMemeTask::new())),
-        (22, "22_mint_meme", "Mint Meme", Box::new(tempo_spammer::tasks::t22_mint_meme::MintMemeTask::new())),
-        (23, "23_transfer_meme", "Transfer Meme", Box::new(tempo_spammer::tasks::t23_transfer_meme::TransferMemeTask::new())),
-        (24, "24_batch_swap", "Batch Swap", Box::new(tempo_spammer::tasks::t24_batch_swap::BatchSwapTask::new())),
-        (25, "25_batch_system_token", "Batch System Token", Box::new(tempo_spammer::tasks::t25_batch_system_token::BatchSystemTokenTask::new())),
-        (26, "26_batch_stable_token", "Batch Stable Token", Box::new(tempo_spammer::tasks::t26_batch_stable_token::BatchStableTokenTask::new())),
-        (27, "27_batch_meme_token", "Batch Meme Token", Box::new(tempo_spammer::tasks::t27_batch_meme_token::BatchMemeTokenTask::new())),
-        (28, "28_multi_send_disperse", "Multi-Send Disperse", Box::new(tempo_spammer::tasks::t28_multi_send_disperse::MultiSendDisperseTask::new())),
-        (29, "29_multi_send_disperse_stable", "Multi-Send Stable", Box::new(tempo_spammer::tasks::t29_multi_send_disperse_stable::MultiSendDisperseStableTask::new())),
-        (30, "30_multi_send_disperse_meme", "Multi-Send Meme", Box::new(tempo_spammer::tasks::t30_multi_send_disperse_meme::MultiSendDisperseMemeTask::new())),
-        (31, "31_multi_send_concurrent", "Multi-Send Concurrent", Box::new(tempo_spammer::tasks::t31_multi_send_concurrent::MultiSendConcurrentTask::new())),
-        (32, "32_multi_send_concurrent_stable", "Concurrent Stable", Box::new(tempo_spammer::tasks::t32_multi_send_concurrent_stable::MultiSendConcurrentStableTask::new())),
-        (33, "33_multi_send_concurrent_meme", "Concurrent Meme", Box::new(tempo_spammer::tasks::t33_multi_send_concurrent_meme::MultiSendConcurrentMemeTask::new())),
-        (34, "34_batch_send_transaction", "Batch Send Tx", Box::new(tempo_spammer::tasks::t34_batch_send_transaction::BatchSendTransactionTask::new())),
-        (35, "35_batch_send_transaction_stable", "Batch Send Stable", Box::new(tempo_spammer::tasks::t35_batch_send_transaction_stable::BatchSendTransactionStableTask::new())),
-        (36, "36_batch_send_transaction_meme", "Batch Send Meme", Box::new(tempo_spammer::tasks::t36_batch_send_transaction_meme::BatchSendTransactionMemeTask::new())),
-        (37, "37_transfer_later", "Transfer Later", Box::new(tempo_spammer::tasks::t37_transfer_later::TransferLaterTask::new())),
-        (38, "38_transfer_later_stable", "Transfer Later Stable", Box::new(tempo_spammer::tasks::t38_transfer_later_stable::TransferLaterStableTask::new())),
-        (39, "39_transfer_later_meme", "Transfer Later Meme", Box::new(tempo_spammer::tasks::t39_transfer_later_meme::TransferLaterMemeTask::new())),
-        (40, "40_distribute_shares", "Distribute Shares", Box::new(tempo_spammer::tasks::t40_distribute_shares::DistributeSharesTask::new())),
-        (41, "41_distribute_shares_stable", "Distribute Shares Stable", Box::new(tempo_spammer::tasks::t41_distribute_shares_stable::DistributeSharesStableTask::new())),
-        (42, "42_distribute_shares_meme", "Distribute Shares Meme", Box::new(tempo_spammer::tasks::t42_distribute_shares_meme::DistributeSharesMemeTask::new())),
-        (43, "43_batch_mint_stable", "Batch Mint Stable", Box::new(tempo_spammer::tasks::t43_batch_mint_stable::BatchMintStableTask::new())),
-        (44, "44_batch_mint_meme", "Batch Mint Meme", Box::new(tempo_spammer::tasks::t44_batch_mint_meme::BatchMintMemeTask::new())),
-        (45, "45_deploy_viral_faucet", "Deploy Viral Faucet", Box::new(tempo_spammer::tasks::t45_deploy_viral_faucet::DeployViralFaucetTask::new())),
-        (46, "46_claim_viral_faucet", "Claim Viral Faucet", Box::new(tempo_spammer::tasks::t46_claim_viral_faucet::ClaimViralFaucetTask::new())),
-        (47, "47_deploy_viral_nft", "Deploy Viral NFT", Box::new(tempo_spammer::tasks::t47_deploy_viral_nft::DeployViralNftTask::new())),
-        (48, "48_mint_viral_nft", "Mint Viral NFT", Box::new(tempo_spammer::tasks::t48_mint_viral_nft::MintViralNftTask::new())),
-        (49, "49_time_bomb", "Time Bomb", Box::new(tempo_spammer::tasks::t49_time_bomb::TimeBombTask::new())),
-        (50, "50_deploy_storm", "Deploy Storm", Box::new(tempo_spammer::tasks::t50_deploy_storm::DeployStormTask::new())),
+        (
+            1,
+            "01_deploy_contract",
+            "Deploy Counter Contract",
+            Box::new(tempo_spammer::tasks::t01_deploy_contract::DeployContractTask::new()),
+        ),
+        (
+            2,
+            "02_claim_faucet",
+            "Claim Faucet",
+            Box::new(tempo_spammer::tasks::t02_claim_faucet::ClaimFaucetTask::new()),
+        ),
+        (
+            3,
+            "03_send_token",
+            "Send Token",
+            Box::new(tempo_spammer::tasks::t03_send_token::SendTokenTask::new()),
+        ),
+        (
+            4,
+            "04_create_stable",
+            "Create Stablecoin",
+            Box::new(tempo_spammer::tasks::t04_create_stable::CreateStableTask::new()),
+        ),
+        (
+            5,
+            "05_swap_stable",
+            "Swap Stablecoin",
+            Box::new(tempo_spammer::tasks::t05_swap_stable::SwapStableTask::new()),
+        ),
+        (
+            6,
+            "06_add_liquidity",
+            "Add Liquidity",
+            Box::new(tempo_spammer::tasks::t06_add_liquidity::AddLiquidityTask::new()),
+        ),
+        (
+            7,
+            "07_mint_stable",
+            "Mint Stablecoin",
+            Box::new(tempo_spammer::tasks::t07_mint_stable::MintStableTask::new()),
+        ),
+        (
+            8,
+            "08_burn_stable",
+            "Burn Stablecoin",
+            Box::new(tempo_spammer::tasks::t08_burn_stable::BurnStableTask::new()),
+        ),
+        (
+            9,
+            "09_transfer_token",
+            "Transfer Token",
+            Box::new(tempo_spammer::tasks::t09_transfer_token::TransferTokenTask::new()),
+        ),
+        (
+            10,
+            "10_transfer_memo",
+            "Transfer with Memo",
+            Box::new(tempo_spammer::tasks::t10_transfer_memo::TransferMemoTask::new()),
+        ),
+        (
+            11,
+            "11_limit_order",
+            "Limit Order",
+            Box::new(tempo_spammer::tasks::t11_limit_order::LimitOrderTask::new()),
+        ),
+        (
+            12,
+            "12_remove_liquidity",
+            "Remove Liquidity",
+            Box::new(tempo_spammer::tasks::t12_remove_liquidity::RemoveLiquidityTask::new()),
+        ),
+        (
+            13,
+            "13_grant_role",
+            "Grant Role",
+            Box::new(tempo_spammer::tasks::t13_grant_role::GrantRoleTask::new()),
+        ),
+        (
+            14,
+            "14_nft_create_mint",
+            "NFT Create & Mint",
+            Box::new(tempo_spammer::tasks::t14_nft_create_mint::NftCreateMintTask::new()),
+        ),
+        (
+            15,
+            "15_mint_domain",
+            "Mint Domain",
+            Box::new(tempo_spammer::tasks::t15_mint_domain::MintDomainTask::new()),
+        ),
+        (
+            16,
+            "16_mint_random_nft",
+            "Mint Random NFT",
+            Box::new(tempo_spammer::tasks::t16_mint_random_nft::MintRandomNftTask::new()),
+        ),
+        (
+            17,
+            "17_batch_eip7702",
+            "Batch EIP-7702",
+            Box::new(tempo_spammer::tasks::t17_batch_eip7702::BatchEip7702Task::new()),
+        ),
+        (
+            18,
+            "18_tip403_policies",
+            "TIP-403 Policies",
+            Box::new(tempo_spammer::tasks::t18_tip403_policies::Tip403PoliciesTask::new()),
+        ),
+        (
+            19,
+            "19_wallet_analytics",
+            "Wallet Analytics",
+            Box::new(tempo_spammer::tasks::t19_wallet_analytics::WalletAnalyticsTask::new()),
+        ),
+        (
+            20,
+            "20_wallet_activity",
+            "Wallet Activity",
+            Box::new(tempo_spammer::tasks::t20_wallet_activity::WalletActivityTask::new()),
+        ),
+        (
+            21,
+            "21_create_meme",
+            "Create Meme",
+            Box::new(tempo_spammer::tasks::t21_create_meme::CreateMemeTask::new()),
+        ),
+        (
+            22,
+            "22_mint_meme",
+            "Mint Meme",
+            Box::new(tempo_spammer::tasks::t22_mint_meme::MintMemeTask::new()),
+        ),
+        (
+            23,
+            "23_transfer_meme",
+            "Transfer Meme",
+            Box::new(tempo_spammer::tasks::t23_transfer_meme::TransferMemeTask::new()),
+        ),
+        (
+            24,
+            "24_batch_swap",
+            "Batch Swap",
+            Box::new(tempo_spammer::tasks::t24_batch_swap::BatchSwapTask::new()),
+        ),
+        (
+            25,
+            "25_batch_system_token",
+            "Batch System Token",
+            Box::new(tempo_spammer::tasks::t25_batch_system_token::BatchSystemTokenTask::new()),
+        ),
+        (
+            26,
+            "26_batch_stable_token",
+            "Batch Stable Token",
+            Box::new(tempo_spammer::tasks::t26_batch_stable_token::BatchStableTokenTask::new()),
+        ),
+        (
+            27,
+            "27_batch_meme_token",
+            "Batch Meme Token",
+            Box::new(tempo_spammer::tasks::t27_batch_meme_token::BatchMemeTokenTask::new()),
+        ),
+        (
+            28,
+            "28_multi_send_disperse",
+            "Multi-Send Disperse",
+            Box::new(tempo_spammer::tasks::t28_multi_send_disperse::MultiSendDisperseTask::new()),
+        ),
+        (
+            29,
+            "29_multi_send_disperse_stable",
+            "Multi-Send Stable",
+            Box::new(tempo_spammer::tasks::t29_multi_send_disperse_stable::MultiSendDisperseStableTask::new()),
+        ),
+        (
+            30,
+            "30_multi_send_disperse_meme",
+            "Multi-Send Meme",
+            Box::new(tempo_spammer::tasks::t30_multi_send_disperse_meme::MultiSendDisperseMemeTask::new()),
+        ),
+        (
+            31,
+            "31_multi_send_concurrent",
+            "Multi-Send Concurrent",
+            Box::new(tempo_spammer::tasks::t31_multi_send_concurrent::MultiSendConcurrentTask::new()),
+        ),
+        (
+            32,
+            "32_multi_send_concurrent_stable",
+            "Concurrent Stable",
+            Box::new(tempo_spammer::tasks::t32_multi_send_concurrent_stable::MultiSendConcurrentStableTask::new()),
+        ),
+        (
+            33,
+            "33_multi_send_concurrent_meme",
+            "Concurrent Meme",
+            Box::new(tempo_spammer::tasks::t33_multi_send_concurrent_meme::MultiSendConcurrentMemeTask::new()),
+        ),
+        (
+            34,
+            "34_batch_send_transaction",
+            "Batch Send Tx",
+            Box::new(tempo_spammer::tasks::t34_batch_send_transaction::BatchSendTransactionTask::new()),
+        ),
+        (
+            35,
+            "35_batch_send_transaction_stable",
+            "Batch Send Stable",
+            Box::new(tempo_spammer::tasks::t35_batch_send_transaction_stable::BatchSendTransactionStableTask::new()),
+        ),
+        (
+            36,
+            "36_batch_send_transaction_meme",
+            "Batch Send Meme",
+            Box::new(tempo_spammer::tasks::t36_batch_send_transaction_meme::BatchSendTransactionMemeTask::new()),
+        ),
+        (
+            37,
+            "37_transfer_later",
+            "Transfer Later",
+            Box::new(tempo_spammer::tasks::t37_transfer_later::TransferLaterTask::new()),
+        ),
+        (
+            38,
+            "38_transfer_later_stable",
+            "Transfer Later Stable",
+            Box::new(tempo_spammer::tasks::t38_transfer_later_stable::TransferLaterStableTask::new()),
+        ),
+        (
+            39,
+            "39_transfer_later_meme",
+            "Transfer Later Meme",
+            Box::new(tempo_spammer::tasks::t39_transfer_later_meme::TransferLaterMemeTask::new()),
+        ),
+        (
+            40,
+            "40_distribute_shares",
+            "Distribute Shares",
+            Box::new(tempo_spammer::tasks::t40_distribute_shares::DistributeSharesTask::new()),
+        ),
+        (
+            41,
+            "41_distribute_shares_stable",
+            "Distribute Shares Stable",
+            Box::new(tempo_spammer::tasks::t41_distribute_shares_stable::DistributeSharesStableTask::new()),
+        ),
+        (
+            42,
+            "42_distribute_shares_meme",
+            "Distribute Shares Meme",
+            Box::new(tempo_spammer::tasks::t42_distribute_shares_meme::DistributeSharesMemeTask::new()),
+        ),
+        (
+            43,
+            "43_batch_mint_stable",
+            "Batch Mint Stable",
+            Box::new(tempo_spammer::tasks::t43_batch_mint_stable::BatchMintStableTask::new()),
+        ),
+        (
+            44,
+            "44_batch_mint_meme",
+            "Batch Mint Meme",
+            Box::new(tempo_spammer::tasks::t44_batch_mint_meme::BatchMintMemeTask::new()),
+        ),
+        (
+            45,
+            "45_deploy_viral_faucet",
+            "Deploy Viral Faucet",
+            Box::new(tempo_spammer::tasks::t45_deploy_viral_faucet::DeployViralFaucetTask::new()),
+        ),
+        (
+            46,
+            "46_claim_viral_faucet",
+            "Claim Viral Faucet",
+            Box::new(tempo_spammer::tasks::t46_claim_viral_faucet::ClaimViralFaucetTask::new()),
+        ),
+        (
+            47,
+            "47_deploy_viral_nft",
+            "Deploy Viral NFT",
+            Box::new(tempo_spammer::tasks::t47_deploy_viral_nft::DeployViralNftTask::new()),
+        ),
+        (
+            48,
+            "48_mint_viral_nft",
+            "Mint Viral NFT",
+            Box::new(tempo_spammer::tasks::t48_mint_viral_nft::MintViralNftTask::new()),
+        ),
+        (
+            49,
+            "49_time_bomb",
+            "Time Bomb",
+            Box::new(tempo_spammer::tasks::t49_time_bomb::TimeBombTask::new()),
+        ),
+        (
+            50,
+            "50_deploy_storm",
+            "Deploy Storm",
+            Box::new(tempo_spammer::tasks::t50_deploy_storm::DeployStormTask::new()),
+        ),
     ];
 
     let mut results = Vec::new();
@@ -212,9 +462,7 @@ async fn main() -> Result<()> {
                 let client = match if attempt == 1 {
                     client_pool.get_client(current_wallet_idx).await
                 } else {
-                    client_pool
-                        .get_client_with_rotated_proxy(current_wallet_idx, 1)
-                        .await
+                    client_pool.get_client_with_rotated_proxy(current_wallet_idx, 1).await
                 } {
                     Ok(c) => c,
                     Err(e) => {
@@ -232,7 +480,7 @@ async fn main() -> Result<()> {
                         // Rotate wallet index for the next attempt
                         current_wallet_idx = rand::thread_rng().gen_range(0..total_wallets);
                         continue;
-                    }
+                    },
                 };
 
                 let proxy_idx_str = client
@@ -240,8 +488,7 @@ async fn main() -> Result<()> {
                     .map(|idx| format!("{:03}", idx))
                     .unwrap_or_else(|| "DIR".to_string());
 
-                let context =
-                    TaskContext::new(client, config.clone(), db.clone(), Arc::new(GasManager));
+                let context = TaskContext::new(client, config.clone(), db.clone(), Arc::new(GasManager));
                 let result = tokio::time::timeout(context.timeout, task.run(&context)).await;
                 let duration = start.elapsed();
 
@@ -271,11 +518,7 @@ async fn main() -> Result<()> {
                 }
 
                 // Identify transient errors for retry
-                let err_str = run_result
-                    .error
-                    .as_deref()
-                    .unwrap_or_default()
-                    .to_lowercase();
+                let err_str = run_result.error.as_deref().unwrap_or_default().to_lowercase();
                 let is_transient = err_str.contains("proxy")
                     || err_str.contains("tunnel")
                     || err_str.contains("nonce")
@@ -331,11 +574,7 @@ async fn main() -> Result<()> {
     let total_tasks = results.len();
     let passed_tasks = results.iter().filter(|r| r.success).count();
     let success_rate = (passed_tasks as f64 / total_tasks as f64) * 100.0;
-    let avg_duration = results
-        .iter()
-        .map(|r| r.duration.as_secs_f64())
-        .sum::<f64>()
-        / total_tasks as f64;
+    let avg_duration = results.iter().map(|r| r.duration.as_secs_f64()).sum::<f64>() / total_tasks as f64;
     let longest_task = results.iter().max_by_key(|r| r.duration).unwrap();
 
     let rate_color = if success_rate >= 90.0 {
@@ -350,18 +589,12 @@ async fn main() -> Result<()> {
     let bold = "\x1b[1m";
     let reset = "\x1b[0m";
 
-    println!(
-        "\n{}================ REPORT ================{}",
-        bold, reset
-    );
+    println!("\n{}================ REPORT ================{}", bold, reset);
     println!(
         "Task success rate: {}{:.2}% ({} of {}){}",
         rate_color, success_rate, passed_tasks, total_tasks, reset
     );
-    println!(
-        "Average task duration: {}{:.2}s{}",
-        cyan, avg_duration, reset
-    );
+    println!("Average task duration: {}{:.2}s{}", cyan, avg_duration, reset);
     println!(
         "Longest task duration: {}{}Task {:02} ({:.2}s){}",
         magenta,

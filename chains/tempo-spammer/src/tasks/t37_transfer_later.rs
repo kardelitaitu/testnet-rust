@@ -123,10 +123,7 @@ impl TempoTask for TransferLaterTask {
 
         Ok(TaskResult {
             success: true,
-            message: format!(
-                "Scheduled tx sent: {:?} (valid_after: {})",
-                tx_hash, valid_after
-            ),
+            message: format!("Scheduled tx sent: {:?} (valid_after: {})", tx_hash, valid_after),
             tx_hash: Some(format!("{:?}", tx_hash)),
         })
     }

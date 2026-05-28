@@ -39,8 +39,7 @@ impl Task<TaskContext> for SimpleEthTransferTask {
 
         // Transfer 3% of current balance
         let amount_wei = (balance * U256::from(3u64) / U256::from(100u64)).as_u64();
-        let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-            .unwrap_or_else(|_| amount_wei.to_string());
+        let amount_eth = ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
 
         let required_val = amount_wei + (gas_limit.as_u64() * max_fee.as_u64()); // Approx check
         if balance.as_u64() < required_val {
@@ -65,9 +64,7 @@ impl Task<TaskContext> for SimpleEthTransferTask {
         use ethers::middleware::SignerMiddleware;
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         Ok(TaskResult {
             success: receipt.status == Some(U64::from(1)),

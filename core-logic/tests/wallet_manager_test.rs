@@ -161,9 +161,7 @@ async fn test_database_get_metrics() {
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).unwrap();
 
-    let db = DatabaseManager::new(db_path.to_str().unwrap())
-        .await
-        .unwrap();
+    let db = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
     let metrics = db.get_metrics();
     assert_eq!(metrics.total_queries, 0);
     assert_eq!(metrics.error_rate(), 0.0);

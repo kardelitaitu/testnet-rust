@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
         Err(e) => {
             error!("Failed to load config: {}", e);
             exit_with_error(format!("Failed to load config: {}", e));
-        }
+        },
     };
 
     info!("Configuration loaded for chain ID: {}", config.chain_id);
@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
                         exit_with_error(format!("Interactive password also failed: {}", e));
                     }
                     info!("Interactive password validated successfully.");
-                }
+                },
                 Err(_) => {
                     // Non-interactive mode - show helpful error
                     error!("Cannot prompt for password (not a terminal).");
@@ -85,7 +85,7 @@ async fn main() -> Result<()> {
                     error!("  PowerShell: $env:WALLET_PASSWORD='your_password'");
                     error!("  CMD: set WALLET_PASSWORD=your_password");
                     exit_with_error("Cannot prompt for password. Set WALLET_PASSWORD env var.");
-                }
+                },
             }
         } else {
             info!("Wallet password validated successfully.");
@@ -118,10 +118,7 @@ async fn main() -> Result<()> {
     let max_workers = if total_wallets == 0 {
         0
     } else {
-        config
-            .worker_amount
-            .unwrap_or(total_wallets)
-            .min(total_wallets)
+        config.worker_amount.unwrap_or(total_wallets).min(total_wallets)
     };
 
     info!(
@@ -135,15 +132,12 @@ async fn main() -> Result<()> {
 
     for &wallet_idx in wallet_indices.iter().take(max_workers) {
         // Lazy decrypt
-        let decrypted = match manager
-            .get_wallet(wallet_idx, wallet_password.as_deref())
-            .await
-        {
+        let decrypted = match manager.get_wallet(wallet_idx, wallet_password.as_deref()).await {
             Ok(w) => w,
             Err(e) => {
                 error!("Failed to decrypt wallet {}: {}", wallet_idx, e);
                 continue;
-            }
+            },
         };
 
         let key = decrypted.evm_private_key.clone();

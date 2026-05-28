@@ -81,10 +81,8 @@ impl MetricsCollector {
 
         let duration_ms = duration.as_millis() as u64;
 
-        self.task_min_duration_ms
-            .fetch_min(duration_ms, Ordering::SeqCst);
-        self.task_max_duration_ms
-            .fetch_max(duration_ms, Ordering::SeqCst);
+        self.task_min_duration_ms.fetch_min(duration_ms, Ordering::SeqCst);
+        self.task_max_duration_ms.fetch_max(duration_ms, Ordering::SeqCst);
 
         if success {
             self.tasks_success.fetch_add(1, Ordering::SeqCst);
@@ -99,10 +97,8 @@ impl MetricsCollector {
             .fetch_add(latency.as_millis() as u64, Ordering::SeqCst);
 
         let latency_ms = latency.as_millis() as u64;
-        self.rpc_min_latency_ms
-            .fetch_min(latency_ms, Ordering::SeqCst);
-        self.rpc_max_latency_ms
-            .fetch_max(latency_ms, Ordering::SeqCst);
+        self.rpc_min_latency_ms.fetch_min(latency_ms, Ordering::SeqCst);
+        self.rpc_max_latency_ms.fetch_max(latency_ms, Ordering::SeqCst);
     }
 
     pub fn snapshot(&self) -> MetricsSnapshot {
@@ -137,11 +133,7 @@ impl MetricsCollector {
                 } else {
                     0.0
                 },
-                min_task_duration_ms: if min_duration == u64::MAX {
-                    0
-                } else {
-                    min_duration
-                },
+                min_task_duration_ms: if min_duration == u64::MAX { 0 } else { min_duration },
                 max_task_duration_ms: max_duration,
             },
             rpc: RpcMetrics {
@@ -270,10 +262,7 @@ mod tests {
         assert!(json.contains("\"success\":0"));
         assert!(json.contains("\"failed\":1"));
         // Compact JSON should be a single line (no pretty-print)
-        assert!(
-            !json.contains("  "),
-            "Compact JSON should not have indentation"
-        );
+        assert!(!json.contains("  "), "Compact JSON should not have indentation");
     }
 
     #[tokio::test]
@@ -285,11 +274,7 @@ mod tests {
             let m = metrics.clone();
             handles.push(tokio::spawn(async move {
                 let success = i % 3 != 0;
-                m.record_task(
-                    &format!("task_{}", i),
-                    Duration::from_millis(i * 10),
-                    success,
-                );
+                m.record_task(&format!("task_{}", i), Duration::from_millis(i * 10), success);
             }));
         }
 
@@ -318,12 +303,14 @@ mod tests {
         let result = metrics.export_to_file(file_path.to_str().unwrap()).await;
         assert!(result.is_ok(), "export_to_file should succeed");
 
-        let content = std::fs::read_to_string(&file_path)
-            .expect("Should be able to read exported file");
+        let content = std::fs::read_to_string(&file_path).expect("Should be able to read exported file");
         // Verify it contains the key task fields from the JSON snapshot
         assert!(content.contains("\"tasks\""), "Exported JSON should contain tasks");
         assert!(content.contains("\"total\":"), "Exported JSON should have total field");
-        assert!(content.contains("\"success\":"), "Exported JSON should have success field");
+        assert!(
+            content.contains("\"success\":"),
+            "Exported JSON should have success field"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -331,12 +318,12 @@ mod tests {
     #[tokio::test]
     async fn test_metrics_zero_duration_and_high_volume() {
         let metrics = MetricsCollector::default();
-        
+
         // Record 1000 tasks with 0 duration
         for _ in 0..1000 {
             metrics.record_task("zero", Duration::from_millis(0), true);
         }
-        
+
         let snapshot = metrics.snapshot();
         assert_eq!(snapshot.tasks.total, 1000);
         assert_eq!(snapshot.performance.avg_task_duration_ms, 0.0);
@@ -347,10 +334,10 @@ mod tests {
     #[tokio::test]
     async fn test_metrics_large_duration_handling() {
         let metrics = MetricsCollector::default();
-        
+
         // Large duration: 1 hour
         metrics.record_task("long", Duration::from_secs(3600), true);
-        
+
         let snapshot = metrics.snapshot();
         assert_eq!(snapshot.performance.total_duration_ms, 3600 * 1000);
         assert_eq!(snapshot.performance.avg_task_duration_ms, 3600000.0);

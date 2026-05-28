@@ -75,13 +75,10 @@ impl Task<TaskContext> for NonceRepairTask {
                     );
                     gas_price *= U256::from(2u64);
                     if attempt >= 6 {
-                        return Err(e).context(format!(
-                            "Repair submission failed for nonce {}",
-                            target_nonce
-                        ));
+                        return Err(e).context(format!("Repair submission failed for nonce {}", target_nonce));
                     }
                     continue;
-                }
+                },
             };
             let tx_hash = pending.tx_hash();
 
@@ -99,12 +96,9 @@ impl Task<TaskContext> for NonceRepairTask {
                         ),
                         tx_hash: Some(format!("{:?}", receipt.transaction_hash)),
                     });
-                }
+                },
                 Err(_) => {
-                    eprintln!(
-                        "[t60] nonce={} receipt wait timed out; bumping gas",
-                        target_nonce
-                    );
+                    eprintln!("[t60] nonce={} receipt wait timed out; bumping gas", target_nonce);
                     gas_price *= U256::from(2u64);
                     if attempt >= 6 {
                         return Ok(TaskResult {
@@ -116,7 +110,7 @@ impl Task<TaskContext> for NonceRepairTask {
                             tx_hash: Some(format!("{:?}", tx_hash)),
                         });
                     }
-                }
+                },
                 Ok(Ok(None)) => {
                     eprintln!(
                         "[t60] nonce={} submitted but receipt unavailable; bumping gas",
@@ -133,11 +127,10 @@ impl Task<TaskContext> for NonceRepairTask {
                             tx_hash: Some(format!("{:?}", tx_hash)),
                         });
                     }
-                }
+                },
                 Ok(Err(e)) => {
-                    return Err(e)
-                        .context(format!("Repair receipt failed for nonce {}", target_nonce));
-                }
+                    return Err(e).context(format!("Repair receipt failed for nonce {}", target_nonce));
+                },
             }
         }
     }

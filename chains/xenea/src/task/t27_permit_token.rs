@@ -33,8 +33,7 @@ impl Task<TaskContext> for PermitTokenTask {
             .as_secs();
 
         let amount: u128 = 1_000_000_000_000_000_000; // 1 ETH worth
-        let amount_formatted =
-            ethers::utils::format_units(amount, 18u32).unwrap_or_else(|_| amount.to_string());
+        let amount_formatted = ethers::utils::format_units(amount, 18u32).unwrap_or_else(|_| amount.to_string());
 
         let gas_price = U256::from(1_100_000_000u64);
         let deploy_gas_limit = 3_000_000u64;
@@ -55,10 +54,7 @@ impl Task<TaskContext> for PermitTokenTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
@@ -81,9 +77,9 @@ impl Task<TaskContext> for PermitTokenTask {
             Ok(pending) => {
                 let tx_hash = format!("{:?}", pending.tx_hash());
                 match pending.await {
-                    Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => receipt
-                        .contract_address
-                        .context("No contract address in receipt")?,
+                    Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
+                        receipt.contract_address.context("No contract address in receipt")?
+                    },
                     _ => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -91,9 +87,9 @@ impl Task<TaskContext> for PermitTokenTask {
                             message: format!("Permit token deploy failed (tx: {})", tx_hash),
                             tx_hash: Some(tx_hash),
                         });
-                    }
+                    },
                 }
-            }
+            },
             Err(e) => {
                 debug!("PermitToken deploy submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -102,7 +98,7 @@ impl Task<TaskContext> for PermitTokenTask {
                     message: format!("Failed to submit permit token deploy tx: {}", e),
                     tx_hash: None,
                 });
-            }
+            },
         };
 
         debug!("Deployed TestERC20Permit at {:?}", token_address);
@@ -166,9 +162,7 @@ impl Task<TaskContext> for PermitTokenTask {
         let digest = ethers::utils::keccak256(&digest_input);
 
         let message_hash = H256::from(digest);
-        let signature = wallet
-            .sign_hash(message_hash)
-            .context("Failed to sign permit")?;
+        let signature = wallet.sign_hash(message_hash).context("Failed to sign permit")?;
 
         let (v, r, s) = {
             let sig = signature.to_vec();
@@ -202,15 +196,7 @@ impl Task<TaskContext> for PermitTokenTask {
         // 4. Submit permit (fire-and-forget)
         let permit_data = contract.encode(
             "permit",
-            (
-                address,
-                address,
-                U256::from(amount),
-                U256::from(deadline),
-                v,
-                r,
-                s,
-            ),
+            (address, address, U256::from(amount), U256::from(deadline), v, r, s),
         )?;
 
         let permit_tx = TransactionRequest::new()
@@ -240,7 +226,7 @@ impl Task<TaskContext> for PermitTokenTask {
                     message: format!("Failed to submit permit tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

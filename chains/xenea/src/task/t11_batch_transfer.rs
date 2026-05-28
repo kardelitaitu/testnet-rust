@@ -34,10 +34,7 @@ impl Task<TaskContext> for BatchTransferTask {
         let recipients = AddressCache::get_random_many(num_transfers)?;
 
         // Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let gas_price = U256::from(1_100_000_000u64);
         let gas_limit = crate::utils::gas::GasManager::LIMIT_TRANSFER;
@@ -91,12 +88,12 @@ impl Task<TaskContext> for BatchTransferTask {
                         tx_hash
                     );
                     success_count += 1;
-                }
+                },
                 Err(e) => {
                     debug!("Transfer {}/{} failed: {}", i + 1, num_transfers, e);
                     tx_hashes.push("failed".to_string());
                     let _ = nonce_manager.resync().await;
-                }
+                },
             }
         }
 
@@ -108,8 +105,8 @@ impl Task<TaskContext> for BatchTransferTask {
             });
         }
 
-        let total_sent_eth = ethers::utils::format_units(total_sent, "ether")
-            .unwrap_or_else(|_| total_sent.to_string());
+        let total_sent_eth =
+            ethers::utils::format_units(total_sent, "ether").unwrap_or_else(|_| total_sent.to_string());
 
         Ok(TaskResult {
             success: true,

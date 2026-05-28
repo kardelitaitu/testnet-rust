@@ -66,10 +66,7 @@ impl ChainSpammer for EvmChainAdapter {
     }
 
     async fn start(&self, token: CancellationToken) -> Result<(), String> {
-        info!(
-            "Starting EVM chain spammer for chain {}",
-            self.config.chain_id
-        );
+        info!("Starting EVM chain spammer for chain {}", self.config.chain_id);
 
         loop {
             if token.is_cancelled() {

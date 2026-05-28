@@ -44,10 +44,7 @@ impl Task<TaskContext> for VerifyCreate2Task {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
@@ -70,7 +67,7 @@ impl Task<TaskContext> for VerifyCreate2Task {
                 match pending.await {
                     Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
                         receipt.contract_address.context("No contract address")?
-                    }
+                    },
                     _ => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -78,9 +75,9 @@ impl Task<TaskContext> for VerifyCreate2Task {
                             message: format!("SimpleFactory deploy failed (tx: {})", tx_hash),
                             tx_hash: Some(tx_hash),
                         });
-                    }
+                    },
                 }
-            }
+            },
             Err(e) => {
                 debug!("VerifyCreate2 deploy submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -89,7 +86,7 @@ impl Task<TaskContext> for VerifyCreate2Task {
                     message: format!("Failed to submit SimpleFactory deploy tx: {}", e),
                     tx_hash: None,
                 });
-            }
+            },
         };
 
         debug!("SimpleFactory deployed at: {:?}", factory_address);
@@ -119,7 +116,9 @@ impl Task<TaskContext> for VerifyCreate2Task {
                 success: true,
                 message: format!(
                     "SimpleFactory deployed at {:?}, CREATE2 deploy submitted with salt {} (tx: {:?})",
-                    factory_address, salt, pending.tx_hash()
+                    factory_address,
+                    salt,
+                    pending.tx_hash()
                 ),
                 tx_hash: Some(format!("{:?}", pending.tx_hash())),
             }),
@@ -131,7 +130,7 @@ impl Task<TaskContext> for VerifyCreate2Task {
                     message: format!("Failed to submit CREATE2 deploy tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

@@ -32,8 +32,8 @@ sol!(
 );
 
 const ISSUER_ROLE: [u8; 32] = [
-    0x2c, 0xfb, 0x1f, 0xc1, 0x0a, 0x22, 0xd0, 0x6e, 0x48, 0x5a, 0xfd, 0x48, 0xff, 0x86, 0x0e, 0x2e,
-    0xbc, 0x30, 0xa5, 0x47, 0x32, 0x71, 0x8a, 0x6e, 0x6e, 0x51, 0xb2, 0x70, 0x56, 0x6a, 0x38, 0xf6,
+    0x2c, 0xfb, 0x1f, 0xc1, 0x0a, 0x22, 0xd0, 0x6e, 0x48, 0x5a, 0xfd, 0x48, 0xff, 0x86, 0x0e, 0x2e, 0xbc, 0x30, 0xa5,
+    0x47, 0x32, 0x71, 0x8a, 0x6e, 0x6e, 0x51, 0xb2, 0x70, 0x56, 0x6a, 0x38, 0xf6,
 ]; // keccak256("ISSUER_ROLE")
 
 #[derive(Debug, Clone, Default)]
@@ -87,8 +87,7 @@ impl TempoTask for BatchMintMemeTask {
                     .input(s_call.abi_encode().into()),
             )
             .await?;
-        let symbol =
-            IMintable::symbolCall::abi_decode_returns(&s_res).unwrap_or_else(|_| "???".to_string());
+        let symbol = IMintable::symbolCall::abi_decode_returns(&s_res).unwrap_or_else(|_| "???".to_string());
 
         tracing::debug!("Batch minting meme token: {} ({:?})", symbol, token_addr);
 
@@ -205,7 +204,7 @@ impl TempoTask for BatchMintMemeTask {
             match client.provider.send_raw_transaction(&signed_buf).await {
                 Ok(pending) => {
                     break *pending.tx_hash();
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("nonce too low") && retry_count < MAX_RETRIES {
@@ -222,15 +221,11 @@ impl TempoTask for BatchMintMemeTask {
                     } else {
                         return Err(e).context("Failed to send batch mint 0x76 tx");
                     }
-                }
+                },
             }
         };
 
-        tracing::debug!(
-            "  -> Batch sent after {} attempt(s): {:?}",
-            retry_count + 1,
-            tx_hash
-        );
+        tracing::debug!("  -> Batch sent after {} attempt(s): {:?}", retry_count + 1, tx_hash);
 
         Ok(TaskResult {
             success: true,

@@ -23,23 +23,17 @@ fn token_configs() -> Vec<TokenInfo> {
     vec![
         TokenInfo {
             name: "USDC",
-            address: "0x3600000000000000000000000000000000000000"
-                .parse()
-                .unwrap(),
+            address: "0x3600000000000000000000000000000000000000".parse().unwrap(),
             decimals: 6,
         },
         TokenInfo {
             name: "EURC",
-            address: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a"
-                .parse()
-                .unwrap(),
+            address: "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a".parse().unwrap(),
             decimals: 6,
         },
         TokenInfo {
             name: "cirBTC",
-            address: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF"
-                .parse()
-                .unwrap(),
+            address: "0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF".parse().unwrap(),
             decimals: 8,
         },
     ]
@@ -104,9 +98,6 @@ impl ArcTask for ArcCheckBalanceTask {
                 .await;
         }
 
-        Ok(TaskResult {
-            success: true,
-            message,
-        })
+        Ok(TaskResult { success: true, message })
     }
 }

@@ -22,10 +22,7 @@ pub const MAGIC: u8 = 0x05;
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(compact, rlp)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
 pub struct TempoSignedAuthorization {
     /// Inner authorization (reuses alloy's Authorization)
     #[cfg_attr(feature = "serde", serde(flatten))]
@@ -85,8 +82,7 @@ impl TempoSignedAuthorization {
     /// [`RecoveredAuthorization`].
     pub fn into_recovered(self) -> RecoveredAuthorization {
         let authority_result = self.recover_authority();
-        let authority =
-            authority_result.map_or(RecoveredAuthority::Invalid, RecoveredAuthority::Valid);
+        let authority = authority_result.map_or(RecoveredAuthority::Invalid, RecoveredAuthority::Valid);
 
         RecoveredAuthorization::new_unchecked(self.inner, authority)
     }
@@ -105,10 +101,7 @@ impl TempoSignedAuthorization {
 
     /// Outputs the length of the authorization's fields, without a RLP header.
     fn fields_len(&self) -> usize {
-        self.inner.chain_id.length()
-            + self.inner.address.length()
-            + self.inner.nonce.length()
-            + self.signature.length()
+        self.inner.chain_id.length() + self.inner.address.length() + self.inner.nonce.length() + self.signature.length()
     }
 
     /// Calculates a heuristic for the in-memory size of this authorization
@@ -411,14 +404,12 @@ pub mod tests {
         assert_eq!(recovered.unwrap(), expected_address);
 
         // into_recovered() returns RecoveredAuthorization
-        let signed_for_into =
-            TempoSignedAuthorization::new_unchecked(auth.clone(), signature.clone());
+        let signed_for_into = TempoSignedAuthorization::new_unchecked(auth.clone(), signature.clone());
         let std_recovered = signed_for_into.into_recovered();
         assert_eq!(std_recovered.authority(), Some(expected_address));
 
         // RecoveredTempoAuthorization - lazy recovery
-        let signed_for_lazy =
-            TempoSignedAuthorization::new_unchecked(auth.clone(), signature.clone());
+        let signed_for_lazy = TempoSignedAuthorization::new_unchecked(auth.clone(), signature.clone());
         let lazy_recovered = RecoveredTempoAuthorization::new(signed_for_lazy);
         assert_eq!(lazy_recovered.authority(), Some(expected_address));
         assert!(matches!(
@@ -427,8 +418,7 @@ pub mod tests {
         ));
 
         // RecoveredTempoAuthorization::recover() - eager recovery
-        let signed_for_eager =
-            TempoSignedAuthorization::new_unchecked(auth.clone(), signature.clone());
+        let signed_for_eager = TempoSignedAuthorization::new_unchecked(auth.clone(), signature.clone());
         let eager_recovered = RecoveredTempoAuthorization::recover(signed_for_eager);
         assert_eq!(eager_recovered.authority(), Some(expected_address));
 

@@ -73,30 +73,27 @@ impl TelegramNotifier {
                         Ok(ip) => {
                             info!("Public IP address detected: {}", ip.trim());
                             ip.trim().to_string()
-                        }
+                        },
                         Err(e) => {
                             error!("Failed to parse IP response: {}", e);
                             "Unknown".to_string()
-                        }
+                        },
                     }
                 } else {
                     error!("IP API returned error status: {}", response.status());
                     "Unknown".to_string()
                 }
-            }
+            },
             Err(e) => {
                 error!("Failed to fetch public IP: {}", e);
                 "Unknown".to_string()
-            }
+            },
         }
     }
 
     /// Send a message to Telegram
     pub async fn send_message(&self, message: &str) -> Result<()> {
-        let url = format!(
-            "https://api.telegram.org/bot{}/sendMessage",
-            self.config.bot_token
-        );
+        let url = format!("https://api.telegram.org/bot{}/sendMessage", self.config.bot_token);
 
         let payload = serde_json::json!({
             "chat_id": self.config.chat_id,
@@ -118,10 +115,7 @@ impl TelegramNotifier {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             error!("Telegram API error: {} - {}", status, text);
-            return Err(Error::msg(format!(
-                "Telegram API error: {} - {}",
-                status, text
-            )));
+            return Err(Error::msg(format!("Telegram API error: {} - {}", status, text)));
         }
 
         info!("Telegram notification sent successfully");

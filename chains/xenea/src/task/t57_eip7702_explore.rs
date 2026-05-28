@@ -71,10 +71,7 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
 
         messages.push("=== Test 2: Simple Bootstrap Code ===".to_string());
         let simple_bootstrap = hex::decode("6000")?;
-        messages.push(format!(
-            "Bootstrap (RETURN 0,0): 0x{}",
-            hex::encode(&simple_bootstrap)
-        ));
+        messages.push(format!("Bootstrap (RETURN 0,0): 0x{}", hex::encode(&simple_bootstrap)));
 
         let tx1 = TransactionRequest::new()
             .to(deployer_address)
@@ -99,12 +96,9 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
                     } else if receipt.status == Some(U64::from(1)) {
                         messages.push("⚠️  Transaction succeeded but no code set".to_string());
                     }
-                }
+                },
                 Ok(None) => messages.push("⏳ Pending".to_string()),
-                Err(e) => messages.push(format!(
-                    "❌ {}",
-                    e.to_string().lines().next().unwrap_or("error")
-                )),
+                Err(e) => messages.push(format!("❌ {}", e.to_string().lines().next().unwrap_or("error"))),
             },
             Err(e) => messages.push(format!(
                 "❌ Send failed: {}",
@@ -114,9 +108,8 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
         messages.push("".to_string());
 
         messages.push("=== Test 3: CREATE2 Bootstrap ===".to_string());
-        let create2_bootstrap = hex::decode(
-            "60203d3d3582360380843d373d34f5806019573d813d933efd5b3d52f33d52601d6003f3",
-        )?;
+        let create2_bootstrap =
+            hex::decode("60203d3d3582360380843d373d34f5806019573d813d933efd5b3d52f33d52601d6003f3")?;
         messages.push(format!(
             "CREATE2 bootstrap: 0x{}...",
             hex::encode(&create2_bootstrap[..std::cmp::min(36, create2_bootstrap.len())])
@@ -136,20 +129,12 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
                     messages.push(format!("Tx: {:?}", receipt.transaction_hash));
                     messages.push(format!("Status: {:?}", receipt.status));
 
-                    let factory_address: Address = "0xC0DEb853af168215879d284cc8B4d0A645fA9b0E"
-                        .parse()
-                        .unwrap();
+                    let factory_address: Address = "0xC0DEb853af168215879d284cc8B4d0A645fA9b0E".parse().unwrap();
                     let factory_code = provider.get_code(factory_address, None).await?;
-                    messages.push(format!(
-                        "Factory at 0xC0DE...: {} bytes",
-                        factory_code.len()
-                    ));
-                }
+                    messages.push(format!("Factory at 0xC0DE...: {} bytes", factory_code.len()));
+                },
                 Ok(None) => messages.push("⏳ Pending".to_string()),
-                Err(e) => messages.push(format!(
-                    "❌ {}",
-                    e.to_string().lines().next().unwrap_or("error")
-                )),
+                Err(e) => messages.push(format!("❌ {}", e.to_string().lines().next().unwrap_or("error"))),
             },
             Err(e) => messages.push(format!(
                 "❌ Send failed: {}",
@@ -160,10 +145,7 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
 
         messages.push("=== Test 4: Multibyte Bootstrap ===".to_string());
         let multibyte = hex::decode("6b5afa05")?;
-        messages.push(format!(
-            "MULTIBYTE(0x5afa05): 0x{}",
-            hex::encode(&multibyte)
-        ));
+        messages.push(format!("MULTIBYTE(0x5afa05): 0x{}", hex::encode(&multibyte)));
 
         let tx3 = TransactionRequest::new()
             .to(deployer_address)
@@ -180,12 +162,9 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
                     messages.push(format!("Status: {:?}", receipt.status));
                     let code = provider.get_code(deployer_address, None).await?;
                     messages.push(format!("Code: 0x{}", hex::encode(&code)));
-                }
+                },
                 Ok(None) => messages.push("⏳ Pending".to_string()),
-                Err(e) => messages.push(format!(
-                    "❌ {}",
-                    e.to_string().lines().next().unwrap_or("error")
-                )),
+                Err(e) => messages.push(format!("❌ {}", e.to_string().lines().next().unwrap_or("error"))),
             },
             Err(e) => messages.push(format!(
                 "❌ Send failed: {}",
@@ -211,7 +190,7 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
                     messages.push(format!("Tx: {:?}", receipt.transaction_hash));
                     messages.push(format!("Status: {:?}", receipt.status));
                     messages.push("⚠️  INVALID opcode didn't revert!".to_string());
-                }
+                },
                 Ok(None) => messages.push("⏳ Pending".to_string()),
                 Err(_) => messages.push("✅ Reverted as expected".to_string()),
             },
@@ -237,12 +216,9 @@ impl Task<TaskContext> for XeneaEip7702ExploreTask {
                     messages.push(format!("Status: {:?}", receipt.status));
                     let code = provider.get_code(deployer_address, None).await?;
                     messages.push(format!("Code: 0x{}", hex::encode(&code)));
-                }
+                },
                 Ok(None) => messages.push("⏳ Pending".to_string()),
-                Err(e) => messages.push(format!(
-                    "❌ {}",
-                    e.to_string().lines().next().unwrap_or("error")
-                )),
+                Err(e) => messages.push(format!("❌ {}", e.to_string().lines().next().unwrap_or("error"))),
             },
             Err(e) => messages.push(format!(
                 "❌ Send failed: {}",

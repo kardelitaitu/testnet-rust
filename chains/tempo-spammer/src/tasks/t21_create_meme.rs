@@ -147,13 +147,10 @@ impl TempoTask for CreateMemeTask {
                 } else {
                     return Err(e).context("Failed to create token");
                 }
-            }
+            },
         };
         let tx_hash = *pending.tx_hash();
-        let receipt = pending
-            .get_receipt()
-            .await
-            .context("Failed to get receipt")?;
+        let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
         if !receipt.inner.status() {
             return Ok(TaskResult {
@@ -165,9 +162,8 @@ impl TempoTask for CreateMemeTask {
 
         // Parse token address from logs
         let mut token_address = Address::ZERO;
-        let event_sig = alloy_primitives::keccak256(
-            b"TokenCreated(address,string,string,string,address,address,bytes32)",
-        );
+        let event_sig =
+            alloy_primitives::keccak256(b"TokenCreated(address,string,string,string,address,address,bytes32)");
 
         for log in receipt.inner.logs() {
             if log.address() == factory_addr {
@@ -222,7 +218,7 @@ impl TempoTask for CreateMemeTask {
                 } else {
                     Err(e)
                 }
-            }
+            },
         };
 
         if let Ok(pending) = grant_result {
@@ -234,8 +230,7 @@ impl TempoTask for CreateMemeTask {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
         // Mint initial supply (1M-10M tokens)
-        let mint_amount =
-            U256::from(rng.gen_range(1..=10) * 1_000_000) * U256::from(10u64).pow(U256::from(6));
+        let mint_amount = U256::from(rng.gen_range(1..=10) * 1_000_000) * U256::from(10u64).pow(U256::from(6));
 
         let mint_call = ITIP20Mintable::mintCall {
             to: address,
@@ -261,7 +256,7 @@ impl TempoTask for CreateMemeTask {
                 } else {
                     Err(e)
                 }
-            }
+            },
         };
 
         if let Ok(pending) = mint_result {
@@ -269,10 +264,10 @@ impl TempoTask for CreateMemeTask {
             match mint_receipt {
                 Ok(_r) => {
                     // println!("Initial mint: {:?}", _r.transaction_hash);
-                }
+                },
                 Err(_) => {
                     // println!("Warning: Failed to confirm initial mint");
-                }
+                },
             }
         }
 

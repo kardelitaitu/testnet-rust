@@ -76,15 +76,12 @@ impl TempoTask for BatchStableTokenTask {
 
         // 2. Settings & Balance Check
         let count = 2; // Kept at 2 as requested
-        let decimals = TempoTokens::get_token_decimals(client, token_addr)
-            .await
-            .unwrap_or(18);
+        let decimals = TempoTokens::get_token_decimals(client, token_addr).await.unwrap_or(18);
         let balance = TempoTokens::get_token_balance(client, token_addr, address)
             .await
             .unwrap_or(U256::ZERO);
 
-        let amount_per_recipient =
-            U256::from(rng.gen_range(100..500)) * U256::from(10_u64.pow(decimals as u32));
+        let amount_per_recipient = U256::from(rng.gen_range(100..500)) * U256::from(10_u64.pow(decimals as u32));
         let total_needed = amount_per_recipient * U256::from(count);
 
         // 3. Prepare Pipeline
@@ -94,11 +91,7 @@ impl TempoTask for BatchStableTokenTask {
 
         // Add Mint if needed
         if balance < total_needed {
-            tracing::debug!(
-                "Wallet needs {} {}. Adding Mint to pipeline...",
-                symbol,
-                total_needed
-            );
+            tracing::debug!("Wallet needs {} {}. Adding Mint to pipeline...", symbol, total_needed);
             let mint_call = IERC20Mintable::mintCall {
                 to: address,
                 amount: total_needed * U256::from(10),
@@ -154,7 +147,7 @@ impl TempoTask for BatchStableTokenTask {
                         last_hash = pending.tx_hash().to_string();
                         last_submitted_nonce = tx_nonce;
                         break; // Success, move to next tx
-                    }
+                    },
                     Err(e) => {
                         let err_str = e.to_string().to_lowercase();
                         attempt += 1;
@@ -186,19 +179,19 @@ impl TempoTask for BatchStableTokenTask {
                                     last_hash = pending.tx_hash().to_string();
                                     last_submitted_nonce = fresh_nonce;
                                     break; // Success!
-                                }
+                                },
                                 Err(e2) => {
                                     tracing::warn!("Retry failed: {}, will try once more...", e2);
                                     // Continue to next attempt
                                     continue;
-                                }
+                                },
                             }
                         } else {
                             // Non-nonce error or max retries exceeded
                             tracing::error!("Pipelined Tx at nonce {} failure: {}", tx_nonce, e);
                             break; // Continue with partial success
                         }
-                    }
+                    },
                 }
             }
         }
@@ -215,10 +208,7 @@ impl TempoTask for BatchStableTokenTask {
 
         Ok(TaskResult {
             success: true,
-            message: format!(
-                "Pipelined {} {} transfers via Optimistic Burst.",
-                count, symbol
-            ),
+            message: format!("Pipelined {} {} transfers via Optimistic Burst.", count, symbol),
             tx_hash: Some(last_hash),
         })
     }

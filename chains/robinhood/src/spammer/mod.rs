@@ -35,10 +35,7 @@ impl EvmSpammer {
 
         let client = client_builder.build()?;
 
-        let provider = Provider::new(Http::new_with_client(
-            reqwest::Url::parse(&config.rpc_url)?,
-            client,
-        ));
+        let provider = Provider::new(Http::new_with_client(reqwest::Url::parse(&config.rpc_url)?, client));
 
         Ok(Self {
             provider,
@@ -58,10 +55,7 @@ impl Spammer for EvmSpammer {
         Err(anyhow::anyhow!("Use new_with_signer construction"))
     }
 
-    async fn start(
-        &self,
-        cancellation_token: CancellationToken,
-    ) -> Result<core_logic::traits::SpammerStats> {
+    async fn start(&self, cancellation_token: CancellationToken) -> Result<core_logic::traits::SpammerStats> {
         info!("EVM Spammer started for chain {}", self.config.chain_id);
 
         let mut stats = core_logic::traits::SpammerStats::default();
@@ -132,7 +126,7 @@ mod tests {
                     "Error should mention new_with_signer: {}",
                     msg
                 );
-            }
+            },
             _ => panic!("Expected Err"),
         }
     }

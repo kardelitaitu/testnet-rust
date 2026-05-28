@@ -68,7 +68,10 @@ impl Task<TaskContext> for BlockHashUsageTask {
             success: true,
             message: format!(
                 "Block Hash Usage: Current block: {}, Block {} hash available: {}, Random value from parent: {}",
-                current_block, target_block_num, block_hash.is_some(), random_number
+                current_block,
+                target_block_num,
+                block_hash.is_some(),
+                random_number
             ),
             tx_hash: None,
         })

@@ -15,11 +15,7 @@ struct MockSpammer {
 
 impl MockSpammer {
     fn new(stats: Arc<AtomicU64>, fail: bool, delay_ms: u64) -> Self {
-        Self {
-            stats,
-            fail,
-            delay_ms,
-        }
+        Self { stats, fail, delay_ms }
     }
 }
 
@@ -46,10 +42,7 @@ impl SpammerTrait for MockSpammer {
         if self.fail {
             Err(anyhow::anyhow!("mock failure"))
         } else {
-            Ok(SpammerStats {
-                success: 10,
-                failed: 0,
-            })
+            Ok(SpammerStats { success: 10, failed: 0 })
         }
     }
 

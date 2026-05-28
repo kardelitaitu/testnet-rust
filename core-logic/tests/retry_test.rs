@@ -1,6 +1,4 @@
-use core_logic::{
-    is_transient_error, with_retry, CircuitBreaker, CircuitBreakerConfig, RetryConfig,
-};
+use core_logic::{is_transient_error, with_retry, CircuitBreaker, CircuitBreakerConfig, RetryConfig};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -113,8 +111,7 @@ async fn test_circuit_breaker_opens_after_failures() {
     let cb = CircuitBreaker::new("test", config);
 
     for _ in 0..3 {
-        let _: Result<String, anyhow::Error> =
-            cb.execute(|| async { Err(anyhow::anyhow!("error")) }).await;
+        let _: Result<String, anyhow::Error> = cb.execute(|| async { Err(anyhow::anyhow!("error")) }).await;
     }
 
     assert_eq!(cb.state(), "OPEN");
@@ -130,8 +127,7 @@ async fn test_circuit_breaker_rejects_in_open_state() {
     let cb = CircuitBreaker::new("test", config);
 
     for _ in 0..2 {
-        let _: Result<String, anyhow::Error> =
-            cb.execute(|| async { Err(anyhow::anyhow!("error")) }).await;
+        let _: Result<String, anyhow::Error> = cb.execute(|| async { Err(anyhow::anyhow!("error")) }).await;
     }
     assert_eq!(cb.state(), "OPEN");
 
@@ -157,16 +153,14 @@ async fn test_circuit_breaker_half_open_after_timeout() {
     let cb = CircuitBreaker::new("test", config);
 
     for _ in 0..2 {
-        let _: Result<String, anyhow::Error> =
-            cb.execute(|| async { Err(anyhow::anyhow!("error")) }).await;
+        let _: Result<String, anyhow::Error> = cb.execute(|| async { Err(anyhow::anyhow!("error")) }).await;
     }
     assert_eq!(cb.state(), "OPEN");
 
     sleep(Duration::from_millis(60)).await;
 
     // After timeout, try to execute
-    let _: Result<String, anyhow::Error> =
-        cb.execute(|| async { Err(anyhow::anyhow!("error")) }).await;
+    let _: Result<String, anyhow::Error> = cb.execute(|| async { Err(anyhow::anyhow!("error")) }).await;
 
     // Should be either HALF_OPEN (if transition worked) or OPEN (if reset didn't work)
     // Either is acceptable for this test - the important thing is the breaker responds
@@ -183,15 +177,13 @@ async fn test_circuit_breaker_recovers() {
     let cb = CircuitBreaker::new("test", config);
 
     for _ in 0..2 {
-        let _: Result<String, anyhow::Error> =
-            cb.execute(|| async { Err(anyhow::anyhow!("error")) }).await;
+        let _: Result<String, anyhow::Error> = cb.execute(|| async { Err(anyhow::anyhow!("error")) }).await;
     }
     assert_eq!(cb.state(), "OPEN");
 
     sleep(Duration::from_millis(60)).await;
 
-    let result: Result<String, anyhow::Error> =
-        cb.execute(|| async { Ok("success".to_string()) }).await;
+    let result: Result<String, anyhow::Error> = cb.execute(|| async { Ok("success".to_string()) }).await;
     assert!(result.is_ok());
     assert_eq!(cb.state(), "CLOSED");
 }

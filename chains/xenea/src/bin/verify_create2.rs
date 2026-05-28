@@ -32,8 +32,7 @@ async fn main() -> Result<()> {
     // `chains/xenea/src/bin/verify_create2.rs`
 
     let wallet_path = "C:\\My Script\\testnet-framework\\wallets\\evm.json";
-    let wallet_content =
-        std::fs::read_to_string(wallet_path).context("Failed to read wallet file")?;
+    let wallet_content = std::fs::read_to_string(wallet_path).context("Failed to read wallet file")?;
     let wallets: Vec<String> = serde_json::from_str(&wallet_content)?;
 
     if wallets.is_empty() {

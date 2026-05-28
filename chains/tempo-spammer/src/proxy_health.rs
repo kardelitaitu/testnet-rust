@@ -256,11 +256,7 @@ mod banlist_tests {
         // With 0-minute ban, the ban may already be expired
         bl.cleanup_expired().await;
         let banned = bl.get_banned_indices().await;
-        assert!(
-            banned.is_empty(),
-            "0-min bans should be cleaned up: {:?}",
-            banned
-        );
+        assert!(banned.is_empty(), "0-min bans should be cleaned up: {:?}", banned);
     }
 
     #[tokio::test]
@@ -351,10 +347,7 @@ mod banlist_tests {
         }
 
         // Verify reads + writes were safe
-        assert!(
-            bl.is_banned(5).await,
-            "Index 5 should be banned after writes"
-        );
+        assert!(bl.is_banned(5).await, "Index 5 should be banned after writes");
         assert!(!bl.is_banned(50).await, "Index 50 should never be banned");
     }
 
@@ -378,11 +371,7 @@ mod banlist_tests {
 
         // After ban+unban on each, none should be banned
         for i in 0..5 {
-            assert!(
-                !bl.is_banned(i).await,
-                "Index {} should have been unbanned",
-                i
-            );
+            assert!(!bl.is_banned(i).await, "Index {} should have been unbanned", i);
         }
     }
 }
@@ -399,17 +388,13 @@ pub async fn clear_client_cache() {
 
 use std::sync::OnceLock;
 
-static CLIENT_CACHE: OnceLock<tokio::sync::RwLock<HashMap<String, reqwest::Client>>> =
-    OnceLock::new();
+static CLIENT_CACHE: OnceLock<tokio::sync::RwLock<HashMap<String, reqwest::Client>>> = OnceLock::new();
 
 /// Test if a proxy is healthy using cached clients
 async fn check_proxy_health(proxy: &ProxyConfig, rpc_url: &str) -> bool {
     let proxy_url_full = if let (Some(user), Some(pass)) = (&proxy.username, &proxy.password) {
         // Formatted for reqwest::Proxy
-        let host_port = proxy
-            .url
-            .trim_start_matches("http://")
-            .trim_start_matches("https://");
+        let host_port = proxy.url.trim_start_matches("http://").trim_start_matches("https://");
         format!("http://{}:{}@{}", user, pass, host_port)
     } else {
         proxy.url.clone()
@@ -433,7 +418,7 @@ async fn check_proxy_health(proxy: &ProxyConfig, rpc_url: &str) -> bool {
             Err(e) => {
                 tracing::warn!("Bad proxy config for {}: {}", proxy_url_full, e);
                 return false;
-            }
+            },
         };
 
         let new_client = match reqwest::Client::builder()
@@ -447,7 +432,7 @@ async fn check_proxy_health(proxy: &ProxyConfig, rpc_url: &str) -> bool {
             Err(e) => {
                 tracing::warn!("Failed to build client for {}: {}", proxy_url_full, e);
                 return false;
-            }
+            },
         };
 
         // Insert into cache
@@ -529,9 +514,8 @@ pub async fn scan_proxies_partial(
     let rpc_url_fg = rpc_url.clone();
 
     // Spawn background task to check ALL proxies
-    let background_handle = tokio::spawn(async move {
-        scan_proxies_with_progress(proxies, rpc_url, banlist, concurrent_limit).await
-    });
+    let background_handle =
+        tokio::spawn(async move { scan_proxies_with_progress(proxies, rpc_url, banlist, concurrent_limit).await });
 
     // Wait for minimum healthy proxies
     let mut healthy_count = 0;

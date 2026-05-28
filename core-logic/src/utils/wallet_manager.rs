@@ -258,14 +258,9 @@ impl WalletManager {
 
     /// Get a decrypted wallet by index for a specific chain.
     /// Targeted decryption saves RAM by only loading requested keys.
-    pub async fn get_wallet(
-        &self,
-        index: usize,
-        password: Option<&str>,
-    ) -> Result<Arc<DecryptedWallet>> {
+    pub async fn get_wallet(&self, index: usize, password: Option<&str>) -> Result<Arc<DecryptedWallet>> {
         // Default to EVM for backward compatibility
-        self.get_wallet_for_chain(index, password, ChainType::Evm)
-            .await
+        self.get_wallet_for_chain(index, password, ChainType::Evm).await
     }
 
     /// Get a decrypted wallet specifically for a targeted chain
@@ -291,9 +286,7 @@ impl WalletManager {
         ))?;
 
         let wallet = match source {
-            WalletSource::JsonFile(path) => {
-                Arc::new(Self::decrypt_json_wallet_targeted(path, password, chain)?)
-            }
+            WalletSource::JsonFile(path) => Arc::new(Self::decrypt_json_wallet_targeted(path, password, chain)?),
             WalletSource::RawKey(key) => {
                 // Raw keys are assumed to be EVM hex strings for now
                 let mut w = DecryptedWallet {
@@ -318,11 +311,11 @@ impl WalletManager {
                 match chain {
                     ChainType::Solana => w.sol_private_key = key.clone(),
                     ChainType::Sui => w.sui_private_key = key.clone(),
-                    _ => {}
+                    _ => {},
                 }
                 w.active_chain = chain;
                 Arc::new(w)
-            }
+            },
         };
 
         // Store in cache
@@ -335,11 +328,7 @@ impl WalletManager {
     }
 
     /// Internal: Targeted decryption that only extracts the requested chain keys
-    fn decrypt_json_wallet_targeted(
-        path: &Path,
-        password: Option<&str>,
-        chain: ChainType,
-    ) -> Result<DecryptedWallet> {
+    fn decrypt_json_wallet_targeted(path: &Path, password: Option<&str>, chain: ChainType) -> Result<DecryptedWallet> {
         let content = fs::read_to_string(path)?;
         let json: Value = serde_json::from_str(&content)?;
 
@@ -347,31 +336,13 @@ impl WalletManager {
             if encrypted_val.is_object() {
                 let pass = password.context("Password required for encrypted wallet")?;
 
-                let ciphertext_hex = encrypted_val
-                    .get("ciphertext")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let iv_hex = encrypted_val
-                    .get("iv")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let salt_hex = encrypted_val
-                    .get("salt")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let tag_hex = encrypted_val
-                    .get("tag")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                let ciphertext_hex = encrypted_val.get("ciphertext").and_then(|v| v.as_str()).unwrap_or("");
+                let iv_hex = encrypted_val.get("iv").and_then(|v| v.as_str()).unwrap_or("");
+                let salt_hex = encrypted_val.get("salt").and_then(|v| v.as_str()).unwrap_or("");
+                let tag_hex = encrypted_val.get("tag").and_then(|v| v.as_str()).unwrap_or("");
 
                 if !ciphertext_hex.is_empty() {
-                    let decrypted = SecurityUtils::decrypt_components(
-                        ciphertext_hex,
-                        iv_hex,
-                        salt_hex,
-                        tag_hex,
-                        pass,
-                    )?;
+                    let decrypted = SecurityUtils::decrypt_components(ciphertext_hex, iv_hex, salt_hex, tag_hex, pass)?;
 
                     // Targeted Deserialization
                     // Parse full JSON to Value first, then pick only what we need
@@ -397,7 +368,7 @@ impl WalletManager {
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
                                 .to_string();
-                        }
+                        },
                         ChainType::Solana => {
                             wallet.sol_private_key = full_data
                                 .get("sol_private_key")
@@ -409,7 +380,7 @@ impl WalletManager {
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
                                 .to_string();
-                        }
+                        },
                         ChainType::Sui => {
                             wallet.sui_private_key = full_data
                                 .get("sui_private_key")
@@ -421,7 +392,7 @@ impl WalletManager {
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
                                 .to_string();
-                        }
+                        },
                         ChainType::Aptos => {
                             wallet.aptos_private_key = full_data
                                 .get("aptos_private_key")
@@ -433,7 +404,7 @@ impl WalletManager {
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
                                 .to_string();
-                        }
+                        },
                         ChainType::Tron => {
                             wallet.tron_private_key = full_data
                                 .get("tron_private_key")
@@ -445,7 +416,7 @@ impl WalletManager {
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
                                 .to_string();
-                        }
+                        },
                         ChainType::Ton => {
                             wallet.ton_private_key = full_data
                                 .get("ton_private_key")
@@ -457,7 +428,7 @@ impl WalletManager {
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
                                 .to_string();
-                        }
+                        },
                     }
 
                     return Ok(wallet);
@@ -465,10 +436,7 @@ impl WalletManager {
             }
         }
 
-        Err(anyhow!(
-            "Invalid or unrecognized wallet format in {:?}",
-            path
-        ))
+        Err(anyhow!("Invalid or unrecognized wallet format in {:?}", path))
     }
 
     // Legacy support
@@ -573,10 +541,7 @@ mod tests {
         w.evm_address = "0xuser".into();
         w.active_chain = ChainType::Evm;
         let debug_str = format!("{:?}", w);
-        assert!(
-            debug_str.contains("***REDACTED***"),
-            "Debug should redact secrets"
-        );
+        assert!(debug_str.contains("***REDACTED***"), "Debug should redact secrets");
         assert!(
             !debug_str.contains("super_secret_key"),
             "Debug should not contain private key"
@@ -715,13 +680,17 @@ mod tests {
         let w2 = rt.block_on(mgr.get_wallet_for_chain(0, Some("pwd"), ChainType::Evm));
         // Both should return the same error type (not ok, but consistent)
         assert_eq!(
-            w1.is_ok(), w2.is_ok(),
+            w1.is_ok(),
+            w2.is_ok(),
             "Both calls should have the same outcome (cache consistency)"
         );
         // If both failed, error messages should match
         if let (Err(e1), Err(e2)) = (&w1, &w2) {
-            assert_eq!(e1.to_string(), e2.to_string(),
-                "Cache should return same error for same wallet index");
+            assert_eq!(
+                e1.to_string(),
+                e2.to_string(),
+                "Cache should return same error for same wallet index"
+            );
         }
     }
 
@@ -734,7 +703,13 @@ mod tests {
 
         // Non-EVM chains should not panic — they'll fail gracefully during decryption
         // since the wallet JSON doesn't have real keys
-        for chain in &[ChainType::Solana, ChainType::Sui, ChainType::Aptos, ChainType::Tron, ChainType::Ton] {
+        for chain in &[
+            ChainType::Solana,
+            ChainType::Sui,
+            ChainType::Aptos,
+            ChainType::Tron,
+            ChainType::Ton,
+        ] {
             let result = rt.block_on(mgr.get_wallet_for_chain(0, Some("pwd"), *chain));
             // Should either succeed (empty wallet) or fail gracefully — no panic
             let _ = result;
@@ -840,8 +815,11 @@ mod tests {
         let result = mgr.get_wallet(0, Some("pwd")).await;
         assert!(result.is_err(), "Unrecognized JSON format should fail");
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("unrecognized") || err.contains("decrypt") || err.contains("format"),
-            "Error should mention unrecognized/decrypt/format: {}", err);
+        assert!(
+            err.contains("unrecognized") || err.contains("decrypt") || err.contains("format"),
+            "Error should mention unrecognized/decrypt/format: {}",
+            err
+        );
     }
 
     #[test]
@@ -852,7 +830,7 @@ mod tests {
             std::fs::write(dir.path().join(format!("w{}.json", i)), "{\"mnemonic\":\"test\"}").unwrap();
         }
         let mgr = std::sync::Arc::new(WalletManager::with_wallet_dir(dir.path()).unwrap());
-        
+
         let mut handles = Vec::new();
         // 50 threads
         for t in 0..50 {
@@ -887,8 +865,10 @@ mod tests {
 
         let result = mgr.get_wallet(0, None).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Password required"),
-            "Should mention password required");
+        assert!(
+            result.unwrap_err().to_string().contains("Password required"),
+            "Should mention password required"
+        );
     }
 
     #[tokio::test]
@@ -906,15 +886,17 @@ mod tests {
         let mgr = WalletManager::with_wallet_dir(dir.path()).unwrap();
 
         let result = mgr.get_wallet(0, Some("any_pass")).await;
-        assert!(result.is_err(), "Empty ciphertext should fall through to unrecognized format");
+        assert!(
+            result.is_err(),
+            "Empty ciphertext should fall through to unrecognized format"
+        );
     }
 
     #[tokio::test]
     async fn test_encrypted_wallet_full_decrypt_evm() {
         let dir = tempfile::tempdir().expect("Failed to create temp dir");
         // Read the known ciphertext from the security test vector file
-        let test_content = std::fs::read_to_string("tests/security_test.rs")
-            .expect("security_test.rs should exist");
+        let test_content = std::fs::read_to_string("tests/security_test.rs").expect("security_test.rs should exist");
         // Extract CIPHERTEXT const value between quotes
         let known_ct = test_content
             .lines()

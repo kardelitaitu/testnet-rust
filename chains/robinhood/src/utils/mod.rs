@@ -22,9 +22,7 @@ pub fn load_proxies(path: &str) -> Result<Vec<ProxyConfig>> {
             if line.starts_with("http") && line.contains('@') {
                 if let Ok(u) = Url::parse(line) {
                     let host = u.host_str().unwrap_or("").to_string();
-                    let port = u
-                        .port()
-                        .unwrap_or(if u.scheme() == "https" { 443 } else { 80 });
+                    let port = u.port().unwrap_or(if u.scheme() == "https" { 443 } else { 80 });
                     let username = if !u.username().is_empty() {
                         Some(u.username().to_string())
                     } else {

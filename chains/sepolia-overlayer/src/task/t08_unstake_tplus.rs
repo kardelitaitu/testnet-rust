@@ -1,11 +1,10 @@
-use super::{SepoliaTask, TaskContext, TaskResult};
+use super::{confirm_with_retry, SepoliaTask, TaskContext, TaskResult};
 use crate::utils::calc::calc_pct_rounded;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use ethers::middleware::SignerMiddleware;
 use ethers::prelude::*;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Staking contract on Sepolia — also acts as the sOverl... token (ERC-4626 vault)
 const STAKING_CONTRACT: &str = "0x079a4Bf1Cbd0E4ce15391340cB46efA6396aBc82";
@@ -23,10 +22,7 @@ async fn get_sovl_balance(provider: &Provider<Http>, wallet: Address) -> Result<
         serde_json::from_str::<ethers::abi::Abi>(REDEEM_ABI)?,
         Arc::new(provider.clone()),
     );
-    Ok(contract
-        .method::<_, U256>("balanceOf", wallet)?
-        .call()
-        .await?)
+    Ok(contract.method::<_, U256>("balanceOf", wallet)?.call().await?)
 }
 
 pub struct UnstakeTplusTask;
@@ -73,31 +69,23 @@ impl SepoliaTask for UnstakeTplusTask {
 
         // redeem(uint256 shares_, address receiver_, address owner_)
         let redeem_call = staking_contract
-            .method::<(U256, Address, Address), H256>(
-                "redeem",
-                (U256::from(shares_amount), address, address),
-            )?
+            .method::<(U256, Address, Address), H256>("redeem", (U256::from(shares_amount), address, address))?
             .gas(120_000)
             .gas_price(max_fee);
-        let redeem_tx = redeem_call
-            .send()
-            .await
-            .context("Failed to send redeem tx")?;
+        let redeem_tx = redeem_call.send().await.context("Failed to send redeem tx")?;
 
         let tx_hash = redeem_tx.tx_hash();
 
-        let receipt = redeem_tx
-            .confirmations(1)
-            .interval(Duration::from_millis(500))
-            .await?;
+        let receipt = confirm_with_retry(tx_hash, provider).await?;
 
         let success = receipt.is_some_and(|r| r.status == Some(1.into()));
         Ok(TaskResult {
             success,
-            message: format!(
-                "Redeemed {:.2} sOverl... for T+ (tx: {:?})",
-                shares_display, tx_hash
-            ),
+            message: if success {
+                format!("Redeemed {:.2} sOverl... for T+ (tx: {:?})", shares_display, tx_hash)
+            } else {
+                format!("Failed to unstake T+ - receipt not confirmed (tx: {:?})", tx_hash)
+            },
         })
     }
 }

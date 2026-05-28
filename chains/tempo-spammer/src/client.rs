@@ -132,38 +132,23 @@ impl TempoClient {
         use_pending_count: bool,
         shared_rpc_client: Option<SharedRpcClient>,
     ) -> Result<Self> {
-        let signer: PrivateKeySigner =
-            private_key.parse().context("Failed to parse private key")?;
+        let signer: PrivateKeySigner = private_key.parse().context("Failed to parse private key")?;
 
         let chain_id = signer.chain_id().unwrap_or(42431);
 
         // Create a provider specifically for THIS wallet but using SHARED transport if available
-        let provider: Arc<dyn Provider + Send + Sync> = if let Some(rpc_client) = shared_rpc_client
-        {
+        let provider: Arc<dyn Provider + Send + Sync> = if let Some(rpc_client) = shared_rpc_client {
             // Memory Efficient Path: Use shared RpcClient but unique Wallet layer
-            Arc::new(
-                ProviderBuilder::new()
-                    .wallet(signer.clone())
-                    .connect_client(rpc_client),
-            )
+            Arc::new(ProviderBuilder::new().wallet(signer.clone()).connect_client(rpc_client))
         } else {
             // Standard Path: Create everything fresh
-            let http_transport = Http::with_client(
-                reqwest_client,
-                rpc_url.parse::<Url>().context("Invalid RPC URL")?,
-            );
+            let http_transport = Http::with_client(reqwest_client, rpc_url.parse::<Url>().context("Invalid RPC URL")?);
 
             let rpc_client = ClientBuilder::default()
-                .layer(alloy::transports::layers::RetryBackoffLayer::new(
-                    5, 100, 2000,
-                ))
+                .layer(alloy::transports::layers::RetryBackoffLayer::new(5, 100, 2000))
                 .transport(http_transport, true);
 
-            Arc::new(
-                ProviderBuilder::new()
-                    .wallet(signer.clone())
-                    .connect_client(rpc_client),
-            )
+            Arc::new(ProviderBuilder::new().wallet(signer.clone()).connect_client(rpc_client))
         };
 
         let client = Self {
@@ -189,18 +174,12 @@ impl TempoClient {
         shared_rpc_client: Option<SharedRpcClient>,
         use_pending_count: bool,
     ) -> Result<Self> {
-        let signer: PrivateKeySigner =
-            private_key.parse().context("Failed to parse private key")?;
+        let signer: PrivateKeySigner = private_key.parse().context("Failed to parse private key")?;
 
         let chain_id = signer.chain_id().unwrap_or(42431);
 
-        let provider: Arc<dyn Provider + Send + Sync> = if let Some(rpc_client) = shared_rpc_client
-        {
-            Arc::new(
-                ProviderBuilder::new()
-                    .wallet(signer.clone())
-                    .connect_client(rpc_client),
-            )
+        let provider: Arc<dyn Provider + Send + Sync> = if let Some(rpc_client) = shared_rpc_client {
+            Arc::new(ProviderBuilder::new().wallet(signer.clone()).connect_client(rpc_client))
         } else {
             // Build reqwest client with proxy
             let mut client_builder = Client::builder();
@@ -209,9 +188,7 @@ impl TempoClient {
                 let proxy_url = &proxy_config.url;
                 let proxy = Proxy::all(proxy_url).context("Failed to create proxy")?;
 
-                if let (Some(username), Some(password)) =
-                    (&proxy_config.username, &proxy_config.password)
-                {
+                if let (Some(username), Some(password)) = (&proxy_config.username, &proxy_config.password) {
                     let proxy = proxy.basic_auth(username, password);
                     client_builder = client_builder.proxy(proxy);
                 } else {
@@ -227,22 +204,13 @@ impl TempoClient {
                 .build()
                 .context("Failed to build reqwest client")?;
 
-            let http_transport = Http::with_client(
-                reqwest_client,
-                rpc_url.parse::<Url>().context("Invalid RPC URL")?,
-            );
+            let http_transport = Http::with_client(reqwest_client, rpc_url.parse::<Url>().context("Invalid RPC URL")?);
 
             let rpc_client = ClientBuilder::default()
-                .layer(alloy::transports::layers::RetryBackoffLayer::new(
-                    3, 50, 500,
-                ))
+                .layer(alloy::transports::layers::RetryBackoffLayer::new(3, 50, 500))
                 .transport(http_transport, true);
 
-            Arc::new(
-                ProviderBuilder::new()
-                    .wallet(signer.clone())
-                    .connect_client(rpc_client),
-            )
+            Arc::new(ProviderBuilder::new().wallet(signer.clone()).connect_client(rpc_client))
         };
 
         let client = Self {
@@ -333,11 +301,11 @@ impl TempoClient {
             Ok(chain_id) => {
                 tracing::debug!("Provider ready - chain ID verified: {}", chain_id);
                 Ok(())
-            }
+            },
             Err(e) => {
                 tracing::warn!("Provider not ready: {}", e);
                 Err(anyhow::anyhow!("Provider connection failed: {}", e))
-            }
+            },
         }
     }
 }
@@ -473,10 +441,7 @@ impl TempoClient {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn get_robust_nonce(
-        &self,
-        rpc_url: &str,
-    ) -> Result<crate::robust_nonce_manager::NonceReservation> {
+    pub async fn get_robust_nonce(&self, rpc_url: &str) -> Result<crate::robust_nonce_manager::NonceReservation> {
         let address = self.signer.address();
 
         if let Some(manager) = &self.robust_nonce_manager {

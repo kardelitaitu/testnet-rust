@@ -31,8 +31,7 @@ impl Task<TaskContext> for ContractCallRawTask {
         let recipient = AddressCache::get_random().context("Failed to get random address")?;
 
         let balance = provider.get_balance(address, None).await?;
-        let balance_eth =
-            ethers::utils::format_units(balance, "ether").unwrap_or_else(|_| balance.to_string());
+        let balance_eth = ethers::utils::format_units(balance, "ether").unwrap_or_else(|_| balance.to_string());
         tracing::debug!(target: "smart_main", "Wallet balance: {} ETH", balance_eth);
 
         let mut rng = OsRng;
@@ -72,19 +71,13 @@ impl Task<TaskContext> for ContractCallRawTask {
         use ethers::middleware::SignerMiddleware;
         let client = Arc::new(SignerMiddleware::new(provider.clone(), wallet.clone()));
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
-        let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-            .unwrap_or_else(|_| amount_wei.to_string());
+        let amount_eth = ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
 
         Ok(TaskResult {
             success: receipt.status == Some(U64::from(1)),
-            message: format!(
-                "Raw call: sent {} ETH to {:?} with calldata",
-                amount_eth, recipient
-            ),
+            message: format!("Raw call: sent {} ETH to {:?} with calldata", amount_eth, recipient),
             tx_hash: Some(format!("{:?}", receipt.transaction_hash)),
         })
     }

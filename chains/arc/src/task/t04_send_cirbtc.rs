@@ -91,8 +91,7 @@ impl ArcTask for SendCirbtcTask {
 
         let tx_hash = receipt.transaction_hash;
 
-        let send_formatted =
-            ethers::utils::format_units(send_amount, CIRBTC_DECIMALS).unwrap_or_default();
+        let send_formatted = ethers::utils::format_units(send_amount, CIRBTC_DECIMALS).unwrap_or_default();
 
         let message = format!(
             "Sent {} cirBTC to {:?} (tx: {:?}, block: {})",
@@ -110,20 +109,13 @@ impl ArcTask for SendCirbtcTask {
                     &addr_hex,
                     self.name(),
                     true,
-                    &format!(
-                        "{} (B: {})",
-                        message,
-                        receipt.block_number.unwrap_or_default()
-                    ),
+                    &format!("{} (B: {})", message, receipt.block_number.unwrap_or_default()),
                     0,
                 )
                 .await;
         }
 
-        Ok(TaskResult {
-            success: true,
-            message,
-        })
+        Ok(TaskResult { success: true, message })
     }
 }
 

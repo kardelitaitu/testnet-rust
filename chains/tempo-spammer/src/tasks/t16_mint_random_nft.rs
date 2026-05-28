@@ -66,9 +66,7 @@ impl TempoTask for MintRandomNftTask {
 
         // Step 1: Query database for NFT collections
         let available_collections: Vec<String> = if let Some(db) = &ctx.db {
-            db.get_assets_by_type(&wallet_address, "nft")
-                .await
-                .unwrap_or_default()
+            db.get_assets_by_type(&wallet_address, "nft").await.unwrap_or_default()
         } else {
             return Ok(TaskResult {
                 success: false,
@@ -87,22 +85,16 @@ impl TempoTask for MintRandomNftTask {
             // Deploy new NFT collection
             match deploy_nft_collection(client, address, ctx).await {
                 Ok(contract_address) => {
-                    tracing::info!(
-                        "Successfully deployed NFT collection at {}",
-                        contract_address
-                    );
+                    tracing::info!("Successfully deployed NFT collection at {}", contract_address);
                     contract_address
-                }
+                },
                 Err(e) => {
                     return Ok(TaskResult {
                         success: false,
-                        message: format!(
-                            "No NFT collections found and failed to deploy new one: {}",
-                            e
-                        ),
+                        message: format!("No NFT collections found and failed to deploy new one: {}", e),
                         tx_hash: None,
                     });
-                }
+                },
             }
         } else {
             // Randomly select one NFT collection
@@ -110,14 +102,14 @@ impl TempoTask for MintRandomNftTask {
                 Some(collection) => {
                     tracing::debug!("Selected NFT collection: {}", collection);
                     collection.to_string()
-                }
+                },
                 None => {
                     return Ok(TaskResult {
                         success: false,
                         message: "Failed to select random NFT collection.".to_string(),
                         tx_hash: None,
                     });
-                }
+                },
             }
         };
 
@@ -127,13 +119,10 @@ impl TempoTask for MintRandomNftTask {
             Err(e) => {
                 return Ok(TaskResult {
                     success: false,
-                    message: format!(
-                        "Invalid collection address {}: {:?}",
-                        selected_collection, e
-                    ),
+                    message: format!("Invalid collection address {}: {:?}", selected_collection, e),
                     tx_hash: None,
                 });
-            }
+            },
         };
 
         // Step 4: Generate random number of NFTs to mint (1-5)
@@ -160,11 +149,10 @@ impl TempoTask for MintRandomNftTask {
                     let mint_hash = *mint_pending.tx_hash();
                     successful_mints += 1;
                     minted_token_ids.push(format!("{:?}", mint_hash));
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
-                    let nonce_error =
-                        err_str.contains(ERR_NONCE_TOO_LOW) || err_str.contains(ERR_ALREADY_KNOWN);
+                    let nonce_error = err_str.contains(ERR_NONCE_TOO_LOW) || err_str.contains(ERR_ALREADY_KNOWN);
                     if nonce_error {
                         tracing::warn!("Nonce error on NFT mint, resetting cache and retrying...");
                         client.reset_nonce_cache().await;
@@ -175,7 +163,7 @@ impl TempoTask for MintRandomNftTask {
                             minted_token_ids.push(format!("{:?}", mint_hash));
                         }
                     }
-                }
+                },
             }
 
             // Minimal delay just to not flood too hard if many items
@@ -205,11 +193,7 @@ impl TempoTask for MintRandomNftTask {
 }
 
 /// Deploy a new NFT collection for the wallet
-async fn deploy_nft_collection(
-    client: &TempoClient,
-    address: Address,
-    ctx: &TaskContext,
-) -> Result<String> {
+async fn deploy_nft_collection(client: &TempoClient, address: Address, ctx: &TaskContext) -> Result<String> {
     let bytecode = load_nft_bytecode()?;
 
     let mut deploy_tx = TransactionRequest::default()
@@ -225,8 +209,7 @@ async fn deploy_nft_collection(
         Ok(p) => p,
         Err(e) => {
             let err_str = e.to_string().to_lowercase();
-            let nonce_error =
-                err_str.contains(ERR_NONCE_TOO_LOW) || err_str.contains(ERR_ALREADY_KNOWN);
+            let nonce_error = err_str.contains(ERR_NONCE_TOO_LOW) || err_str.contains(ERR_ALREADY_KNOWN);
             if nonce_error {
                 tracing::warn!("Nonce error on NFT deploy, resetting cache and retrying...");
                 client.reset_nonce_cache().await;
@@ -239,7 +222,7 @@ async fn deploy_nft_collection(
             } else {
                 return Err(e).context("Creating NFT contract");
             }
-        }
+        },
     };
 
     let tx_hash = *pending.tx_hash();
@@ -272,14 +255,11 @@ async fn deploy_nft_collection(
     match client.provider.send_transaction(grant_tx).await {
         Ok(grant_pending) => {
             let _ = grant_pending.get_receipt().await;
-            tracing::debug!(
-                "Granted minter role for NFT collection {}",
-                contract_address_str
-            );
-        }
+            tracing::debug!("Granted minter role for NFT collection {}", contract_address_str);
+        },
         Err(e) => {
             tracing::warn!("Failed to grant minter role (continuing anyway): {}", e);
-        }
+        },
     }
 
     // Log to database if available

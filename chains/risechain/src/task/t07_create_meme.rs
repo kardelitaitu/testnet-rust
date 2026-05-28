@@ -28,9 +28,7 @@ impl Task<TaskContext> for CreateMemeTask {
             let prefixes = [
                 "Dog", "Cat", "Pepe", "Elon", "Moon", "Safe", "Rich", "Shiba", "Giga", "Turbo",
             ];
-            let suffixes = [
-                "Inu", "Coin", "Token", "Moon", "Rocket", "Mars", "Alpha", "Chad", "Wif",
-            ];
+            let suffixes = ["Inu", "Coin", "Token", "Moon", "Rocket", "Mars", "Alpha", "Chad", "Wif"];
 
             let prefix = prefixes.choose(&mut rng).unwrap_or(&"Pepe");
             let suffix = suffixes.choose(&mut rng).unwrap_or(&"Coin");
@@ -60,25 +58,16 @@ impl Task<TaskContext> for CreateMemeTask {
         if balance < required {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Insufficient funds: need {} Wei, have {} Wei",
-                    required, balance
-                ),
+                message: format!("Insufficient funds: need {} Wei, have {} Wei", required, balance),
                 tx_hash: None,
             });
         }
 
         // Encode constructor arguments
-        let input = abi
-            .constructor()
-            .context("No constructor found")?
-            .encode_input(
-                bytecode.to_vec(),
-                &[
-                    abi::Token::String(name.clone()),
-                    abi::Token::String(symbol.clone()),
-                ],
-            )?;
+        let input = abi.constructor().context("No constructor found")?.encode_input(
+            bytecode.to_vec(),
+            &[abi::Token::String(name.clone()), abi::Token::String(symbol.clone())],
+        )?;
 
         let tx = Eip1559TransactionRequest::new()
             .from(address)
@@ -93,9 +82,7 @@ impl Task<TaskContext> for CreateMemeTask {
             wallet.clone(),
         ));
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         if receipt.status != Some(1.into()) {
             return Ok(TaskResult {
@@ -105,9 +92,7 @@ impl Task<TaskContext> for CreateMemeTask {
             });
         }
 
-        let token_address = receipt
-            .contract_address
-            .context("No contract address in receipt")?;
+        let token_address = receipt.contract_address.context("No contract address in receipt")?;
 
         // 4. Log to Database
         if let Some(db) = &ctx.db {
@@ -122,10 +107,7 @@ impl Task<TaskContext> for CreateMemeTask {
                 .await;
         }
 
-        info!(
-            "Created Meme Token: {} ({}) at {:?}",
-            name, symbol, token_address
-        );
+        info!("Created Meme Token: {} ({}) at {:?}", name, symbol, token_address);
 
         Ok(TaskResult {
             success: true,

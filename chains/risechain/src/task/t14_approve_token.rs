@@ -30,8 +30,7 @@ impl Task<TaskContext> for ApproveTokenTask {
         let spender = AddressCache::get_random().context("Failed to get random address")?;
 
         let amount = 1_000_000_000_000_000_000_000_000_000_000u128;
-        let amount_formatted =
-            ethers::utils::format_units(amount, 18u32).unwrap_or_else(|_| amount.to_string());
+        let amount_formatted = ethers::utils::format_units(amount, 18u32).unwrap_or_else(|_| amount.to_string());
 
         let (max_fee, priority_fee) = ctx.gas_manager.get_fees().await?;
         let gas_limit = crate::utils::gas::GasManager::LIMIT_SEND_MEME;
@@ -76,9 +75,7 @@ impl Task<TaskContext> for ApproveTokenTask {
         use ethers::middleware::SignerMiddleware;
         let client = Arc::new(SignerMiddleware::new(provider.clone(), wallet.clone()));
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         let success = receipt.status == Some(U64::from(1));
 
@@ -91,14 +88,8 @@ impl Task<TaskContext> for ApproveTokenTask {
                 .await
                 .unwrap_or(U256::zero());
 
-            debug!(
-                "🔍 Verified on-chain: Allowance for {:?} is now {}",
-                spender, allowance
-            );
-            final_message = format!(
-                "Approve Success: Allowance for {:?} is now {}",
-                spender, allowance
-            );
+            debug!("🔍 Verified on-chain: Allowance for {:?} is now {}", spender, allowance);
+            final_message = format!("Approve Success: Allowance for {:?} is now {}", spender, allowance);
         }
 
         Ok(TaskResult {

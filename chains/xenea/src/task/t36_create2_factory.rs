@@ -29,8 +29,7 @@ impl Task<TaskContext> for Create2FactoryTask {
 
         // Load factory from config or use fallback
         let factory_address: Address = if let Some(addr) = &ctx.config.create2_factory {
-            addr.parse()
-                .context("Invalid create2_factory address in config")?
+            addr.parse().context("Invalid create2_factory address in config")?
         } else {
             "0x8628208543e2b16be283e30abec6fec7b91e5721".parse()?
         };
@@ -53,10 +52,7 @@ impl Task<TaskContext> for Create2FactoryTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         let mut rng = OsRng;
@@ -64,7 +60,8 @@ impl Task<TaskContext> for Create2FactoryTask {
         let salt_hex = format!("0x{:x}", salt);
 
         // Runtime code (Minimal Proxy logic)
-        let runtime_code_hex = "363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf3";
+        let runtime_code_hex =
+            "363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf3";
         let runtime_code = hex::decode(runtime_code_hex)?;
 
         // Wrap in init code loader: 3d60<len>80600a3d3981f3
@@ -117,7 +114,7 @@ impl Task<TaskContext> for Create2FactoryTask {
                             ),
                             tx_hash: Some(tx_hash),
                         })
-                    }
+                    },
                     Ok(Some(_)) => {
                         let _ = nonce_manager.resync().await;
                         Ok(TaskResult {
@@ -125,18 +122,15 @@ impl Task<TaskContext> for Create2FactoryTask {
                             message: format!("CREATE2 factory deploy reverted (tx: {})", tx_hash),
                             tx_hash: Some(tx_hash),
                         })
-                    }
+                    },
                     Ok(None) => {
                         let _ = nonce_manager.resync().await;
                         Ok(TaskResult {
                             success: false,
-                            message: format!(
-                                "CREATE2 factory deploy receipt unavailable (tx: {})",
-                                tx_hash
-                            ),
+                            message: format!("CREATE2 factory deploy receipt unavailable (tx: {})", tx_hash),
                             tx_hash: Some(tx_hash),
                         })
-                    }
+                    },
                     Err(e) => {
                         debug!("CREATE2 factory deploy receipt failed: {}", e);
                         let _ = nonce_manager.resync().await;
@@ -145,9 +139,9 @@ impl Task<TaskContext> for Create2FactoryTask {
                             message: format!("CREATE2 factory deploy receipt error: {}", e),
                             tx_hash: Some(tx_hash),
                         })
-                    }
+                    },
                 }
-            }
+            },
             Err(e) => {
                 debug!("Create2Factory tx submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -156,7 +150,7 @@ impl Task<TaskContext> for Create2FactoryTask {
                     message: format!("Failed to submit CREATE2 factory deploy tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

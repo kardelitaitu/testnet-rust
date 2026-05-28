@@ -1,4 +1,4 @@
-use super::{SepoliaTask, TaskContext, TaskResult};
+use super::{confirm_with_retry, SepoliaTask, TaskContext, TaskResult};
 use crate::utils::calc::calc_pct_rounded;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -7,7 +7,6 @@ use ethers::middleware::SignerMiddleware;
 use ethers::prelude::*;
 use ethers::types::Bytes;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// USDC+ (C+) on Base Sepolia — the OFT token we bridge back
 const USDC_PLUS_BASE: &str = "0x92f36e427a9579fe1356f19c74eb5d64beae8930";
@@ -55,11 +54,7 @@ fn build_fee(native: U256, lz: U256) -> Token {
 /// Encode calldata for send(sendParam, fee, refundAddress)
 fn encode_send(send_param: &Token, fee: &Token, refund: Address) -> Bytes {
     let mut data = SEND_SELECTOR.to_vec();
-    data.extend(encode(&[
-        send_param.clone(),
-        fee.clone(),
-        Token::Address(refund),
-    ]));
+    data.extend(encode(&[send_param.clone(), fee.clone(), Token::Address(refund)]));
     Bytes::from(data)
 }
 
@@ -70,10 +65,7 @@ async fn get_cplus_balance(provider: &Provider<Http>, wallet: Address) -> Result
         serde_json::from_str::<ethers::abi::Abi>(BRIDGE_ABI)?,
         Arc::new(provider.clone()),
     );
-    Ok(contract
-        .method::<_, U256>("balanceOf", wallet)?
-        .call()
-        .await?)
+    Ok(contract.method::<_, U256>("balanceOf", wallet)?.call().await?)
 }
 
 pub struct BridgeBackCplusTask;
@@ -103,8 +95,7 @@ impl SepoliaTask for BridgeBackCplusTask {
         if whole_cplus == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "20% of C+ balance on Base Sepolia rounds to 0, nothing to bridge"
-                    .to_string(),
+                message: "20% of C+ balance on Base Sepolia rounds to 0, nothing to bridge".to_string(),
             });
         }
 
@@ -135,20 +126,21 @@ impl SepoliaTask for BridgeBackCplusTask {
             .context("Failed to send bridge-back tx")?;
         let tx_hash = pending_tx.tx_hash();
 
-        let receipt = pending_tx
-            .confirmations(1)
-            .interval(Duration::from_millis(500))
-            .await?;
+        let receipt = confirm_with_retry(tx_hash, provider).await?;
 
         let success = receipt.is_some_and(|r| r.status == Some(1.into()));
         Ok(TaskResult {
             success,
-            message: format!(
-                "Bridged {} C+ from Base Sepolia → Eth Sepolia (tx: {:?}) | fee: {:.6} ETH",
-                whole_cplus,
-                tx_hash,
-                NATIVE_FEE as f64 / 1e18
-            ),
+            message: if success {
+                format!(
+                    "Bridged {} C+ from Base Sepolia → Eth Sepolia (tx: {:?}) | fee: {:.6} ETH",
+                    whole_cplus,
+                    tx_hash,
+                    NATIVE_FEE as f64 / 1e18
+                )
+            } else {
+                format!("Failed to bridge back C+ - receipt not confirmed (tx: {:?})", tx_hash)
+            },
         })
     }
 }
@@ -159,9 +151,7 @@ mod tests {
 
     #[test]
     fn test_build_send_param_back_cplus() {
-        let addr: Address = "0x11731e95c1423cd570194f07eeef606bf2d4c0ba"
-            .parse()
-            .unwrap();
+        let addr: Address = "0x11731e95c1423cd570194f07eeef606bf2d4c0ba".parse().unwrap();
         let param = build_send_param(40161, addr, U256::from(1000), vec![0x00, 0x03]);
         match param {
             Token::Tuple(items) => {
@@ -173,7 +163,7 @@ mod tests {
                 assert_eq!(items[4], Token::Bytes(vec![0x00, 0x03]));
                 assert_eq!(items[5], Token::Bytes(vec![]));
                 assert_eq!(items[6], Token::Bytes(vec![]));
-            }
+            },
             _ => panic!("Expected Tuple"),
         }
     }

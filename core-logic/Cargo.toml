@@ -41,3 +41,8 @@ ethers = { version = "2.0", features = ["rustls", "ws"] }
 tempfile = "3.8"
 proptest = "1.4"
 toml = "0.8"
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name = "framework_bench"
+harness = false

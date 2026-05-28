@@ -46,10 +46,7 @@ impl Task<TaskContext> for StoragePatternTask {
         let deploy_data = hex::decode(storage_bytecode.trim_start_matches("0x")).unwrap();
         let deploy_data_bytes = Bytes::from(deploy_data);
 
-        debug!(
-            "Deploying StoragePattern with {} bytes...",
-            deploy_data_bytes.len()
-        );
+        debug!("Deploying StoragePattern with {} bytes...", deploy_data_bytes.len());
 
         let client = std::sync::Arc::new(SignerMiddleware::new(
             std::sync::Arc::new(provider.clone()),
@@ -63,18 +60,11 @@ impl Task<TaskContext> for StoragePatternTask {
             .max_priority_fee_per_gas(priority_fee)
             .from(address);
 
-        debug!(
-            "Deploying StoragePattern with {} bytes...",
-            deploy_data_bytes.len()
-        );
+        debug!("Deploying StoragePattern with {} bytes...", deploy_data_bytes.len());
         let deploy_pending = client.send_transaction(deploy_tx, None).await?;
-        let deploy_receipt = deploy_pending
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = deploy_pending.await?.context("Failed to get deploy receipt")?;
 
-        let contract_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let contract_address = deploy_receipt.contract_address.context("No contract address")?;
 
         debug!("Deployed at: {:?}", contract_address);
 

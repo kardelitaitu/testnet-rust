@@ -91,7 +91,7 @@ mod tests {
         use std::sync::atomic::{AtomicUsize, Ordering};
         let counter = Arc::new(AtomicUsize::new(0));
         let counter_clone = counter.clone();
-        
+
         let mut optimizer = MemoryOptimizer::new(MemoryOptimizerConfig::default());
         optimizer.register_hook(move |emergency| {
             let c = counter_clone.clone();
@@ -103,12 +103,12 @@ mod tests {
                 }
             }
         });
-        
+
         // Normal cleanup
         optimizer.perform_cleanup_forced().await.unwrap();
         assert_eq!(counter.load(Ordering::SeqCst), 1);
         assert_eq!(optimizer.cleanup_count, 1);
-        
+
         // Emergency cleanup
         optimizer.is_emergency_cleaning = true;
         optimizer.perform_cleanup_forced().await.unwrap();
@@ -117,8 +117,7 @@ mod tests {
     }
 }
 
-pub type AsyncCleanupHook =
-    Box<dyn Fn(bool) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
+pub type AsyncCleanupHook = Box<dyn Fn(bool) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 
 /// Memory optimizer that manages various optimization strategies
 pub struct MemoryOptimizer {
@@ -220,10 +219,7 @@ impl MemoryOptimizer {
 
                     // Log detailed memory info periodically
                     if stats.timestamp.elapsed().as_secs() % 60 == 0 {
-                        debug!(
-                            "Memory usage: {:.1}MB, CPU: {:.1}%",
-                            memory_mb, stats.cpu_usage
-                        );
+                        debug!("Memory usage: {:.1}MB, CPU: {:.1}%", memory_mb, stats.cpu_usage);
                     }
                 }
             }
@@ -249,9 +245,7 @@ impl MemoryOptimizer {
 
     /// Perform periodic memory cleanup
     pub async fn perform_cleanup(&mut self) -> Result<()> {
-        if self.last_cleanup.elapsed()
-            < Duration::from_millis(self.config.memory_cleanup_interval_ms)
-        {
+        if self.last_cleanup.elapsed() < Duration::from_millis(self.config.memory_cleanup_interval_ms) {
             return Ok(());
         }
         self.perform_cleanup_forced().await
@@ -316,9 +310,7 @@ impl MemoryOptimizer {
                     if path.is_file() {
                         if let Ok(metadata) = entry.metadata() {
                             if let Ok(modified) = metadata.modified() {
-                                if modified.elapsed().unwrap_or_default()
-                                    > Duration::from_secs(3600)
-                                {
+                                if modified.elapsed().unwrap_or_default() > Duration::from_secs(3600) {
                                     let _ = std::fs::remove_file(&path);
                                 }
                             }

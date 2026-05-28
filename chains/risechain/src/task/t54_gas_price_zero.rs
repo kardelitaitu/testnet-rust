@@ -40,8 +40,7 @@ impl Task<TaskContext> for GasPriceZeroTask {
             wallet.clone(),
         ));
 
-        let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-            .unwrap_or_else(|_| amount_wei.to_string());
+        let amount_eth = ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
 
         let tx = Eip1559TransactionRequest::new()
             .to(*recipient)
@@ -52,9 +51,7 @@ impl Task<TaskContext> for GasPriceZeroTask {
             .from(address);
 
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         let priority_fee_display = if priority_fee == U256::from(0) {
             "0 (zero)"

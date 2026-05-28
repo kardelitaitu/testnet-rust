@@ -69,9 +69,7 @@ impl EvmSpammer {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            ),
+            reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
         );
 
         let client_builder = Client::builder()
@@ -116,7 +114,7 @@ impl EvmSpammer {
                     tracing::error!("Critical error creating distribution: {}", e);
                     WeightedIndex::new(vec![1]).expect("Failed to create fallback distribution")
                 })
-            }
+            },
         };
 
         Ok(Self {
@@ -145,9 +143,7 @@ impl EvmSpammer {
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(
             reqwest::header::USER_AGENT,
-            reqwest::header::HeaderValue::from_static(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            ),
+            reqwest::header::HeaderValue::from_static("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
         );
 
         let mut client_builder = Client::builder()
@@ -156,21 +152,17 @@ impl EvmSpammer {
             .tcp_keepalive(std::time::Duration::from_secs(30));
 
         if let Some(proxy_conf) = proxy_config {
-            let mut proxy = reqwest::Proxy::all(&proxy_conf.url)
-                .context("Invalid proxy URL")?;
+            let mut proxy = reqwest::Proxy::all(&proxy_conf.url).context("Invalid proxy URL")?;
             if let (Some(u), Some(p)) = (&proxy_conf.username, &proxy_conf.password) {
                 proxy = proxy.basic_auth(u, p);
             }
             client_builder = client_builder.proxy(proxy);
         }
 
-        let client = client_builder
-            .build()
-            .context("Failed to build HTTP client")?;
+        let client = client_builder.build().context("Failed to build HTTP client")?;
 
         Ok(Provider::new(Http::new_with_client(
-            reqwest::Url::parse(&self.config.rpc_url)
-                .context("Invalid RPC URL")?,
+            reqwest::Url::parse(&self.config.rpc_url).context("Invalid RPC URL")?,
             client,
         )))
     }
@@ -182,10 +174,7 @@ impl Spammer for EvmSpammer {
         Err(anyhow::anyhow!("Use new_with_signer construction"))
     }
 
-    async fn start(
-        &self,
-        cancellation_token: CancellationToken,
-    ) -> Result<core_logic::traits::SpammerStats> {
+    async fn start(&self, cancellation_token: CancellationToken) -> Result<core_logic::traits::SpammerStats> {
         let span = tracing::info_span!("spammer_context", wallet_id = self.wallet_id.as_str());
 
         async move {
@@ -230,9 +219,7 @@ impl Spammer for EvmSpammer {
                     };
 
                     if let Some(ref proxy) = proxy_config {
-                        self.proxy_rate_limiter
-                            .wait_until_available(&proxy.url)
-                            .await;
+                        self.proxy_rate_limiter.wait_until_available(&proxy.url).await;
                     }
 
                     let provider = self.create_provider_with_proxy(&proxy_config).await?;
@@ -261,14 +248,14 @@ impl Spammer for EvmSpammer {
                                     self.busy_wallets.lock().await.remove(&wallet_idx);
                                     warn!("Failed to parse wallet {}: {}", wallet_idx, e);
                                     continue;
-                                }
+                                },
                             }
-                        }
+                        },
                         Err(e) => {
                             self.busy_wallets.lock().await.remove(&wallet_idx);
                             warn!("Failed to decrypt wallet {}: {}", wallet_idx, e);
                             continue;
-                        }
+                        },
                     };
 
                     let wallet_address = wallet.address();
@@ -344,7 +331,7 @@ impl Spammer for EvmSpammer {
                                     )
                                     .await;
                             }
-                        }
+                        },
                         Err(e) => {
                             if let Some(ref proxy) = proxy_config {
                                 self.proxy_health.record_failure(&proxy.url).await;
@@ -377,19 +364,18 @@ impl Spammer for EvmSpammer {
                                     )
                                     .await;
                             }
-                        }
+                        },
                     }
                     self.busy_wallets.lock().await.remove(&wallet_idx);
                 }
 
-                let sleep_ms = if let (Some(min), Some(max)) =
-                    (self.arc_config.min_delay_ms, self.arc_config.max_delay_ms)
-                {
-                    let mut rng = OsRng;
-                    rng.gen_range(min..=max)
-                } else {
-                    1000 / self.config.target_tps.max(1) as u64
-                };
+                let sleep_ms =
+                    if let (Some(min), Some(max)) = (self.arc_config.min_delay_ms, self.arc_config.max_delay_ms) {
+                        let mut rng = OsRng;
+                        rng.gen_range(min..=max)
+                    } else {
+                        1000 / self.config.target_tps.max(1) as u64
+                    };
 
                 tokio::select! {
                     _ = cancellation_token.cancelled() => {

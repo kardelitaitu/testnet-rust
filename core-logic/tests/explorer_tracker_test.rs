@@ -19,14 +19,11 @@ fn test_explorer_tracker_new_valid() {
 
 #[test]
 fn test_explorer_tracker_with_proxy() {
-    let payload =
-        ExplorerGasTrackerPayload::new("https://explorer.example.com").with_proxies(vec![
-            ProxyConfig {
-                url: "http://proxy:8080".into(),
-                username: Some("user".into()),
-                password: Some("pass".into()),
-            },
-        ]);
+    let payload = ExplorerGasTrackerPayload::new("https://explorer.example.com").with_proxies(vec![ProxyConfig {
+        url: "http://proxy:8080".into(),
+        username: Some("user".into()),
+        password: Some("pass".into()),
+    }]);
     let tracker = ExplorerGasTracker::new(payload);
     assert!(tracker.is_ok());
 }
@@ -34,33 +31,29 @@ fn test_explorer_tracker_with_proxy() {
 #[test]
 fn test_explorer_tracker_with_invalid_proxy_url() {
     // Invalid proxy URL scheme should fail
-    let payload =
-        ExplorerGasTrackerPayload::new("https://explorer.example.com").with_proxies(vec![
-            ProxyConfig {
-                url: ":::invalid:::".into(),
-                username: None,
-                password: None,
-            },
-        ]);
+    let payload = ExplorerGasTrackerPayload::new("https://explorer.example.com").with_proxies(vec![ProxyConfig {
+        url: ":::invalid:::".into(),
+        username: None,
+        password: None,
+    }]);
     let tracker = ExplorerGasTracker::new(payload);
     assert!(tracker.is_err());
 }
 
 #[test]
 fn test_explorer_tracker_with_multiple_proxies() {
-    let payload =
-        ExplorerGasTrackerPayload::new("https://explorer.example.com").with_proxies(vec![
-            ProxyConfig {
-                url: "http://proxy1:8080".into(),
-                username: None,
-                password: None,
-            },
-            ProxyConfig {
-                url: "http://proxy2:8080".into(),
-                username: Some("u".into()),
-                password: Some("p".into()),
-            },
-        ]);
+    let payload = ExplorerGasTrackerPayload::new("https://explorer.example.com").with_proxies(vec![
+        ProxyConfig {
+            url: "http://proxy1:8080".into(),
+            username: None,
+            password: None,
+        },
+        ProxyConfig {
+            url: "http://proxy2:8080".into(),
+            username: Some("u".into()),
+            password: Some("p".into()),
+        },
+    ]);
     let tracker = ExplorerGasTracker::new(payload);
     assert!(tracker.is_ok());
 }
@@ -100,8 +93,7 @@ fn test_explorer_tracker_with_payload_builder() {
 #[test]
 fn test_explorer_tracker_payload_no_proxies() {
     // Explicitly empty proxy list
-    let payload =
-        ExplorerGasTrackerPayload::new("https://explorer.example.com").with_proxies(vec![]);
+    let payload = ExplorerGasTrackerPayload::new("https://explorer.example.com").with_proxies(vec![]);
     let tracker = ExplorerGasTracker::new(payload);
     assert!(tracker.is_ok());
 }

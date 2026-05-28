@@ -39,11 +39,7 @@ impl GasManager {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Failed to get latest block"))?;
 
-        let gas_price = self
-            .provider
-            .get_gas_price()
-            .await
-            .unwrap_or_else(|_| U256::from(1u64));
+        let gas_price = self.provider.get_gas_price().await.unwrap_or_else(|_| U256::from(1u64));
 
         let config_max: U256 = parse_units(self.config.max_gwei(), "gwei")?;
         let config_prio: U256 = parse_units(self.config.priority_gwei(), "gwei")?;
@@ -60,7 +56,7 @@ impl GasManager {
             Err(_) => {
                 // Fallback to config if estimation fails
                 (base_fee + config_prio, config_prio)
-            }
+            },
         };
 
         // 3. Clamp values to User Config
@@ -111,11 +107,9 @@ impl GasManager {
     }
 
     pub fn get_max_fee(&self, base_fee: U256) -> U256 {
-        let priority_fee_wei: U256 =
-            parse_units(self.config.priority_gwei(), "gwei").unwrap_or(U256::zero());
+        let priority_fee_wei: U256 = parse_units(self.config.priority_gwei(), "gwei").unwrap_or(U256::zero());
         let max_fee_wei = base_fee + priority_fee_wei;
-        let max_configured_wei: U256 =
-            parse_units(self.config.max_gwei(), "gwei").unwrap_or(U256::zero());
+        let max_configured_wei: U256 = parse_units(self.config.max_gwei(), "gwei").unwrap_or(U256::zero());
 
         max_fee_wei.min(max_configured_wei)
     }
@@ -159,26 +153,17 @@ mod tests {
 
     #[test]
     fn test_parse_units_gwei() {
-        assert_eq!(
-            parse_units(1.0, "gwei").unwrap(),
-            U256::from(1_000_000_000u64)
-        );
+        assert_eq!(parse_units(1.0, "gwei").unwrap(), U256::from(1_000_000_000u64));
     }
 
     #[test]
     fn test_parse_units_ether() {
-        assert_eq!(
-            parse_units(1.0, "ether").unwrap(),
-            U256::from(10u128.pow(18))
-        );
+        assert_eq!(parse_units(1.0, "ether").unwrap(), U256::from(10u128.pow(18)));
     }
 
     #[test]
     fn test_parse_units_fractional() {
-        assert_eq!(
-            parse_units(0.5, "gwei").unwrap(),
-            U256::from(500_000_000u64)
-        );
+        assert_eq!(parse_units(0.5, "gwei").unwrap(), U256::from(500_000_000u64));
     }
 
     #[test]

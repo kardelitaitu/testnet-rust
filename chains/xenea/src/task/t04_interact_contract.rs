@@ -25,19 +25,13 @@ impl Task<TaskContext> for XeneaInteractContractTask {
         if balance < estimated_gas {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Insufficient funds: have {} wei, need {} wei",
-                    balance, estimated_gas
-                ),
+                message: format!("Insufficient funds: have {} wei, need {} wei", balance, estimated_gas),
                 tx_hash: None,
             });
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
@@ -58,7 +52,7 @@ impl Task<TaskContext> for XeneaInteractContractTask {
                 match pending.await {
                     Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
                         receipt.contract_address.context("No contract address")?
-                    }
+                    },
                     _ => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -66,21 +60,18 @@ impl Task<TaskContext> for XeneaInteractContractTask {
                             message: format!("Counter deploy failed (tx: {})", tx_hash),
                             tx_hash: Some(tx_hash),
                         });
-                    }
+                    },
                 }
-            }
+            },
             Err(e) => {
-                debug!(
-                    "InteractContract deploy submit failed, resyncing nonce: {}",
-                    e
-                );
+                debug!("InteractContract deploy submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
                 return Ok(TaskResult {
                     success: false,
                     message: format!("Failed to submit Counter deploy tx: {}", e),
                     tx_hash: None,
                 });
-            }
+            },
         };
 
         debug!("Deployed Counter at {:?}", counter_address);
@@ -125,17 +116,14 @@ impl Task<TaskContext> for XeneaInteractContractTask {
                 tx_hash: Some(format!("{:?}", pending.tx_hash())),
             }),
             Err(e) => {
-                debug!(
-                    "InteractContract call submit failed, resyncing nonce: {}",
-                    e
-                );
+                debug!("InteractContract call submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
                 Ok(TaskResult {
                     success: false,
                     message: format!("Failed to submit Counter increment tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 

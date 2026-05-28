@@ -91,8 +91,7 @@ impl ArcTask for SendEurcTask {
 
         let tx_hash = receipt.transaction_hash;
 
-        let send_formatted =
-            ethers::utils::format_units(send_amount, EURC_DECIMALS).unwrap_or_default();
+        let send_formatted = ethers::utils::format_units(send_amount, EURC_DECIMALS).unwrap_or_default();
 
         let message = format!(
             "Sent {} EURC to {:?} (tx: {:?}, block: {})",
@@ -110,20 +109,13 @@ impl ArcTask for SendEurcTask {
                     &addr_hex,
                     self.name(),
                     true,
-                    &format!(
-                        "{} (B: {})",
-                        message,
-                        receipt.block_number.unwrap_or_default()
-                    ),
+                    &format!("{} (B: {})", message, receipt.block_number.unwrap_or_default()),
                     0,
                 )
                 .await;
         }
 
-        Ok(TaskResult {
-            success: true,
-            message,
-        })
+        Ok(TaskResult { success: true, message })
     }
 }
 

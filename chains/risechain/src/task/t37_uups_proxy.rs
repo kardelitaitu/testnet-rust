@@ -53,8 +53,7 @@ impl Task<TaskContext> for UUPSProxyTask {
         let salt = 12345u64;
 
         let clean_bytecode = implementation_bytecode.trim().trim_start_matches("0x");
-        let mut impl_bytecode_vec =
-            hex::decode(clean_bytecode).context("Failed to decode bytecode")?;
+        let mut impl_bytecode_vec = hex::decode(clean_bytecode).context("Failed to decode bytecode")?;
 
         // Append constructor args (uint256)
         let encoded_args = ethers::abi::encode(&[ethers::abi::Token::Uint(U256::from(salt))]);
@@ -78,13 +77,10 @@ impl Task<TaskContext> for UUPSProxyTask {
             .await?
             .context("Failed to get implementation deployment receipt")?;
 
-        let implementation_address = impl_receipt
-            .contract_address
-            .context("No implementation address")?;
+        let implementation_address = impl_receipt.contract_address.context("No implementation address")?;
 
         let impl_abi: abi::Abi = serde_json::from_str(implementation_abi_json)?;
-        let proxy_contract =
-            Contract::new(implementation_address, impl_abi, Arc::new(provider.clone()));
+        let proxy_contract = Contract::new(implementation_address, impl_abi, Arc::new(provider.clone()));
 
         let current_value: U256 = proxy_contract
             .method("getValue", ())?

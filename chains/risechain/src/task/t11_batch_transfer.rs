@@ -38,17 +38,13 @@ impl Task<TaskContext> for BatchTransferTask {
         let num_transfers = 5;
         let mut rng = OsRng;
         let amount_wei: u64 = rng.gen_range(10_000_000_000_000u64..100_000_000_000_000u64);
-        let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-            .unwrap_or_else(|_| amount_wei.to_string());
+        let amount_eth = ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
 
         let mut tx_hashes = Vec::new();
         let mut success_count = 0;
 
         // Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let (max_fee, priority_fee) = ctx.gas_manager.get_fees().await?;
         let gas_limit = crate::utils::gas::GasManager::LIMIT_TRANSFER;
@@ -81,12 +77,12 @@ impl Task<TaskContext> for BatchTransferTask {
                         nonce
                     );
                     success_count += 1;
-                }
+                },
                 Err(e) => {
                     debug!("Transfer {}/{} failed: {}", i + 1, num_transfers, e);
                     tx_hashes.push("failed".to_string());
                     let _ = nonce_manager.resync().await;
-                }
+                },
             }
         }
 

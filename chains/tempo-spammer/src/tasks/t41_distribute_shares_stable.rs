@@ -66,10 +66,7 @@ impl TempoTask for DistributeSharesStableTask {
         let mut using_created_token = false;
 
         if let Some(db) = &ctx.db {
-            if let Ok(assets) = db
-                .get_assets_by_type(&address.to_string(), "stablecoin")
-                .await
-            {
+            if let Ok(assets) = db.get_assets_by_type(&address.to_string(), "stablecoin").await {
                 if !assets.is_empty() {
                     let mut rng = rand::thread_rng();
                     if let Some(random_asset) = assets.choose(&mut rng) {
@@ -104,8 +101,7 @@ impl TempoTask for DistributeSharesStableTask {
         let selected_count = rng.gen_range(5..=count.min(15));
         let mut selected_payees = payees.into_iter().collect::<Vec<_>>();
         selected_payees.shuffle(&mut rng);
-        let selected_payees: Vec<Address> =
-            selected_payees.into_iter().take(selected_count).collect();
+        let selected_payees: Vec<Address> = selected_payees.into_iter().take(selected_count).collect();
 
         // 3. Generate random shares summing to 10000
         let shares = generate_random_shares(selected_count, 10000);
@@ -211,7 +207,7 @@ impl TempoTask for DistributeSharesStableTask {
                         }
 
                         return Err(e).context("Failed to send deploy tx");
-                    }
+                    },
                 }
             }
         };

@@ -32,13 +32,9 @@ impl Task<TaskContext> for VerifySignatureTask {
         let message = format!("Verify signature test #{}", random_value);
         let message_hash = ethers::utils::hash_message(&message);
 
-        let signature = wallet
-            .sign_hash(message_hash)
-            .context("Failed to sign message")?;
+        let signature = wallet.sign_hash(message_hash).context("Failed to sign message")?;
 
-        let recovered = signature
-            .recover(message_hash)
-            .context("Failed to recover signer")?;
+        let recovered = signature.recover(message_hash).context("Failed to recover signer")?;
 
         let is_valid = recovered == address;
 
@@ -60,15 +56,10 @@ impl Task<TaskContext> for VerifySignatureTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
-        let data = Bytes::from(ethers::abi::encode(&[ethers::abi::Token::String(
-            message.clone(),
-        )]));
+        let data = Bytes::from(ethers::abi::encode(&[ethers::abi::Token::String(message.clone())]));
 
         let tx = TransactionRequest::new()
             .to(address)
@@ -97,7 +88,7 @@ impl Task<TaskContext> for VerifySignatureTask {
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })
-            }
+            },
             Err(e) => {
                 debug!("VerifySignature tx submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -106,7 +97,7 @@ impl Task<TaskContext> for VerifySignatureTask {
                     message: format!("Failed to submit verify signature tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

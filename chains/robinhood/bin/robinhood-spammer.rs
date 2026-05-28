@@ -61,12 +61,7 @@ async fn main() -> Result<()> {
     };
 
     let db_manager = Arc::new(
-        DatabaseManager::new_with_async(
-            "robinhood-spammer.db",
-            async_db_config,
-            FallbackStrategy::Drop,
-        )
-        .await?,
+        DatabaseManager::new_with_async("robinhood-spammer.db", async_db_config, FallbackStrategy::Drop).await?,
     );
 
     let client_pool = Arc::new(
@@ -102,7 +97,7 @@ async fn main() -> Result<()> {
                     None => {
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         continue;
-                    }
+                    },
                 };
 
                 let task_idx = rng.gen_range(0..tasks.len());
@@ -143,13 +138,10 @@ async fn main() -> Result<()> {
                             result.message,
                             duration.as_secs_f32()
                         );
-                    }
+                    },
                     Err(e) => {
-                        error!(
-                            "[WK:{}][WL:{:03}] Error: {:?}",
-                            worker_id_str, lease.index, e
-                        );
-                    }
+                        error!("[WK:{}][WL:{:03}] Error: {:?}", worker_id_str, lease.index, e);
+                    },
                 }
 
                 tokio::time::sleep(Duration::from_millis(1000)).await;

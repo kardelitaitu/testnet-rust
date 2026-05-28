@@ -103,10 +103,7 @@ async fn main() -> Result<()> {
     }
     let client = client_builder.build()?;
 
-    let provider = Provider::new(Http::new_with_client(
-        reqwest::Url::parse(&config.rpc_url)?,
-        client,
-    ));
+    let provider = Provider::new(Http::new_with_client(reqwest::Url::parse(&config.rpc_url)?, client));
     let provider_arc = Arc::new(provider);
 
     println!("Wallet address: {:?}", wallet.address());
@@ -122,10 +119,7 @@ async fn main() -> Result<()> {
         .context("Task not found")?;
 
     let db = if !args.no_db {
-        DatabaseManager::new("robinhood.db")
-            .await
-            .ok()
-            .map(Arc::new)
+        DatabaseManager::new("robinhood.db").await.ok().map(Arc::new)
     } else {
         None
     };
@@ -143,15 +137,11 @@ async fn main() -> Result<()> {
     let start = std::time::Instant::now();
     match task.run(ctx).await {
         Ok(res) => {
-            println!(
-                "{} Result: {}",
-                if res.success { "✅" } else { "❌" },
-                res.message
-            );
+            println!("{} Result: {}", if res.success { "✅" } else { "❌" }, res.message);
             if let Some(h) = res.tx_hash {
                 println!("Tx: {}", h);
             }
-        }
+        },
         Err(e) => println!("❌ Error: {:?}", e),
     }
     println!("Time: {:.2}s", start.elapsed().as_secs_f64());

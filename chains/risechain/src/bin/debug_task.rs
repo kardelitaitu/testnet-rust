@@ -8,33 +8,27 @@ use rise_project::config::RiseConfig;
 use rise_project::task::{
     t01_check_balance::CheckBalanceTask, t02_simple_eth_transfer::SimpleEthTransferTask,
     t03_deploy_contract::DeployContractTask, t04_interact_contract::InteractContractTask,
-    t05_self_transfer::SelfTransferTask, t06_send_meme::SendMemeTokenTask,
-    t07_create_meme::CreateMemeTask, t09_weth_wrap::WethWrapTask, t10_weth_unwrap::WethUnwrapTask,
-    t11_batch_transfer::BatchTransferTask, t12_nft_mint::NftMintTask,
-    t13_nft_transfer::NftTransferTask, t14_approve_token::ApproveTokenTask,
-    t16_multicall::MulticallTask, t17_read_oracle::ReadOracleTask,
-    t18_contract_call_raw::ContractCallRawTask, t19_high_gas_limit::HighGasLimitTask,
-    t20_gas_price_test::GasPriceTestTask, t21_erc1155_mint::Erc1155MintTask,
+    t05_self_transfer::SelfTransferTask, t06_send_meme::SendMemeTokenTask, t07_create_meme::CreateMemeTask,
+    t09_weth_wrap::WethWrapTask, t10_weth_unwrap::WethUnwrapTask, t11_batch_transfer::BatchTransferTask,
+    t12_nft_mint::NftMintTask, t13_nft_transfer::NftTransferTask, t14_approve_token::ApproveTokenTask,
+    t16_multicall::MulticallTask, t17_read_oracle::ReadOracleTask, t18_contract_call_raw::ContractCallRawTask,
+    t19_high_gas_limit::HighGasLimitTask, t20_gas_price_test::GasPriceTestTask, t21_erc1155_mint::Erc1155MintTask,
     t22_erc1155_transfer::Erc1155TransferTask, t23_timed_interaction::TimedInteractionTask,
     t24_create2_deploy::Create2DeployTask, t25_message_sign::MessageSignTask,
-    t26_verify_signature::VerifySignatureTask, t27_permit_token::PermitTokenTask,
-    t28_delegatecall::DelegatecallTask, t29_cross_contract_call::CrossContractCallTask,
-    t30_revert_test::RevertTestTask, t31_event_emission::EventEmissionTask,
-    t32_eth_with_data::EthWithDataTask, t33_batch_approve::BatchApproveTask,
+    t26_verify_signature::VerifySignatureTask, t27_permit_token::PermitTokenTask, t28_delegatecall::DelegatecallTask,
+    t29_cross_contract_call::CrossContractCallTask, t30_revert_test::RevertTestTask,
+    t31_event_emission::EventEmissionTask, t32_eth_with_data::EthWithDataTask, t33_batch_approve::BatchApproveTask,
     t34_role_based_access::RoleBasedAccessTask, t35_pausable_contract::PausableContractTask,
     t36_create2_factory::Create2FactoryTask, t37_uups_proxy::UUPSProxyTask,
     t38_transparent_proxy::TransparentProxyTask, t39_uniswap_v2_swap::UniswapV2SwapTask,
-    t40_erc4626_vault::ERC4626VaultTask, t41_flash_loan::FlashLoanTestTask,
-    t42_erc721_mint::ERC721MintTask, t43_erc1155_batch::ERC1155BatchTask,
-    t44_storage_pattern::StoragePatternTask, t45_custom_error::CustomErrorTestTask,
-    t46_revert_reason::RevertWithReasonTask, t47_assert_fail::AssertFailTask,
+    t40_erc4626_vault::ERC4626VaultTask, t41_flash_loan::FlashLoanTestTask, t42_erc721_mint::ERC721MintTask,
+    t43_erc1155_batch::ERC1155BatchTask, t44_storage_pattern::StoragePatternTask,
+    t45_custom_error::CustomErrorTestTask, t46_revert_reason::RevertWithReasonTask, t47_assert_fail::AssertFailTask,
     t48_anonymous_event::AnonymousEventTask, t49_indexed_topics::IndexedTopicsTask,
     t50_large_event::LargeEventDataTask, t51_memory_expansion::MemoryExpansionTask,
-    t52_calldata_size::CalldataSizeTask, t53_gas_stipend::GasStipendTask,
-    t54_gas_price_zero::GasPriceZeroTask, t55_block_hash::BlockHashUsageTask,
-    t57_eip7702_explore::Eip7702ExploreTask, t58_verify_create2::VerifyCreate2Task,
-    t59_deploy_factory::DeployFactoryTask, t60_rise_to_weth::RiseToWethTask, RiseTask, Task,
-    TaskContext,
+    t52_calldata_size::CalldataSizeTask, t53_gas_stipend::GasStipendTask, t54_gas_price_zero::GasPriceZeroTask,
+    t55_block_hash::BlockHashUsageTask, t57_eip7702_explore::Eip7702ExploreTask, t58_verify_create2::VerifyCreate2Task,
+    t59_deploy_factory::DeployFactoryTask, t60_rise_to_weth::RiseToWethTask, RiseTask, Task, TaskContext,
 };
 use std::env;
 use tracing::{error, info};
@@ -73,7 +67,7 @@ async fn main() -> Result<()> {
         Err(e) => {
             error!("Failed to load config: {}", e);
             return Ok(());
-        }
+        },
     };
 
     // info!("Configuration loaded for chain ID: {}", cfg.chain_id);
@@ -82,8 +76,7 @@ async fn main() -> Result<()> {
     let mut password = env::var("WALLET_PASSWORD").ok();
     let manager = core_logic::WalletManager::new()?;
     // Init DB Manager
-    let db_manager =
-        std::sync::Arc::new(core_logic::database::DatabaseManager::new("rise.db").await?);
+    let db_manager = std::sync::Arc::new(core_logic::database::DatabaseManager::new("rise.db").await?);
 
     // Load Proxies
     let proxies = if std::path::Path::new("proxies.txt").exists() {
@@ -156,10 +149,7 @@ async fn main() -> Result<()> {
                         let p = &proxies[i % proxies.len()];
                         let parts: Vec<&str> = p.split(':').collect();
                         if parts.len() == 4 {
-                            Some(format!(
-                                "http://{}:{}@{}:{}",
-                                parts[2], parts[3], parts[0], parts[1]
-                            ))
+                            Some(format!("http://{}:{}@{}:{}", parts[2], parts[3], parts[0], parts[1]))
                         } else {
                             None
                         }
@@ -181,9 +171,8 @@ async fn main() -> Result<()> {
                     let provider_url = Url::parse(&cfg.rpc_url).expect("Invalid RPC URL");
                     let provider = Provider::new(Http::new_with_client(provider_url, client));
                     let provider_arc = std::sync::Arc::new(provider);
-                    let gas_manager = std::sync::Arc::new(
-                        rise_project::utils::gas::GasManager::new(provider_arc.clone()),
-                    );
+                    let gas_manager =
+                        std::sync::Arc::new(rise_project::utils::gas::GasManager::new(provider_arc.clone()));
 
                     let wallet_res = manager.get_wallet(i, password.as_deref()).await;
                     let (pub_addr, result_str) = match wallet_res {
@@ -207,29 +196,18 @@ async fn main() -> Result<()> {
                                     match task.run(ctx).await {
                                         Ok(res) => {
                                             if res.success {
-                                                (
-                                                    addr,
-                                                    res.message.replace(
-                                                        "Analysis complete. Balance: ",
-                                                        "",
-                                                    ),
-                                                )
+                                                (addr, res.message.replace("Analysis complete. Balance: ", ""))
                                             } else {
                                                 (addr, format!("FAILED: {}", res.message))
                                             }
-                                        }
+                                        },
                                         Err(e) => (addr, format!("ERROR: {}", e)),
                                     }
-                                }
-                                Err(e) => {
-                                    ("Invalid Key".to_string(), format!("Parse Error: {}", e))
-                                }
+                                },
+                                Err(e) => ("Invalid Key".to_string(), format!("Parse Error: {}", e)),
                             }
-                        }
-                        Err(e) => (
-                            "User failed decrypt".to_string(),
-                            format!("Decrypt Error: {}", e),
-                        ),
+                        },
+                        Err(e) => ("User failed decrypt".to_string(), format!("Decrypt Error: {}", e)),
                     };
                     (i, pub_addr, result_str)
                 }
@@ -270,9 +248,7 @@ async fn main() -> Result<()> {
             }
         };
 
-        let decrypted = manager
-            .get_wallet(selected_index, password.as_deref())
-            .await?;
+        let decrypted = manager.get_wallet(selected_index, password.as_deref()).await?;
         let wallet = decrypted
             .evm_private_key
             .clone()
@@ -286,10 +262,7 @@ async fn main() -> Result<()> {
             let p = &proxies[selected_index % proxies.len()];
             let parts: Vec<&str> = p.split(':').collect();
             if parts.len() == 4 {
-                Some(format!(
-                    "http://{}:{}@{}:{}",
-                    parts[2], parts[3], parts[0], parts[1]
-                ))
+                Some(format!("http://{}:{}@{}:{}", parts[2], parts[3], parts[0], parts[1]))
             } else {
                 None
             }
@@ -412,9 +385,9 @@ async fn main() -> Result<()> {
         println!("Debugging Task: {}", selected_task.name());
 
         // Initialize Gas Manager
-        let gas_manager = std::sync::Arc::new(rise_project::utils::gas::GasManager::new(
-            std::sync::Arc::new(provider.clone()),
-        ));
+        let gas_manager = std::sync::Arc::new(rise_project::utils::gas::GasManager::new(std::sync::Arc::new(
+            provider.clone(),
+        )));
 
         // 4. Execute
         let ctx = TaskContext {
@@ -437,10 +410,10 @@ async fn main() -> Result<()> {
                 if let Some(tx) = res.tx_hash {
                     println!("🔗 Transaction: {}", tx);
                 }
-            }
+            },
             Err(e) => {
                 println!("\n💥 Task Error: {:?}", e);
-            }
+            },
         }
     }
 

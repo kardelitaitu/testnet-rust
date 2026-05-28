@@ -24,9 +24,7 @@ pub struct DaChainConfig {
 
 impl DaChainConfig {
     pub fn load(path: &str) -> Result<Self> {
-        let settings = Config::builder()
-            .add_source(File::with_name(path))
-            .build()?;
+        let settings = Config::builder().add_source(File::with_name(path)).build()?;
 
         settings.try_deserialize().map_err(|e| anyhow::anyhow!(e))
     }
@@ -67,10 +65,7 @@ max_delay_ms = 120000
     #[test]
     fn test_dachain_config_deserialize() {
         let settings = Config::builder()
-            .add_source(config::File::from_str(
-                test_config_toml(),
-                config::FileFormat::Toml,
-            ))
+            .add_source(config::File::from_str(test_config_toml(), config::FileFormat::Toml))
             .build()
             .unwrap();
         let cfg: DaChainConfig = settings.try_deserialize().unwrap();
@@ -84,10 +79,7 @@ max_delay_ms = 120000
     #[test]
     fn test_dachain_config_to_spam_config() {
         let settings = Config::builder()
-            .add_source(config::File::from_str(
-                test_config_toml(),
-                config::FileFormat::Toml,
-            ))
+            .add_source(config::File::from_str(test_config_toml(), config::FileFormat::Toml))
             .build()
             .unwrap();
         let cfg: DaChainConfig = settings.try_deserialize().unwrap();
@@ -117,19 +109,13 @@ tps = 5
     #[test]
     fn test_dachain_config_missing_required() {
         let settings = Config::builder()
-            .add_source(config::File::from_str(
-                r#"rpc_url = "x""#,
-                config::FileFormat::Toml,
-            ))
+            .add_source(config::File::from_str(r#"rpc_url = "x""#, config::FileFormat::Toml))
             .build()
             .unwrap();
         let result: Result<DaChainConfig, _> = settings.try_deserialize();
         let err = result.as_ref().unwrap_err().to_string();
         assert!(
-            err.contains("chain_id")
-                || err.contains("symbol")
-                || err.contains("explorer")
-                || err.contains("tps"),
+            err.contains("chain_id") || err.contains("symbol") || err.contains("explorer") || err.contains("tps"),
             "error should mention missing field, got: {}",
             err
         );

@@ -42,10 +42,7 @@ impl Task<TaskContext> for DeployFactoryTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         // 3. Deploy SimpleFactory (fire-and-forget)
@@ -79,7 +76,7 @@ impl Task<TaskContext> for DeployFactoryTask {
                     message: format!("Failed to submit factory deploy tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

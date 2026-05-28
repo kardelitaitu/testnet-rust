@@ -84,14 +84,9 @@ impl TempoTask for BatchSystemTokenTask {
             let reservation = match client.get_robust_nonce(&ctx.config.rpc_url).await {
                 Ok(r) => r,
                 Err(e) => {
-                    tracing::warn!(
-                        "Failed to reserve nonce for batch transfer {}/{}: {}",
-                        i + 1,
-                        count,
-                        e
-                    );
+                    tracing::warn!("Failed to reserve nonce for batch transfer {}/{}: {}", i + 1, count, e);
                     continue;
-                }
+                },
             };
 
             let tx = TransactionRequest::default()
@@ -112,26 +107,23 @@ impl TempoTask for BatchSystemTokenTask {
                                 success_count += 1;
                                 last_hash = format!("{:?}", tx_hash);
                             }
-                        }
-                        Err(_e) => {}
+                        },
+                        Err(_e) => {},
                     }
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("nonce too low") || err_str.contains("already known") {
-                        tracing::warn!(
-                            "Nonce error on batch system transfer, recovering and retrying..."
-                        );
+                        tracing::warn!("Nonce error on batch system transfer, recovering and retrying...");
                         // Release the failed nonce
                         drop(reservation);
                         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
                         // Get new nonce for retry
-                        let retry_reservation =
-                            match client.get_robust_nonce(&ctx.config.rpc_url).await {
-                                Ok(r) => r,
-                                Err(_) => continue,
-                            };
+                        let retry_reservation = match client.get_robust_nonce(&ctx.config.rpc_url).await {
+                            Ok(r) => r,
+                            Err(_) => continue,
+                        };
 
                         let retry_tx = TransactionRequest::default()
                             .to(token_addr)
@@ -156,7 +148,7 @@ impl TempoTask for BatchSystemTokenTask {
                     } else {
                         drop(reservation);
                     }
-                }
+                },
             }
         }
 
@@ -166,11 +158,7 @@ impl TempoTask for BatchSystemTokenTask {
                 "Executed {}/{} {} transfers in batch.",
                 success_count, count, token_info.symbol
             ),
-            tx_hash: if last_hash.is_empty() {
-                None
-            } else {
-                Some(last_hash)
-            },
+            tx_hash: if last_hash.is_empty() { None } else { Some(last_hash) },
         })
     }
 }

@@ -44,19 +44,14 @@ impl Task<TaskContext> for AnonymousEventTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
         // 3. Deploy anonymous event contract
         let event_bytecode = "0x6080604052348015600e575f5ffd5b506101838061001c5f395ff3fe608060405234801561000f575f5ffd5b5060043610610034575f3560e01c8063088f5397146100385780638130f89a14610054575b5f5ffd5b610052600480360381019061004d91906100fa565b610070565b005b61006e600480360381019061006991906100fa565b6100aa565b005b7fa7abb6db5a64d6f6d865cdd7cc2e4a0a49d3483ce9ec81b5bde62e1cd80ff0308160405161009f9190610134565b60405180910390a150565b806040516100b89190610134565b60405180910390a050565b5f5ffd5b5f819050919050565b6100d9816100c7565b81146100e3575f5ffd5b50565b5f813590506100f4816100d0565b92915050565b5f6020828403121561010f5761010e6100c3565b5b5f61011c848285016100e6565b91505092915050565b61012e816100c7565b82525050565b5f6020820190506101475f830184610125565b9291505056fea2646970667358221220fceeeebbb2efb92b44d97c67610fc4f5af03c464069f40da1e021cb5f999bbb664736f6c63430008210033";
 
-        let deploy_data = crate::utils::strip_push0(
-            &hex::decode(event_bytecode.trim_start_matches("0x")).unwrap(),
-        );
+        let deploy_data = crate::utils::strip_push0(&hex::decode(event_bytecode.trim_start_matches("0x")).unwrap());
 
         let deploy_nonce = nonce_manager.next().await?;
         let deploy_tx = TransactionRequest::new()
@@ -71,9 +66,9 @@ impl Task<TaskContext> for AnonymousEventTask {
             Ok(pending) => {
                 let tx_hash = format!("{:?}", pending.tx_hash());
                 match pending.await {
-                    Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => receipt
-                        .contract_address
-                        .context("No contract address in receipt")?,
+                    Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
+                        receipt.contract_address.context("No contract address in receipt")?
+                    },
                     _ => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -81,21 +76,18 @@ impl Task<TaskContext> for AnonymousEventTask {
                             message: format!("AnonymousEvent deploy failed (tx: {})", tx_hash),
                             tx_hash: Some(tx_hash),
                         });
-                    }
+                    },
                 }
-            }
+            },
             Err(e) => {
-                debug!(
-                    "AnonymousEvent deploy submit failed, resyncing nonce: {}",
-                    e
-                );
+                debug!("AnonymousEvent deploy submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
                 return Ok(TaskResult {
                     success: false,
                     message: format!("Failed to submit AnonymousEvent deploy tx: {}", e),
                     tx_hash: None,
                 });
-            }
+            },
         };
 
         debug!("Deployed AnonymousEvent at {:?}", contract_address);
@@ -138,7 +130,7 @@ impl Task<TaskContext> for AnonymousEventTask {
                     message: format!("Failed to submit AnonymousEvent emit tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

@@ -46,9 +46,7 @@ impl TempoTask for MintViralNftTask {
         // 1. Load NFTs from DB
         let nfts: Vec<String> = if let Some(db) = &ctx.db {
             // Use get_all_assets_by_type to find NFTs created by ANYONE
-            db.get_all_assets_by_type("viral_nft")
-                .await
-                .unwrap_or_default()
+            db.get_all_assets_by_type("viral_nft").await.unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -118,10 +116,7 @@ impl TempoTask for MintViralNftTask {
                     match client.provider.send_transaction(claim_tx).await {
                         Ok(pending) => {
                             let tx_hash = *pending.tx_hash();
-                            let receipt = pending
-                                .get_receipt()
-                                .await
-                                .context("Failed to get receipt")?;
+                            let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
                             if receipt.inner.status() {
                                 return Ok(TaskResult {
@@ -133,25 +128,18 @@ impl TempoTask for MintViralNftTask {
                                 tracing::debug!("Mint failed (reverted), trying next NFT...");
                                 break; // Try next NFT
                             }
-                        }
+                        },
                         Err(e) => {
                             let err_str = e.to_string().to_lowercase();
-                            if err_str.contains("nonce too low")
-                                || err_str.contains("already known")
-                            {
-                                tracing::warn!(
-                                    "Nonce error on attempt {}, will retry...",
-                                    attempt + 1
-                                );
+                            if err_str.contains("nonce too low") || err_str.contains("already known") {
+                                tracing::warn!("Nonce error on attempt {}, will retry...", attempt + 1);
                                 last_error = Some(e);
                                 continue; // Retry with fresh nonce
                             }
                             if err_str.contains("execution reverted") {
                                 // Check for known error selector 0xaa4bc69a (Likely AlreadyClaimed or SoldOut)
                                 if err_str.contains("aa4bc69a") {
-                                    tracing::debug!(
-                                        "NFT sold out or already claimed, trying next..."
-                                    );
+                                    tracing::debug!("NFT sold out or already claimed, trying next...");
                                     break; // Try next NFT
                                 }
                                 // Generic revert - try next NFT
@@ -159,7 +147,7 @@ impl TempoTask for MintViralNftTask {
                                 break;
                             }
                             return Err(e).context("Mint failed");
-                        }
+                        },
                     }
                 }
 

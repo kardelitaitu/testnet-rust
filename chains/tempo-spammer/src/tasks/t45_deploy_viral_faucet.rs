@@ -120,10 +120,7 @@ impl TempoTask for DeployViralFaucetTask {
         } else {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Deployment failed (no contract address). Tx: {:?}",
-                    deploy_hash
-                ),
+                message: format!("Deployment failed (no contract address). Tx: {:?}", deploy_hash),
                 tx_hash: Some(format!("{:?}", deploy_hash)),
             });
         };

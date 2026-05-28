@@ -11,11 +11,7 @@ fn find_obscura_binary() -> PathBuf {
         }
     }
     if let Ok(cwd) = std::env::current_dir() {
-        let names: &[&str] = if cfg!(windows) {
-            &["obscura.exe"]
-        } else {
-            &["obscura"]
-        };
+        let names: &[&str] = if cfg!(windows) { &["obscura.exe"] } else { &["obscura"] };
         for name in names {
             let candidate = cwd.join(name);
             if candidate.exists() {

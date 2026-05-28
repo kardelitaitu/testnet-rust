@@ -51,8 +51,8 @@ impl Task<TaskContext> for TimedInteractionTask {
         let formatted_time = timestamp_secs.to_string();
 
         let base_fee_eth = if let Ok(base_fee) = contract.method("basefee", ())?.call().await {
-            let eth = ethers::utils::format_units::<U256, _>(base_fee, "ether")
-                .unwrap_or_else(|_| base_fee.to_string());
+            let eth =
+                ethers::utils::format_units::<U256, _>(base_fee, "ether").unwrap_or_else(|_| base_fee.to_string());
             format!("{} ETH", eth)
         } else if let Ok(l1_base_fee) = contract.method("l1BaseFee", ())?.call().await {
             let eth = ethers::utils::format_units::<U256, _>(l1_base_fee, "ether")

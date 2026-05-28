@@ -88,10 +88,7 @@ impl Task<TaskContext> for SendMemeTokenTask {
         }
 
         // 6. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         // 6b. Check native balance for gas
@@ -147,7 +144,7 @@ impl Task<TaskContext> for SendMemeTokenTask {
                     message: format!("Failed to submit MEME transfer tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

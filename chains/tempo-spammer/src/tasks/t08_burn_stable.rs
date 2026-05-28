@@ -70,10 +70,7 @@ impl TempoTask for BurnStableTask {
             if !create_result.success {
                 return Ok(TaskResult {
                     success: false,
-                    message: format!(
-                        "Failed to create stablecoin for burning: {}",
-                        create_result.message
-                    ),
+                    message: format!("Failed to create stablecoin for burning: {}", create_result.message),
                     tx_hash: create_result.tx_hash,
                 });
             }
@@ -126,7 +123,7 @@ impl TempoTask for BurnStableTask {
                         message: format!("Failed to reserve nonce for mint: {}", e),
                         tx_hash: None,
                     });
-                }
+                },
             };
 
             let tx = TransactionRequest::default()
@@ -142,28 +139,22 @@ impl TempoTask for BurnStableTask {
                 Ok(pending) => {
                     reservation.mark_submitted().await;
                     Ok(pending)
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("nonce too low") || err_str.contains("already known") {
-                        tracing::warn!(
-                            "Nonce error on mint (burn_stable), recovering and retrying..."
-                        );
+                        tracing::warn!("Nonce error on mint (burn_stable), recovering and retrying...");
                         // Release the failed nonce and get a new one
                         drop(reservation);
                         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
                         // Get new nonce and retry
-                        let retry_reservation =
-                            match client.get_robust_nonce(&ctx.config.rpc_url).await {
-                                Ok(r) => r,
-                                Err(e2) => {
-                                    return Err(anyhow::anyhow!(
-                                        "Failed to reserve nonce for retry: {}",
-                                        e2
-                                    ));
-                                }
-                            };
+                        let retry_reservation = match client.get_robust_nonce(&ctx.config.rpc_url).await {
+                            Ok(r) => r,
+                            Err(e2) => {
+                                return Err(anyhow::anyhow!("Failed to reserve nonce for retry: {}", e2));
+                            },
+                        };
                         let retry_tx = TransactionRequest::default()
                             .to(token_addr)
                             .input(TransactionInput::from(mint_calldata))
@@ -176,17 +167,17 @@ impl TempoTask for BurnStableTask {
                             Ok(pending) => {
                                 retry_reservation.mark_submitted().await;
                                 Ok(pending)
-                            }
+                            },
                             Err(e2) => {
                                 drop(retry_reservation);
                                 Err(e2)
-                            }
+                            },
                         }
                     } else {
                         drop(reservation);
                         Err(e)
                     }
-                }
+                },
             };
 
             if let Ok(pending) = mint_result {
@@ -219,9 +210,7 @@ impl TempoTask for BurnStableTask {
         //     burn_units, token_symbol, address
         // );
 
-        let burn_call = ITIP20Mintable::burnCall {
-            amount: burn_amount,
-        };
+        let burn_call = ITIP20Mintable::burnCall { amount: burn_amount };
         let burn_calldata = burn_call.abi_encode();
 
         // Send burn with retry logic using standard provider (no robust nonce manager needed for simple spam)
@@ -243,7 +232,7 @@ impl TempoTask for BurnStableTask {
                     }
                     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     continue;
-                }
+                },
             };
 
             let tx = TransactionRequest::default()
@@ -266,11 +255,10 @@ impl TempoTask for BurnStableTask {
                         ),
                         tx_hash: Some(format!("{:?}", tx_hash)),
                     });
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
-                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
-                        && attempt < max_retries
+                    if (err_str.contains("nonce too low") || err_str.contains("already known")) && attempt < max_retries
                     {
                         client.reset_nonce_cache().await;
                         attempt += 1;
@@ -283,7 +271,7 @@ impl TempoTask for BurnStableTask {
                         message: format!("Burn failed: {:?}", e),
                         tx_hash: None,
                     });
-                }
+                },
             }
         }
     }

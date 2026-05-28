@@ -221,9 +221,7 @@ impl ClientLease {
             pool.release_wallet(index);
         } else {
             tokio::spawn(async move {
-                let cooldown_ms = nonce_config
-                    .base_cooldown_ms
-                    .max(nonce_config.min_cooldown_ms);
+                let cooldown_ms = nonce_config.base_cooldown_ms.max(nonce_config.min_cooldown_ms);
 
                 tokio::time::sleep(std::time::Duration::from_millis(cooldown_ms)).await;
                 pool.release_wallet(index);
@@ -324,9 +322,7 @@ impl ClientPool {
 
         // Initialize sharded nonce managers for per-wallet isolation
         let shard_count = config.nonce.shard_count;
-        let sharded_nonce_managers: Vec<_> = (0..shard_count)
-            .map(|_| Arc::new(crate::NonceManager::new()))
-            .collect();
+        let sharded_nonce_managers: Vec<_> = (0..shard_count).map(|_| Arc::new(crate::NonceManager::new())).collect();
         let sharded_robust_nonce_managers: Vec<_> = (0..shard_count)
             .map(|_| Arc::new(crate::RobustNonceManager::new()))
             .collect();
@@ -454,16 +450,12 @@ impl ClientPool {
                         permit: Some(permit),
                         released: false,
                     });
-                }
+                },
                 Err(e) => {
-                    tracing::error!(
-                        "Failed to create client for wallet {}: {}",
-                        selected_wallet,
-                        e
-                    );
+                    tracing::error!("Failed to create client for wallet {}: {}", selected_wallet, e);
                     self.unlock_wallet_fast(selected_wallet);
                     return None;
-                }
+                },
             }
         }
     }
@@ -527,7 +519,7 @@ impl ClientPool {
                 tracing::error!("Failed to create client for wallet {}: {}", selected_idx, e);
                 self.release_wallet(selected_idx);
                 None
-            }
+            },
         }
     }
 
@@ -553,8 +545,7 @@ impl ClientPool {
             None
         } else {
             // Use atomic counter for round-robin selection
-            let idx =
-                self.proxy_rotation_counter.fetch_add(1, Ordering::SeqCst) % self.proxies.len();
+            let idx = self.proxy_rotation_counter.fetch_add(1, Ordering::SeqCst) % self.proxies.len();
             Some(idx)
         };
 
@@ -562,25 +553,14 @@ impl ClientPool {
 
         // Get or create HTTP client for this proxy configuration
         let (client, _used_proxy_idx) = match self
-            .try_create_client_with_fallback(
-                wallet_idx,
-                &wallet.evm_private_key,
-                proxy_idx,
-                proxy_config,
-            )
+            .try_create_client_with_fallback(wallet_idx, &wallet.evm_private_key, proxy_idx, proxy_config)
             .await
         {
             Ok((c, idx)) => (c, idx),
             Err(e) => {
-                tracing::error!(
-                    "Failed to create TempoClient for wallet {}: {:?}",
-                    wallet_idx,
-                    e
-                );
-                return Err(e).with_context(|| {
-                    format!("Failed to create TempoClient for wallet {}", wallet_idx)
-                });
-            }
+                tracing::error!("Failed to create TempoClient for wallet {}: {:?}", wallet_idx, e);
+                return Err(e).with_context(|| format!("Failed to create TempoClient for wallet {}", wallet_idx));
+            },
         };
 
         // Cache the client
@@ -601,10 +581,7 @@ impl ClientPool {
     }
 
     /// Get the appropriate robust nonce manager for a wallet index
-    fn get_robust_nonce_manager(
-        &self,
-        wallet_idx: usize,
-    ) -> Option<Arc<crate::RobustNonceManager>> {
+    fn get_robust_nonce_manager(&self, wallet_idx: usize) -> Option<Arc<crate::RobustNonceManager>> {
         if self.config.nonce.per_wallet && !self.sharded_robust_nonce_managers.is_empty() {
             let shard = wallet_idx % self.sharded_robust_nonce_managers.len();
             Some(self.sharded_robust_nonce_managers[shard].clone())
@@ -627,17 +604,11 @@ impl ClientPool {
 
         // First attempt: Try with proxy if available
         if let Some(config) = proxy_config {
-            match self
-                .get_or_create_http_client(Some(config.url.clone()))
-                .await
-            {
+            match self.get_or_create_http_client(Some(config.url.clone())).await {
                 Ok(reqwest_client) => {
                     // Try to get or create shared RpcClient for this proxy
                     let shared_rpc = self
-                        .get_or_create_shared_rpc_client(
-                            Some(config.url.clone()),
-                            reqwest_client.clone(),
-                        )
+                        .get_or_create_shared_rpc_client(Some(config.url.clone()), reqwest_client.clone())
                         .await
                         .ok();
 
@@ -668,16 +639,16 @@ impl ClientPool {
                                     banlist.ban(idx).await;
                                 }
                             }
-                        }
+                        },
                     }
-                }
+                },
                 Err(e) => {
                     tracing::warn!(
                         "Failed to create HTTP client for proxy {:?}: {:?}. Trying direct connection.",
                         config.url,
                         e
                     );
-                }
+                },
             }
         }
 
@@ -728,16 +699,11 @@ impl ClientPool {
 
         let http_transport = Http::with_client(
             reqwest_client,
-            self.config
-                .rpc_url
-                .parse::<Url>()
-                .context("Invalid RPC URL")?,
+            self.config.rpc_url.parse::<Url>().context("Invalid RPC URL")?,
         );
 
         let rpc_client = ClientBuilder::default()
-            .layer(alloy::transports::layers::RetryBackoffLayer::new(
-                5, 100, 2000,
-            ))
+            .layer(alloy::transports::layers::RetryBackoffLayer::new(5, 100, 2000))
             .transport(http_transport, true);
 
         // Cache the RpcClient
@@ -758,10 +724,7 @@ impl ClientPool {
     }
 
     /// Gets or creates an HTTP client for a proxy configuration
-    async fn get_or_create_http_client(
-        &self,
-        proxy_url: Option<String>,
-    ) -> Result<reqwest::Client> {
+    async fn get_or_create_http_client(&self, proxy_url: Option<String>) -> Result<reqwest::Client> {
         // Check cache first
         {
             let mut http_clients = self.http_clients.write();
@@ -781,12 +744,10 @@ impl ClientPool {
         // Configure proxy if specified
         if let Some(ref url) = proxy_url {
             if let Some(proxy_config) = self.proxies.iter().find(|p| p.url == *url) {
-                let proxy = reqwest::Proxy::all(url)
-                    .with_context(|| format!("Failed to create proxy for URL: {}", url))?;
+                let proxy =
+                    reqwest::Proxy::all(url).with_context(|| format!("Failed to create proxy for URL: {}", url))?;
 
-                if let (Some(username), Some(password)) =
-                    (&proxy_config.username, &proxy_config.password)
-                {
+                if let (Some(username), Some(password)) = (&proxy_config.username, &proxy_config.password) {
                     let proxy = proxy.basic_auth(username, password);
                     client_builder = client_builder.proxy(proxy);
                 } else {
@@ -795,9 +756,7 @@ impl ClientPool {
             }
         }
 
-        let client = client_builder
-            .build()
-            .context("Failed to build reqwest client")?;
+        let client = client_builder.build().context("Failed to build reqwest client")?;
 
         // Cache the HTTP client
         let mut http_clients = self.http_clients.write();
@@ -1037,9 +996,7 @@ impl ClientPool {
             let proxy = reqwest::Proxy::all(&proxy_config.url)
                 .with_context(|| format!("Failed to create proxy for URL: {}", proxy_config.url))?;
 
-            if let (Some(username), Some(password)) =
-                (&proxy_config.username, &proxy_config.password)
-            {
+            if let (Some(username), Some(password)) = (&proxy_config.username, &proxy_config.password) {
                 let proxy = proxy.basic_auth(username, password);
                 client_builder = client_builder.proxy(proxy);
             } else {
@@ -1047,15 +1004,10 @@ impl ClientPool {
             }
         }
 
-        let reqwest_client = client_builder
-            .build()
-            .context("Failed to build reqwest client")?;
+        let reqwest_client = client_builder.build().context("Failed to build reqwest client")?;
 
         let shared_rpc = self
-            .get_or_create_shared_rpc_client(
-                proxy_config.map(|p| p.url.clone()),
-                reqwest_client.clone(),
-            )
+            .get_or_create_shared_rpc_client(proxy_config.map(|p| p.url.clone()), reqwest_client.clone())
             .await
             .ok();
 

@@ -91,10 +91,7 @@ impl Task<TaskContext> for BatchSendCreatedMemeTask {
         }
 
         // 5. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let gas_price = U256::from(1_100_000_000u64);
         let gas_limit = crate::utils::gas::GasManager::LIMIT_SEND_MEME;
@@ -127,7 +124,7 @@ impl Task<TaskContext> for BatchSendCreatedMemeTask {
                     let _ = nonce_manager.resync().await;
                     failed += 1;
                     continue;
-                }
+                },
             };
 
             let data = contract.encode("transfer", (*recipient, amount_per))?;
@@ -143,21 +140,17 @@ impl Task<TaskContext> for BatchSendCreatedMemeTask {
             match client.send_transaction(tx, None).await {
                 Ok(pending) => {
                     tx_hashes.push(format!("{:?}", pending.tx_hash()));
-                    debug!(
-                        "BatchSendCreatedMeme transfer submitted: {:?}",
-                        pending.tx_hash()
-                    );
-                }
+                    debug!("BatchSendCreatedMeme transfer submitted: {:?}", pending.tx_hash());
+                },
                 Err(e) => {
                     debug!("BatchSendCreatedMeme transfer submit failed: {}", e);
                     let _ = nonce_manager.resync().await;
                     failed += 1;
-                }
+                },
             }
         }
 
-        let amount_display =
-            ethers::utils::format_units(amount_per, 18).unwrap_or_else(|_| amount_per.to_string());
+        let amount_display = ethers::utils::format_units(amount_per, 18).unwrap_or_else(|_| amount_per.to_string());
 
         if tx_hashes.is_empty() {
             Ok(TaskResult {

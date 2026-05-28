@@ -154,7 +154,7 @@ where
                     tracing::debug!("Operation succeeded after {} retries", attempt);
                 }
                 return Ok(result);
-            }
+            },
             Err(e) => {
                 last_error = Some(e);
 
@@ -169,7 +169,7 @@ where
                     );
                     sleep(Duration::from_millis(delay)).await;
                 }
-            }
+            },
         }
     }
 
@@ -199,10 +199,7 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub async fn with_nonce_retry<T, E, F, Fut, R, RFut>(
-    mut operation: F,
-    mut reset_fn: R,
-) -> Result<T, E>
+pub async fn with_nonce_retry<T, E, F, Fut, R, RFut>(mut operation: F, mut reset_fn: R) -> Result<T, E>
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, E>>,
@@ -220,11 +217,10 @@ where
                     tracing::debug!("Operation succeeded after {} retries", attempt);
                 }
                 return Ok(result);
-            }
+            },
             Err(e) => {
                 // Check if it's a nonce error before storing the error
-                let is_nonce_error =
-                    e.as_ref().contains("nonce too low") || e.as_ref().contains("already known");
+                let is_nonce_error = e.as_ref().contains("nonce too low") || e.as_ref().contains("already known");
 
                 if is_nonce_error {
                     tracing::debug!("Detected nonce error, resetting cache");
@@ -243,7 +239,7 @@ where
                     );
                     sleep(Duration::from_millis(delay)).await;
                 }
-            }
+            },
         }
     }
 
@@ -256,8 +252,7 @@ where
 /// With optional jitter: ±25% random variation
 fn calculate_delay(config: &RetryConfig, attempt: u32) -> u64 {
     // Calculate base delay with exponential backoff
-    let base_delay =
-        config.initial_delay_ms as f64 * config.backoff_multiplier.powi(attempt as i32);
+    let base_delay = config.initial_delay_ms as f64 * config.backoff_multiplier.powi(attempt as i32);
 
     // Cap at max delay
     let base_delay = base_delay.min(config.max_delay_ms as f64);
@@ -385,11 +380,7 @@ mod tests {
 
         // With jitter, delay should be within ±25%
         let delay = calculate_delay(&config, 1); // Base: 200ms
-        assert!(
-            delay >= 150 && delay <= 250,
-            "Delay {} outside expected range",
-            delay
-        );
+        assert!(delay >= 150 && delay <= 250, "Delay {} outside expected range", delay);
     }
 
     #[test]
@@ -485,9 +476,7 @@ mod nonce_retry_tests {
     async fn test_with_retry_succeeds_after_one_retry() {
         let attempts = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let a = attempts.clone();
-        async fn retry_once(
-            a: std::sync::Arc<std::sync::atomic::AtomicU32>,
-        ) -> Result<i32, String> {
+        async fn retry_once(a: std::sync::Arc<std::sync::atomic::AtomicU32>) -> Result<i32, String> {
             if a.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
                 Err("first fail".to_string())
             } else {
@@ -557,9 +546,7 @@ mod nonce_retry_tests {
     async fn test_nonce_retry_succeeds_after_retry() {
         let attempts = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
         let a = attempts.clone();
-        async fn retry_op(
-            attempts: std::sync::Arc<std::sync::atomic::AtomicU32>,
-        ) -> Result<i32, String> {
+        async fn retry_op(attempts: std::sync::Arc<std::sync::atomic::AtomicU32>) -> Result<i32, String> {
             let prev = attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             if prev < 2 {
                 Err("nonce too low".to_string())

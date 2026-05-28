@@ -27,8 +27,7 @@ impl Task<TaskContext> for CrossContractCallTask {
 
         // Load factory from config or use fallback
         let factory_address: Address = if let Some(addr) = &ctx.config.create2_factory {
-            addr.parse()
-                .context("Invalid create2_factory address in config")?
+            addr.parse().context("Invalid create2_factory address in config")?
         } else {
             "0x8628208543e2b16be283e30abec6fec7b91e5721".parse()?
         };
@@ -81,9 +80,7 @@ impl Task<TaskContext> for CrossContractCallTask {
             wallet.clone(),
         ));
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         let mut target_address = Address::zero();
         for log in receipt.logs.iter() {
@@ -111,8 +108,7 @@ impl Task<TaskContext> for CrossContractCallTask {
 
         // Interact with deployed contract
         let counter_abi: abi::Abi = serde_json::from_str(counter_abi_json)?;
-        let counter_contract =
-            Contract::new(target_address, counter_abi, Arc::new(provider.clone()));
+        let counter_contract = Contract::new(target_address, counter_abi, Arc::new(provider.clone()));
 
         let initial_value: U256 = counter_contract
             .method("number", ())?
@@ -130,9 +126,7 @@ impl Task<TaskContext> for CrossContractCallTask {
             .from(address);
 
         let increment_pending = client.send_transaction(increment_tx, None).await?;
-        let increment_receipt = increment_pending
-            .await?
-            .context("Failed to get increment receipt")?;
+        let increment_receipt = increment_pending.await?.context("Failed to get increment receipt")?;
 
         let new_value: U256 = counter_contract
             .method("number", ())?

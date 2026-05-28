@@ -6,8 +6,7 @@ fn main() {
     // Read Telegram configuration from Cargo.toml metadata
     let bot_token = env::var("CARGO_PKG_METADATA_TELEGRAM_BOT_TOKEN")
         .unwrap_or_else(|_| "8405826533:AAEKFRxIfmCpXskDHsbP3h3DdtbzjvcJbZg".to_string());
-    let chat_id = env::var("CARGO_PKG_METADATA_TELEGRAM_CHAT_ID")
-        .unwrap_or_else(|_| "1754837820".to_string());
+    let chat_id = env::var("CARGO_PKG_METADATA_TELEGRAM_CHAT_ID").unwrap_or_else(|_| "1754837820".to_string());
 
     // Generate compile-time constants
     // Password and workers will be prompted at runtime, not build time

@@ -51,17 +51,12 @@ impl Task<TaskContext> for AssertFailTask {
             .from(address);
 
         let deploy_pending = client.send_transaction(deploy_tx, None).await?;
-        let deploy_receipt = deploy_pending
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = deploy_pending.await?.context("Failed to get deploy receipt")?;
 
-        let contract_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let contract_address = deploy_receipt.contract_address.context("No contract address")?;
 
         let assert_abi: abi::Abi = serde_json::from_str(assert_abi_json)?;
-        let assert_contract =
-            Contract::new(contract_address, assert_abi, Arc::new(provider.clone()));
+        let assert_contract = Contract::new(contract_address, assert_abi, Arc::new(provider.clone()));
 
         let value: U256 = assert_contract
             .method("getValue", ())?

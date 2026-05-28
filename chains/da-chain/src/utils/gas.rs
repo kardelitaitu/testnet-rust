@@ -38,11 +38,7 @@ impl GasManager {
     }
 
     pub async fn get_gas_price(&self) -> Result<U256> {
-        Ok(self
-            .provider
-            .get_gas_price()
-            .await
-            .unwrap_or_else(|_| U256::zero()))
+        Ok(self.provider.get_gas_price().await.unwrap_or_else(|_| U256::zero()))
     }
 
     pub async fn get_fees(&self) -> Result<(U256, U256)> {
@@ -85,11 +81,9 @@ impl GasManager {
     }
 
     pub fn get_max_fee(&self, base_fee: U256) -> U256 {
-        let priority_fee_wei: U256 =
-            parse_units(self.config.priority_gwei(), "gwei").unwrap_or(U256::zero());
+        let priority_fee_wei: U256 = parse_units(self.config.priority_gwei(), "gwei").unwrap_or(U256::zero());
         let max_fee_wei = base_fee + priority_fee_wei;
-        let max_configured_wei: U256 =
-            parse_units(self.config.max_gwei(), "gwei").unwrap_or(U256::zero());
+        let max_configured_wei: U256 = parse_units(self.config.max_gwei(), "gwei").unwrap_or(U256::zero());
 
         max_fee_wei.min(max_configured_wei)
     }
@@ -225,11 +219,7 @@ mod tests {
         // base_fee = 50000 gwei → max_fee = 50000 + 10 = 50010 → capped at 20000 → 20000
         let base_fee = U256::from(50_000_000_000_000u128); // 50000 gwei
         let result = mgr.get_max_fee(base_fee);
-        assert_eq!(
-            result,
-            U256::from(20_000_000_000_000u128),
-            "Capped at 20000 gwei"
-        );
+        assert_eq!(result, U256::from(20_000_000_000_000u128), "Capped at 20000 gwei");
     }
 
     #[test]
@@ -253,11 +243,7 @@ mod tests {
         // base_fee = 19990 gwei → max_fee = 19990 + 10 = 20000 → exactly at cap
         let base_fee = U256::from(19_990_000_000_000u128);
         let result = mgr.get_max_fee(base_fee);
-        assert_eq!(
-            result,
-            U256::from(20_000_000_000_000u128),
-            "Exactly at 20000 gwei cap"
-        );
+        assert_eq!(result, U256::from(20_000_000_000_000u128), "Exactly at 20000 gwei cap");
     }
 
     #[test]
@@ -270,11 +256,7 @@ mod tests {
         // base_fee = 40 gwei → max_fee = 40 + 2 = 42 gwei → capped at 50 → 42
         let base_fee = U256::from(40_000_000_000u128);
         let result = mgr.get_max_fee(base_fee);
-        assert_eq!(
-            result,
-            U256::from(42_000_000_000u128),
-            "40 base + 2 priority = 42 gwei"
-        );
+        assert_eq!(result, U256::from(42_000_000_000u128), "40 base + 2 priority = 42 gwei");
     }
 
     #[test]

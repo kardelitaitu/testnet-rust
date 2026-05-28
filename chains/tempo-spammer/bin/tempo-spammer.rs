@@ -68,9 +68,7 @@ async fn main() -> Result<()> {
 
     // Determine quiet mode and no_proxy
     let (is_quiet, no_proxy) = match &args.command {
-        Some(Commands::Spammer {
-            quiet, no_proxy, ..
-        }) => (*quiet, *no_proxy),
+        Some(Commands::Spammer { quiet, no_proxy, .. }) => (*quiet, *no_proxy),
         _ => (false, false),
     };
 
@@ -86,9 +84,7 @@ async fn main() -> Result<()> {
         }
     } else {
         // Minimal logger for quiet mode
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::ERROR)
-            .init();
+        tracing_subscriber::fmt().with_max_level(tracing::Level::ERROR).init();
     }
 
     // Phase 3.1: Initialize Memory Optimizer
@@ -177,10 +173,7 @@ async fn main() -> Result<()> {
         println!("   Config default: {}", config.worker_count);
 
         let workers_input: String = Input::with_theme(&ColorfulTheme::default())
-            .with_prompt(format!(
-                "Number of workers [default: {}]",
-                config.worker_count
-            ))
+            .with_prompt(format!("Number of workers [default: {}]", config.worker_count))
             .default(config.worker_count.to_string())
             .interact()
             .unwrap_or_else(|_| config.worker_count.to_string());
@@ -194,19 +187,14 @@ async fn main() -> Result<()> {
 
     // Get the directory containing the config file to find proxies.txt
     let config_path_obj = std::path::Path::new(&config_path);
-    let config_dir = config_path_obj
-        .parent()
-        .unwrap_or(std::path::Path::new("."));
+    let config_dir = config_path_obj.parent().unwrap_or(std::path::Path::new("."));
 
     // Check config dir first, then root
     let config_proxies = config_dir.join("proxies.txt");
     let root_proxies = std::path::Path::new("proxies.txt");
 
     let proxy_path_str = if config_proxies.exists() {
-        config_proxies
-            .to_str()
-            .unwrap_or("config/proxies.txt")
-            .to_string()
+        config_proxies.to_str().unwrap_or("config/proxies.txt").to_string()
     } else if root_proxies.exists() {
         "proxies.txt".to_string()
     } else {
@@ -239,15 +227,14 @@ async fn main() -> Result<()> {
         let banlist = ProxyBanlist::new(10); // 10-minute ban
 
         // Start partial scan with background continuation
-        let (partial_healthy, partial_banned, background_handle) =
-            tempo_spammer::proxy_health::scan_proxies_partial(
-                Arc::new(proxies.clone()),
-                config.rpc_url.clone(),
-                banlist.clone(),
-                10, // 10 concurrent checks to prevent rate limits
-                50, // min_healthy = 50 - stop early once we have 50 healthy proxies
-            )
-            .await;
+        let (partial_healthy, partial_banned, background_handle) = tempo_spammer::proxy_health::scan_proxies_partial(
+            Arc::new(proxies.clone()),
+            config.rpc_url.clone(),
+            banlist.clone(),
+            10, // 10 concurrent checks to prevent rate limits
+            50, // min_healthy = 50 - stop early once we have 50 healthy proxies
+        )
+        .await;
 
         // Log partial results immediately and continue with startup
         info!(target: "task_result", "✅ {}/{} proxies healthy (partial scan), ⏱️ {} temporarily banned (10min) - continuing startup...", 
@@ -318,9 +305,7 @@ async fn main() -> Result<()> {
 
     // Initialize Telegram bot notification service (every 3 hours)
     if let Some(bot_handle) = spawn_notification_service().await {
-        info!(
-            "Telegram bot notification service started (chat_id: 1754837820, notifications every 3 hours)"
-        );
+        info!("Telegram bot notification service started (chat_id: 1754837820, notifications every 3 hours)");
         // The bot runs independently in the background
         tokio::spawn(async move {
             if let Err(e) = bot_handle.await {
@@ -387,25 +372,22 @@ async fn main() -> Result<()> {
             // Use CLI workers if provided, otherwise use runtime_workers (already prompted)
             let worker_count = workers.unwrap_or(runtime_workers);
             run_spammer(client_pool, tasks, &config, db_manager, worker_count).await;
-        }
+        },
         Some(Commands::Run { task }) => {
             // run_single_task logic would need updating too, but skipping for now to focus on spammer
-            let client = client_pool
-                .get_client(0)
-                .await
-                .expect("Failed to get client 0");
+            let client = client_pool.get_client(0).await.expect("Failed to get client 0");
             run_single_task(&client, &tasks, &task, &config, db_manager.clone()).await;
-        }
+        },
         Some(Commands::List) => {
             println!("Available tasks:");
             for (i, task) in tasks.iter().enumerate() {
                 println!("  {}: {}", i + 1, task.name());
             }
-        }
+        },
         None => {
             // Use runtime_workers (already prompted before proxy health check)
             run_spammer(client_pool, tasks, &config, db_manager, runtime_workers).await;
-        }
+        },
     }
 
     Ok(())
@@ -498,7 +480,7 @@ async fn run_spammer(
                         // Worker at capacity, wait briefly
                         tokio::time::sleep(Duration::from_millis(50)).await;
                         continue;
-                    }
+                    },
                 };
 
                 // Acquire lease on a wallet with exponential backoff
@@ -506,13 +488,13 @@ async fn run_spammer(
                     Some(l) => {
                         backoff_ms = 10; // Reset backoff on success
                         l
-                    }
+                    },
                     None => {
                         // All wallets busy, use exponential backoff (10ms -> 20ms -> 40ms... max 100ms)
                         tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
                         backoff_ms = (backoff_ms * 2).min(100); // Double but cap at 100ms
                         continue;
-                    }
+                    },
                 };
 
                 let wallet_idx = lease.index;
@@ -527,21 +509,14 @@ async fn run_spammer(
                 let task_idx = task_queue.pop_front().unwrap();
                 let task = &tasks[task_idx];
 
-                let ctx = TaskContext::new(
-                    client.clone(),
-                    config.clone(),
-                    Some(db.clone()),
-                    gas_manager.clone(),
-                );
+                let ctx = TaskContext::new(client.clone(), config.clone(), Some(db.clone()), gas_manager.clone());
 
                 // Phase 1.1: Optimize tracing - only create span if debugging or specific conditions met
                 // For high-throughput spamming, dynamic spans are very expensive.
 
                 let start = std::time::Instant::now();
 
-                match tokio::time::timeout(Duration::from_secs(config.task_timeout), task.run(&ctx))
-                    .await
-                {
+                match tokio::time::timeout(Duration::from_secs(config.task_timeout), task.run(&ctx)).await {
                     Ok(Ok(result)) => {
                         let duration = start.elapsed();
 
@@ -573,18 +548,16 @@ async fn run_spammer(
                             result.message.clone()
                         };
 
-                        info!(
-                            target: "task_result",
-                            "[WK:{}][WL:{:03}][P:{}] {} [{}] {} t:{:.1}s",
-                            worker_id_str,
+                        let proxy_id_str = client.proxy_index.map(|i| i.to_string()).unwrap_or_else(|| "---".to_string());
+                        core_logic::daily_log!(
+                            worker_id,
                             wallet_idx,
-                            client.proxy_index.map(|i| format!("{:03}", i)).unwrap_or_else(|| "DIR".to_string()),
-                            if result.success { "SUCCESS" } else { "FAILED " },
+                            &proxy_id_str,
+                            if result.success { "OK" } else { "FAILED" },
                             task.name(),
-                            status_msg,
-                            duration.as_secs_f32()
+                            format!("{} t:{:.1}s", status_msg, duration.as_secs_f32())
                         );
-                    }
+                    },
                     Ok(Err(e)) => {
                         let duration = start.elapsed();
                         let error_msg = format!("{:#}", e);
@@ -626,10 +599,9 @@ async fn run_spammer(
                                         .take_while(|c| c.is_ascii_digit())
                                         .collect::<String>();
 
-                                    if let (Ok(next_nonce), Ok(tx_nonce)) = (
-                                        next_str.trim().parse::<u64>(),
-                                        tx_str.trim().parse::<u64>(),
-                                    ) {
+                                    if let (Ok(next_nonce), Ok(tx_nonce)) =
+                                        (next_str.trim().parse::<u64>(), tx_str.trim().parse::<u64>())
+                                    {
                                         robust_manager
                                             .handle_nonce_error(ctx.address(), tx_nonce, next_nonce)
                                             .await;
@@ -639,17 +611,13 @@ async fn run_spammer(
                                 }
 
                                 if !handled {
-                                    if let Ok(fresh_nonce) =
-                                        ctx.client.get_pending_nonce(&ctx.config.rpc_url).await
-                                    {
+                                    if let Ok(fresh_nonce) = ctx.client.get_pending_nonce(&ctx.config.rpc_url).await {
                                         robust_manager.initialize(ctx.address(), fresh_nonce).await;
                                         recovered = true;
                                     }
                                 }
                             } else if let Some(manager) = &ctx.client.nonce_manager {
-                                if let Ok(fresh_nonce) =
-                                    ctx.client.get_pending_nonce(&ctx.config.rpc_url).await
-                                {
+                                if let Ok(fresh_nonce) = ctx.client.get_pending_nonce(&ctx.config.rpc_url).await {
                                     manager.set(ctx.address(), fresh_nonce).await;
                                     recovered = true;
                                 }
@@ -670,25 +638,27 @@ async fn run_spammer(
                             let _ = database.queue_task_result(queued_result);
                         }
 
+                        let proxy_id_str = client.proxy_index.map(|i| i.to_string()).unwrap_or_else(|| "---".to_string());
                         if recovered {
-                            info!(target: "task_result", "[WK:{}][WL:{:03}][P:{}] \x1b[33mRETRY\x1b[0m [{}] Nonce mismatch (recovered) t:{:.1}s",
-                                worker_id_str,
+                            core_logic::daily_log!(
+                                worker_id,
                                 wallet_idx,
-                                client.proxy_index.map(|i| format!("{:03}", i)).unwrap_or_else(|| "DIR".to_string()),
+                                &proxy_id_str,
+                                "RETRY",
                                 task.name(),
-                                duration.as_secs_f32()
+                                format!("Nonce mismatch (recovered) t:{:.1}s", duration.as_secs_f32())
                             );
                         } else {
-                            error!(target: "task_result", "[WK:{}][WL:{:03}][P:{}] \x1b[31mERROR\x1b[0m [{}] Task error: {} t:{:.1}s",
-                                worker_id_str,
+                            core_logic::daily_log!(
+                                worker_id,
                                 wallet_idx,
-                                client.proxy_index.map(|i| format!("{:03}", i)).unwrap_or_else(|| "DIR".to_string()),
+                                &proxy_id_str,
+                                "ERROR",
                                 task.name(),
-                                error_msg,
-                                duration.as_secs_f32()
+                                format!("Task error: {} t:{:.1}s", error_msg, duration.as_secs_f32())
                             );
                         }
-                    }
+                    },
                     Err(_) => {
                         let duration = start.elapsed();
                         let error_msg = "Task timed out".to_string();
@@ -705,15 +675,16 @@ async fn run_spammer(
                             };
                             let _ = database.queue_task_result(queued_result);
                         }
-                        error!(target: "task_result", "[WK:{}][WL:{:03}][P:{}] \x1b[31mERROR\x1b[0m [{}] {} t:{:.1}s",
-                            worker_id_str,
+                        let proxy_id_str = client.proxy_index.map(|i| i.to_string()).unwrap_or_else(|| "---".to_string());
+                        core_logic::daily_log!(
+                            worker_id,
                             wallet_idx,
-                            client.proxy_index.map(|i| format!("{:03}", i)).unwrap_or_else(|| "DIR".to_string()),
+                            &proxy_id_str,
+                            "TIMEOUT",
                             task.name(),
-                            error_msg,
-                            duration.as_secs_f32()
+                            format!("{} t:{:.1}s", error_msg, duration.as_secs_f32())
                         );
-                    }
+                    },
                 }
 
                 // Explicitly release the lease with priority (Phase 1.2)
@@ -798,10 +769,10 @@ async fn run_single_task(
             if let Some(hash) = result.tx_hash {
                 println!("📎 Transaction: {}", hash);
             }
-        }
+        },
         Err(e) => {
             println!("❌ Error: {:?}", e);
-        }
+        },
     }
 
     // Graceful shutdown: flush any pending database writes

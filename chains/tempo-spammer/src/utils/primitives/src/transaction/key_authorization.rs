@@ -13,10 +13,7 @@ use alloy_rlp::Encodable;
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "reth-codec", derive(reth_codecs::Compact))]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(compact, rlp)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
 pub struct TokenLimit {
     /// TIP20 token address
     pub token: Address,
@@ -38,10 +35,7 @@ pub struct TokenLimit {
 #[rlp(trailing)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(rlp)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(rlp))]
 pub struct KeyAuthorization {
     /// Chain ID for replay protection (0 = valid on any chain)
     #[cfg_attr(feature = "serde", serde(with = "alloy_serde::quantity"))]
@@ -103,24 +97,12 @@ impl KeyAuthorization {
 }
 
 /// Signed key authorization that can be attached to a transaction.
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    alloy_rlp::RlpEncodable,
-    alloy_rlp::RlpDecodable,
-    derive_more::Deref,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, alloy_rlp::RlpEncodable, alloy_rlp::RlpDecodable, derive_more::Deref)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
 #[rlp(trailing)]
-#[cfg_attr(
-    all(test, feature = "reth-codec"),
-    reth_codecs::add_arbitrary_tests(compact, rlp)
-)]
+#[cfg_attr(all(test, feature = "reth-codec"), reth_codecs::add_arbitrary_tests(compact, rlp))]
 pub struct SignedKeyAuthorization {
     /// Key authorization for provisioning access keys
     #[cfg_attr(feature = "serde", serde(flatten))]
@@ -134,8 +116,7 @@ pub struct SignedKeyAuthorization {
 impl SignedKeyAuthorization {
     /// Recover the signer of the [`KeyAuthorization`].
     pub fn recover_signer(&self) -> Result<Address, RecoveryError> {
-        self.signature
-            .recover_signer(&self.authorization.signature_hash())
+        self.signature.recover_signer(&self.authorization.signature_hash())
     }
 
     /// Calculates a heuristic for the in-memory size of the signed key authorization
@@ -156,8 +137,7 @@ impl reth_codecs::Compact for SignedKeyAuthorization {
     }
 
     fn from_compact(mut buf: &[u8], _len: usize) -> (Self, &[u8]) {
-        let item = alloy_rlp::Decodable::decode(&mut buf)
-            .expect("Failed to decode KeyAuthorization from compact");
+        let item = alloy_rlp::Decodable::decode(&mut buf).expect("Failed to decode KeyAuthorization from compact");
         (item, buf)
     }
 }

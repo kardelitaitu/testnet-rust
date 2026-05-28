@@ -1,6 +1,22 @@
 use async_trait::async_trait;
 use ethers::prelude::*;
 use std::sync::Arc;
+use std::time::Duration;
+
+/// Wait for a transaction receipt by polling with exponential backoff:
+/// 1s, 2s, 4s, 8s, 16s delays (5 retries, ~31s total).
+pub async fn confirm_with_retry(
+    tx_hash: H256,
+    provider: &Provider<Http>,
+) -> anyhow::Result<Option<TransactionReceipt>> {
+    for attempt in 0..5 {
+        tokio::time::sleep(Duration::from_secs(1 << attempt)).await;
+        if let Some(receipt) = provider.get_transaction_receipt(tx_hash).await? {
+            return Ok(Some(receipt));
+        }
+    }
+    Ok(None)
+}
 
 pub struct TaskContext {
     pub provider: Provider<Http>,
@@ -165,19 +181,9 @@ mod tests {
             let num: u32 = prefix
                 .parse()
                 .unwrap_or_else(|_| panic!("Task '{}' doesn't start with 2-digit number", name));
-            assert!(
-                num >= 1 && num <= 99,
-                "Task '{}' prefix {} out of range",
-                name,
-                num
-            );
+            assert!(num >= 1 && num <= 99, "Task '{}' prefix {} out of range", name, num);
             // Third char should be underscore
-            assert_eq!(
-                name.as_bytes()[2],
-                b'_',
-                "Task '{}' missing underscore separator",
-                name
-            );
+            assert_eq!(name.as_bytes()[2], b'_', "Task '{}' missing underscore separator", name);
         }
     }
 

@@ -106,20 +106,19 @@ impl TempoTask for MultiSendDisperseMemeTask {
                 Ok(pending) => {
                     match pending.get_receipt().await {
                         Ok(_receipt) => {
-                            balance =
-                                TempoTokens::get_token_balance(client, token_addr, address).await?;
+                            balance = TempoTokens::get_token_balance(client, token_addr, address).await?;
                             total_amount = balance * percent / U256::from(100);
-                        }
+                        },
                         Err(e) => {
                             // Mint failed (likely unauthorized), use existing balance
                             tracing::debug!("Mint failed ({}), using existing balance", e);
-                        }
+                        },
                     }
-                }
+                },
                 Err(e) => {
                     // Unauthorized or other error, skip minting
                     tracing::debug!("Cannot mint token ({}), using existing balance", e);
-                }
+                },
             }
         }
 
@@ -169,13 +168,13 @@ impl TempoTask for MultiSendDisperseMemeTask {
                     Ok(pending) => {
                         last_tx_hash = Some(format!("{:?}", *pending.tx_hash()));
                         let _ = pending.get_receipt().await;
-                    }
+                    },
                     Err(e) => {
                         tracing::warn!("Transfer to {} failed: {:?}", recipient, e);
                         if first_error.is_none() {
                             first_error = Some(anyhow::anyhow!(e));
                         }
-                    }
+                    },
                 }
             }
         }

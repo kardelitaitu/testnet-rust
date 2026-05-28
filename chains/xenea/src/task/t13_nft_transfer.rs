@@ -34,24 +34,18 @@ impl Task<TaskContext> for NftTransferTask {
         let mnemonic_path = "core-logic/src/utils/mnemonic.txt";
 
         let mut rng = OsRng;
-        let abi_json = std::fs::read_to_string(abi_path)
-            .with_context(|| format!("Failed to read ABI from {}", abi_path))?;
+        let abi_json =
+            std::fs::read_to_string(abi_path).with_context(|| format!("Failed to read ABI from {}", abi_path))?;
         let abi: abi::Abi = serde_json::from_str(&abi_json)?;
 
         // Check DB for existing NFT contract
         let nft_address = if let Some(db) = &ctx.db {
             match db.get_all_assets_by_type("ERC721").await {
                 Ok(contracts) if !contracts.is_empty() => {
-                    let addr_str = contracts
-                        .choose(&mut rng)
-                        .context("Failed to pick contract")?;
+                    let addr_str = contracts.choose(&mut rng).context("Failed to pick contract")?;
                     debug!("Using existing NFT: {}", addr_str);
-                    Some(
-                        addr_str
-                            .parse::<Address>()
-                            .context("Invalid address in DB")?,
-                    )
-                }
+                    Some(addr_str.parse::<Address>().context("Invalid address in DB")?)
+                },
                 _ => None,
             }
         } else {
@@ -82,10 +76,7 @@ impl Task<TaskContext> for NftTransferTask {
         }
 
         // Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
@@ -93,10 +84,8 @@ impl Task<TaskContext> for NftTransferTask {
         let nft_address = match nft_address {
             Some(addr) => addr,
             None => {
-                let mnemonic_content =
-                    std::fs::read_to_string(mnemonic_path).with_context(|| {
-                        format!("Failed to read mnemonic file from {}", mnemonic_path)
-                    })?;
+                let mnemonic_content = std::fs::read_to_string(mnemonic_path)
+                    .with_context(|| format!("Failed to read mnemonic file from {}", mnemonic_path))?;
                 let words: Vec<&str> = mnemonic_content
                     .lines()
                     .map(|line| line.trim())
@@ -121,10 +110,7 @@ impl Task<TaskContext> for NftTransferTask {
                 let constructor = abi.constructor().context("ABI missing constructor")?;
                 let encoded_args = constructor.encode_input(
                     bytecode_raw,
-                    &[
-                        Token::String(nft_name.clone()),
-                        Token::String(nft_symbol_for_abi),
-                    ],
+                    &[Token::String(nft_name.clone()), Token::String(nft_symbol_for_abi)],
                 )?;
 
                 let deploy_nonce = nonce_manager.next().await?;
@@ -141,9 +127,7 @@ impl Task<TaskContext> for NftTransferTask {
                         let tx_hash = format!("{:?}", pending.tx_hash());
                         match pending.await {
                             Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
-                                let addr = receipt
-                                    .contract_address
-                                    .context("No contract address in receipt")?;
+                                let addr = receipt.contract_address.context("No contract address in receipt")?;
                                 if let Some(db) = &ctx.db {
                                     let _ = db
                                         .log_asset_creation(
@@ -156,7 +140,7 @@ impl Task<TaskContext> for NftTransferTask {
                                         .await;
                                 }
                                 addr
-                            }
+                            },
                             _ => {
                                 let _ = nonce_manager.resync().await;
                                 return Ok(TaskResult {
@@ -164,9 +148,9 @@ impl Task<TaskContext> for NftTransferTask {
                                     message: format!("NFT deploy failed (tx: {})", tx_hash),
                                     tx_hash: Some(tx_hash),
                                 });
-                            }
+                            },
                         }
-                    }
+                    },
                     Err(e) => {
                         debug!("NFT deploy submit failed, resyncing nonce: {}", e);
                         let _ = nonce_manager.resync().await;
@@ -175,9 +159,9 @@ impl Task<TaskContext> for NftTransferTask {
                             message: format!("Failed to submit NFT deploy tx: {}", e),
                             tx_hash: None,
                         });
-                    }
+                    },
                 }
-            }
+            },
         };
 
         debug!("Using NFT at {:?}", nft_address);
@@ -199,14 +183,8 @@ impl Task<TaskContext> for NftTransferTask {
             Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
         };
 
-        let metadata_json = format!(
-            r#"{{"name":"{}","description":"Transfer Test"}}"#,
-            capitalized_word
-        );
-        let metadata_uri = format!(
-            "data:application/json;base64,{}",
-            BASE64.encode(metadata_json)
-        );
+        let metadata_json = format!(r#"{{"name":"{}","description":"Transfer Test"}}"#, capitalized_word);
+        let metadata_uri = format!("data:application/json;base64,{}", BASE64.encode(metadata_json));
 
         let mint_nonce = nonce_manager.next().await?;
         let mint_data = contract.encode("mint", (address, metadata_uri))?;
@@ -225,7 +203,7 @@ impl Task<TaskContext> for NftTransferTask {
                 match pending.await {
                     Ok(Some(receipt)) if receipt.status == Some(U64::from(1)) => {
                         info!("t13 mint succeeded");
-                    }
+                    },
                     _ => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -233,9 +211,9 @@ impl Task<TaskContext> for NftTransferTask {
                             message: format!("NFT mint failed (tx: {})", mint_tx_hash),
                             tx_hash: Some(mint_tx_hash),
                         });
-                    }
+                    },
                 }
-            }
+            },
             Err(e) => {
                 debug!("NFT mint submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -244,7 +222,7 @@ impl Task<TaskContext> for NftTransferTask {
                     message: format!("Failed to submit NFT mint tx: {}", e),
                     tx_hash: None,
                 });
-            }
+            },
         }
 
         // Transfer
@@ -273,7 +251,7 @@ impl Task<TaskContext> for NftTransferTask {
                     ),
                     tx_hash: Some(transfer_tx_hash),
                 })
-            }
+            },
             Err(e) => {
                 debug!("NFT transfer submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -282,7 +260,7 @@ impl Task<TaskContext> for NftTransferTask {
                     message: format!("Failed to submit NFT transfer tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

@@ -53,10 +53,7 @@ impl Task<TaskContext> for UniswapV2SwapTask {
         let amount_in = available / U256::from(100u64);
 
         // 3. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
@@ -70,11 +67,7 @@ impl Task<TaskContext> for UniswapV2SwapTask {
             {"inputs":[{"internalType":"uint256","name":"amountOutMin","type":"uint256"},{"internalType":"address[]","name":"path","type":"address[]"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"deadline","type":"uint256"}],"name":"swapExactETHForTokens","outputs":[{"internalType":"uint256[]","name":"amounts","type":"uint256[]"}],"stateMutability":"payable","type":"function"}
         ]"#;
         let router_abi_parsed: abi::Abi = serde_json::from_str(router_abi)?;
-        let router_contract = Contract::new(
-            router_address,
-            router_abi_parsed,
-            Arc::new(provider.clone()),
-        );
+        let router_contract = Contract::new(router_address, router_abi_parsed, Arc::new(provider.clone()));
 
         let path = vec![weth_address];
         let swap_data = router_contract.encode(
@@ -95,8 +88,7 @@ impl Task<TaskContext> for UniswapV2SwapTask {
 
         match pending_swap {
             Ok(pending) => {
-                let amount_eth = ethers::utils::format_units(amount_in, 18)
-                    .unwrap_or_else(|_| amount_in.to_string());
+                let amount_eth = ethers::utils::format_units(amount_in, 18).unwrap_or_else(|_| amount_in.to_string());
                 Ok(TaskResult {
                     success: true,
                     message: format!(
@@ -106,7 +98,7 @@ impl Task<TaskContext> for UniswapV2SwapTask {
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })
-            }
+            },
             Err(e) => {
                 debug!("UniswapV2 swap submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -115,7 +107,7 @@ impl Task<TaskContext> for UniswapV2SwapTask {
                     message: format!("Failed to submit UniswapV2 swap tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

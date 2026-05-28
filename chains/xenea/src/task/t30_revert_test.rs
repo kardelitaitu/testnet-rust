@@ -52,10 +52,7 @@ impl Task<TaskContext> for RevertTestTask {
         let amount_wei = available / U256::from(100u64);
 
         // 3. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         let tx = TransactionRequest::new()
@@ -72,8 +69,8 @@ impl Task<TaskContext> for RevertTestTask {
 
         match pending_tx {
             Ok(pending) => {
-                let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-                    .unwrap_or_else(|_| amount_wei.to_string());
+                let amount_eth =
+                    ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
                 Ok(TaskResult {
                     success: true,
                     message: format!(
@@ -84,7 +81,7 @@ impl Task<TaskContext> for RevertTestTask {
                     ),
                     tx_hash: Some(format!("{:?}", pending.tx_hash())),
                 })
-            }
+            },
             Err(e) => {
                 debug!("RevertTest tx submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -93,7 +90,7 @@ impl Task<TaskContext> for RevertTestTask {
                     message: format!("Failed to submit revert test tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

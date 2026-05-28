@@ -49,10 +49,7 @@ impl Task<TaskContext> for ApproveTokenTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
         let nonce = nonce_manager.next().await?;
 
         let abi_json = r#"[
@@ -95,7 +92,7 @@ impl Task<TaskContext> for ApproveTokenTask {
                     message: format!("Failed to submit approve tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

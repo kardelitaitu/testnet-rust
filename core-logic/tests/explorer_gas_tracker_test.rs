@@ -19,15 +19,13 @@ fn test_payload_builder_new() {
 
 #[test]
 fn test_payload_builder_with_row_label() {
-    let payload =
-        ExplorerGasTrackerPayload::new("https://explorer.example.com").with_row_label("Fast");
+    let payload = ExplorerGasTrackerPayload::new("https://explorer.example.com").with_row_label("Fast");
     assert_eq!(payload.row_label, "Fast");
 }
 
 #[test]
 fn test_payload_builder_with_timeout() {
-    let payload = ExplorerGasTrackerPayload::new("https://explorer.example.com")
-        .with_timeout(Duration::from_secs(30));
+    let payload = ExplorerGasTrackerPayload::new("https://explorer.example.com").with_timeout(Duration::from_secs(30));
     assert_eq!(payload.request_timeout, Duration::from_secs(30));
 }
 
@@ -46,8 +44,7 @@ fn test_payload_builder_with_proxies() {
         },
     ];
 
-    let payload = ExplorerGasTrackerPayload::new("https://explorer.example.com")
-        .with_proxies(proxies.clone());
+    let payload = ExplorerGasTrackerPayload::new("https://explorer.example.com").with_proxies(proxies.clone());
 
     assert_eq!(payload.proxies.len(), 2);
     assert_eq!(payload.proxies[0].url, "http://proxy1:8080");

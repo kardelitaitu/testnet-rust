@@ -17,6 +17,11 @@ A modular, high-performance optimization of the testnet automation framework, re
 *   **Robust Tooling**:
     *   **Debugger (`debug_task`)**: Interactive CLI to test individual tasks, check balances, and debug specific wallets.
     *   **Spammer**: High-throughput automated transaction generator with random delays and proxy rotation.
+*   **Verified Performance**:
+    *   **Low Overhead**: RPC selection in ~3ns, Database enqueuing in ~250ns.
+    *   **High Precision**: Mathematically proven retry and rate-limiting logic.
+    *   **Gold Standard Testing**: 350+ verified tests (Unit, Integration, Stress, Property).
+    *   See [core-logic/PERFORMANCE.md](./core-logic/PERFORMANCE.md) for full benchmarks and [core-logic/LOGGING.md](./core-logic/LOGGING.md) for the "Gold Standard" logging specification.
 
 ## 📂 Project Structure
 

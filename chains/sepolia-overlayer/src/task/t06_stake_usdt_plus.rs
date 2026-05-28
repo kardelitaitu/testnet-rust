@@ -1,4 +1,4 @@
-use super::{SepoliaTask, TaskContext, TaskResult};
+use super::{confirm_with_retry, SepoliaTask, TaskContext, TaskResult};
 use crate::utils::calc::calc_pct_rounded;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -27,17 +27,10 @@ async fn get_tplus_balance(provider: &Provider<Http>, wallet: Address) -> Result
         serde_json::from_str::<ethers::abi::Abi>(STAKE_ABI)?,
         Arc::new(provider.clone()),
     );
-    Ok(contract
-        .method::<_, U256>("balanceOf", wallet)?
-        .call()
-        .await?)
+    Ok(contract.method::<_, U256>("balanceOf", wallet)?.call().await?)
 }
 
-async fn get_tplus_allowance(
-    provider: &Provider<Http>,
-    wallet: Address,
-    spender: Address,
-) -> Result<U256> {
+async fn get_tplus_allowance(provider: &Provider<Http>, wallet: Address, spender: Address) -> Result<U256> {
     let addr: Address = USDT_PLUS.parse()?;
     let contract = Contract::new(
         addr,
@@ -99,10 +92,7 @@ impl SepoliaTask for StakeUsdtPlusTask {
                 .gas(50_000);
             let approve_tx = approve_call.send().await?;
 
-            let _ = approve_tx
-                .confirmations(1)
-                .interval(Duration::from_millis(500))
-                .await?;
+            let _ = approve_tx.confirmations(1).interval(Duration::from_millis(500)).await?;
         }
 
         // --- 4. Get gas fees ---
@@ -119,25 +109,20 @@ impl SepoliaTask for StakeUsdtPlusTask {
             .method::<(U256, Address), H256>("deposit", (U256::from(stake_amount), address))?
             .gas(150_000)
             .gas_price(max_fee);
-        let deposit_tx = deposit_call
-            .send()
-            .await
-            .context("Failed to send deposit tx")?;
+        let deposit_tx = deposit_call.send().await.context("Failed to send deposit tx")?;
 
         let tx_hash = deposit_tx.tx_hash();
 
-        let receipt = deposit_tx
-            .confirmations(1)
-            .interval(Duration::from_millis(500))
-            .await?;
+        let receipt = confirm_with_retry(tx_hash, provider).await?;
 
         let success = receipt.is_some_and(|r| r.status == Some(1.into()));
         Ok(TaskResult {
             success,
-            message: format!(
-                "Staked {} T+ in staking contract (tx: {:?})",
-                whole_tplus, tx_hash
-            ),
+            message: if success {
+                format!("Staked {} T+ in staking contract (tx: {:?})", whole_tplus, tx_hash)
+            } else {
+                format!("Failed to stake T+ - receipt not confirmed (tx: {:?})", tx_hash)
+            },
         })
     }
 }

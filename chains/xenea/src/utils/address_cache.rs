@@ -42,8 +42,7 @@ impl AddressCache {
     }
 
     fn load_from_file(path: &str) -> Result<Self> {
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read address file: {}", path))?;
+        let content = fs::read_to_string(path).with_context(|| format!("Failed to read address file: {}", path))?;
 
         let addresses: Vec<Address> = content
             .lines()
@@ -54,15 +53,9 @@ impl AddressCache {
                 match trimmed.parse::<Address>() {
                     Ok(addr) => Some(addr),
                     Err(e) => {
-                        tracing::warn!(
-                            "Invalid address at line {} in {}: '{}' - {}",
-                            i + 1,
-                            path,
-                            trimmed,
-                            e
-                        );
+                        tracing::warn!("Invalid address at line {} in {}: '{}' - {}", i + 1, path, trimmed, e);
                         None
-                    }
+                    },
                 }
             })
             .collect();
@@ -71,11 +64,7 @@ impl AddressCache {
             anyhow::bail!("No valid addresses found in {}", path);
         }
 
-        info!(
-            "Loaded {} addresses from {} into cache",
-            addresses.len(),
-            path
-        );
+        info!("Loaded {} addresses from {} into cache", addresses.len(), path);
 
         Ok(Self { addresses })
     }
@@ -116,9 +105,7 @@ impl AddressCache {
     }
 
     pub fn is_empty() -> bool {
-        Self::global()
-            .map(|c| c.addresses.is_empty())
-            .unwrap_or(true)
+        Self::global().map(|c| c.addresses.is_empty()).unwrap_or(true)
     }
 
     pub fn addresses(&self) -> &[Address] {
@@ -187,9 +174,7 @@ mod tests {
         assert_eq!(cache.len_instance(), 2);
         assert_eq!(
             cache.addresses()[0],
-            "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
-                .parse::<Address>()
-                .unwrap()
+            "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse::<Address>().unwrap()
         );
     }
 
@@ -210,10 +195,7 @@ mod tests {
         let env = TempEnv::new(&["not_an_address", "invalid_hex"]);
         let result = AddressCache::load_from_file(env.path.to_str().unwrap());
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("No valid addresses"));
+        assert!(result.unwrap_err().to_string().contains("No valid addresses"));
     }
 
     #[test]
@@ -225,12 +207,8 @@ mod tests {
 
     #[test]
     fn test_cache_instance_methods() {
-        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488"
-            .parse()
-            .unwrap();
-        let cache = AddressCache {
-            addresses: vec![addr],
-        };
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let cache = AddressCache { addresses: vec![addr] };
         assert_eq!(cache.len_instance(), 1);
         assert!(!cache.is_empty_instance());
         assert_eq!(cache.addresses(), &[addr]);

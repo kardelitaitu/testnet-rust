@@ -45,8 +45,7 @@ impl TempoTask for RemoveLiquidityTask {
         let client = &ctx.client;
         let address = ctx.address();
 
-        let dex_address =
-            Address::from_str(STABLECOIN_DEX_ADDRESS).context("Invalid DEX address")?;
+        let dex_address = Address::from_str(STABLECOIN_DEX_ADDRESS).context("Invalid DEX address")?;
 
         // println!("Checking DEX internal balances...");
 
@@ -95,9 +94,7 @@ impl TempoTask for RemoveLiquidityTask {
             Err(e) => {
                 let err_str = e.to_string().to_lowercase();
                 if err_str.contains("nonce too low") || err_str.contains("already known") {
-                    tracing::warn!(
-                        "Nonce error on remove_liquidity, resetting cache and retrying..."
-                    );
+                    tracing::warn!("Nonce error on remove_liquidity, resetting cache and retrying...");
                     client.reset_nonce_cache().await;
                     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                     client
@@ -108,15 +105,12 @@ impl TempoTask for RemoveLiquidityTask {
                 } else {
                     return Err(e).context("Failed to send withdraw transaction");
                 }
-            }
+            },
         };
 
         let tx_hash = *pending.tx_hash();
 
-        let receipt = pending
-            .get_receipt()
-            .await
-            .context("Failed to get withdraw receipt")?;
+        let receipt = pending.get_receipt().await.context("Failed to get withdraw receipt")?;
 
         if !receipt.inner.status() {
             return Ok(TaskResult {
@@ -141,12 +135,7 @@ impl TempoTask for RemoveLiquidityTask {
     }
 }
 
-async fn get_dex_balance(
-    client: &crate::TempoClient,
-    dex: Address,
-    token: Address,
-    user: Address,
-) -> Result<u128> {
+async fn get_dex_balance(client: &crate::TempoClient, dex: Address, token: Address, user: Address) -> Result<u128> {
     let mut calldata = Vec::new();
     calldata.extend_from_slice(&[0x4f, 0x83, 0x29, 0x24]);
     calldata.extend_from_slice(&[0u8; 12]);

@@ -45,10 +45,7 @@ impl Task<TaskContext> for CrossContractCallTask {
         }
 
         // 2. Initialize Nonce Manager
-        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(
-            Arc::new(provider.clone()),
-            address,
-        );
+        let nonce_manager = crate::utils::nonce_manager::SimpleNonceManager::new(Arc::new(provider.clone()), address);
 
         let client = SignerMiddleware::new(provider.clone(), wallet.clone());
 
@@ -83,9 +80,9 @@ impl Task<TaskContext> for CrossContractCallTask {
             Ok(pending) => {
                 let tx_hash = format!("{:?}", pending.tx_hash());
                 match timeout(Duration::from_secs(60), pending).await {
-                    Ok(Ok(Some(receipt))) if receipt.status == Some(U64::from(1)) => receipt
-                        .contract_address
-                        .context("No contract address in receipt")?,
+                    Ok(Ok(Some(receipt))) if receipt.status == Some(U64::from(1)) => {
+                        receipt.contract_address.context("No contract address in receipt")?
+                    },
                     Ok(Ok(Some(_))) => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -93,7 +90,7 @@ impl Task<TaskContext> for CrossContractCallTask {
                             message: format!("Counter deploy reverted (tx: {})", tx_hash),
                             tx_hash: Some(tx_hash),
                         });
-                    }
+                    },
                     Ok(Ok(None)) | Err(_) => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
@@ -101,20 +98,17 @@ impl Task<TaskContext> for CrossContractCallTask {
                             message: format!("Counter deploy timed out (tx: {})", tx_hash),
                             tx_hash: Some(tx_hash),
                         });
-                    }
+                    },
                     Ok(Err(e)) => {
                         let _ = nonce_manager.resync().await;
                         return Ok(TaskResult {
                             success: false,
-                            message: format!(
-                                "Counter deploy receipt failed (tx: {}): {}",
-                                tx_hash, e
-                            ),
+                            message: format!("Counter deploy receipt failed (tx: {}): {}", tx_hash, e),
                             tx_hash: Some(tx_hash),
                         });
-                    }
+                    },
                 }
-            }
+            },
             Err(e) => {
                 debug!("CrossContract deploy submit failed, resyncing nonce: {}", e);
                 let _ = nonce_manager.resync().await;
@@ -123,12 +117,11 @@ impl Task<TaskContext> for CrossContractCallTask {
                     message: format!("Failed to submit Counter deploy tx: {}", e),
                     tx_hash: None,
                 });
-            }
+            },
         };
 
         let counter_abi: abi::Abi = serde_json::from_str(counter_abi_json)?;
-        let counter_contract =
-            Contract::new(target_address, counter_abi, Arc::new(provider.clone()));
+        let counter_contract = Contract::new(target_address, counter_abi, Arc::new(provider.clone()));
 
         let initial_value: U256 = counter_contract
             .method("number", ())?
@@ -155,7 +148,9 @@ impl Task<TaskContext> for CrossContractCallTask {
                 success: true,
                 message: format!(
                     "Cross-contract: deployed {:?}, initial value: {}, increment submitted (tx: {:?})",
-                    target_address, initial_value, pending.tx_hash()
+                    target_address,
+                    initial_value,
+                    pending.tx_hash()
                 ),
                 tx_hash: Some(format!("{:?}", pending.tx_hash())),
             }),
@@ -167,7 +162,7 @@ impl Task<TaskContext> for CrossContractCallTask {
                     message: format!("Failed to submit Counter increment tx: {}", e),
                     tx_hash: None,
                 })
-            }
+            },
         }
     }
 }

@@ -73,7 +73,7 @@ impl TempoTask for SendTokenTask {
                     // Reduced sleep for speed
                     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     continue;
-                }
+                },
             };
 
             let tx = TransactionRequest::default()
@@ -88,8 +88,7 @@ impl TempoTask for SendTokenTask {
                     let err_str = e.to_string().to_lowercase();
                     attempt += 1;
 
-                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
-                        && attempt < max_retries
+                    if (err_str.contains("nonce too low") || err_str.contains("already known")) && attempt < max_retries
                     {
                         // Reset nonce cache and retry quickly
                         client.reset_nonce_cache().await;
@@ -99,7 +98,7 @@ impl TempoTask for SendTokenTask {
                     } else {
                         return Err(e.into());
                     }
-                }
+                },
             }
         };
 

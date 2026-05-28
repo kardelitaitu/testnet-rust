@@ -25,8 +25,7 @@ impl SecurityUtils {
 
         // Derive Key using Scrypt (Node.js crypto.scryptSync defaults: N=16384, r=8, p=1)
         // Rust scrypt Params: log_n (14 -> 16384), r (8), p (1)
-        let params = scrypt::Params::new(14, 8, 1, 32)
-            .map_err(|e| anyhow::anyhow!("Invalid scrypt params: {}", e))?;
+        let params = scrypt::Params::new(14, 8, 1, 32).map_err(|e| anyhow::anyhow!("Invalid scrypt params: {}", e))?;
         let mut key = [0u8; 32];
         scrypt::scrypt(password.as_bytes(), &salt, &params, &mut key)
             .map_err(|e| anyhow::anyhow!("Scrypt failed: {}", e))?;

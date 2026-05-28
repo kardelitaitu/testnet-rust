@@ -59,11 +59,11 @@ impl TempoTask for GrantRoleTask {
                         // println!("DEBUG: Optimization - Limited to first 3 results");
                     }
                     addresses
-                }
+                },
                 Err(_e) => {
                     // println!("DEBUG: DB Error: {}", _e);
                     Vec::new()
-                }
+                },
             }
         } else {
             // println!("DEBUG: DB is NOT initialized");
@@ -91,11 +91,7 @@ impl TempoTask for GrantRoleTask {
         };
 
         let is_issuer = rng.gen_bool(0.8);
-        let role_name = if is_issuer {
-            "ISSUER_ROLE"
-        } else {
-            "PAUSE_ROLE"
-        };
+        let role_name = if is_issuer { "ISSUER_ROLE" } else { "PAUSE_ROLE" };
 
         let role_hash = keccak256(role_name.as_bytes());
 
@@ -119,11 +115,7 @@ impl TempoTask for GrantRoleTask {
         if has_role {
             return Ok(TaskResult {
                 success: true,
-                message: format!(
-                    "Role {} already granted on {}.",
-                    role_name,
-                    &token_addr_str[..10]
-                ),
+                message: format!("Role {} already granted on {}.", role_name, &token_addr_str[..10]),
                 tx_hash: None,
             });
         }
@@ -159,16 +151,13 @@ impl TempoTask for GrantRoleTask {
                     if retry_count >= MAX_RETRIES {
                         return Ok(TaskResult {
                             success: false,
-                            message: format!(
-                                "Failed to get nonce after {} retries: {}",
-                                MAX_RETRIES, e
-                            ),
+                            message: format!("Failed to get nonce after {} retries: {}", MAX_RETRIES, e),
                             tx_hash: None,
                         });
                     }
                     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
                     continue;
-                }
+                },
             };
 
             let tx = TransactionRequest::default()
@@ -206,7 +195,7 @@ impl TempoTask for GrantRoleTask {
                         message: format!("Grant role failed: {}", e),
                         tx_hash: None,
                     });
-                }
+                },
             }
         };
 
@@ -233,7 +222,7 @@ impl TempoTask for GrantRoleTask {
                         tx_hash: Some(format!("{:?}", tx_hash)),
                     })
                 }
-            }
+            },
             Err(e) => Ok(TaskResult {
                 success: false,
                 message: format!("Failed to get receipt: {}", e),

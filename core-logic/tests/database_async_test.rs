@@ -7,19 +7,17 @@ async fn test_database_async_logging_flushes_on_batch_size() {
     let dir = std::env::temp_dir().join(format!("core_db_async_batch_{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("test.db");
-    
+
     // Config: small batch size, long interval
     let config = AsyncDbConfig {
         channel_capacity: 100,
         batch_size: 5,
-        flush_interval_ms: 5000, 
+        flush_interval_ms: 5000,
     };
-    
-    let db = DatabaseManager::new_with_async(
-        db_path.to_str().unwrap(),
-        config,
-        FallbackStrategy::Drop
-    ).await.unwrap();
+
+    let db = DatabaseManager::new_with_async(db_path.to_str().unwrap(), config, FallbackStrategy::Drop)
+        .await
+        .unwrap();
 
     // Queue 4 results (below batch size)
     for i in 0..4 {
@@ -31,7 +29,8 @@ async fn test_database_async_logging_flushes_on_batch_size() {
             message: format!("msg {}", i),
             duration_ms: 10,
             timestamp: chrono::Utc::now().timestamp(),
-        }).unwrap();
+        })
+        .unwrap();
     }
 
     // Wait a bit - should NOT be flushed yet (interval is 5s)
@@ -47,7 +46,8 @@ async fn test_database_async_logging_flushes_on_batch_size() {
         message: "msg 4".into(),
         duration_ms: 10,
         timestamp: chrono::Utc::now().timestamp(),
-    }).unwrap();
+    })
+    .unwrap();
 
     // Wait a bit - SHOULD be flushed now
     sleep(Duration::from_millis(300)).await;
@@ -62,19 +62,17 @@ async fn test_database_async_logging_flushes_on_interval() {
     let dir = std::env::temp_dir().join(format!("core_db_async_interval_{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("test.db");
-    
+
     // Config: large batch size, short interval
     let config = AsyncDbConfig {
         channel_capacity: 100,
         batch_size: 100,
-        flush_interval_ms: 200, 
+        flush_interval_ms: 200,
     };
-    
-    let db = DatabaseManager::new_with_async(
-        db_path.to_str().unwrap(),
-        config,
-        FallbackStrategy::Drop
-    ).await.unwrap();
+
+    let db = DatabaseManager::new_with_async(db_path.to_str().unwrap(), config, FallbackStrategy::Drop)
+        .await
+        .unwrap();
 
     // Queue 1 result
     db.queue_task_result(QueuedTaskResult {
@@ -85,7 +83,8 @@ async fn test_database_async_logging_flushes_on_interval() {
         message: "interval test".into(),
         duration_ms: 10,
         timestamp: chrono::Utc::now().timestamp(),
-    }).unwrap();
+    })
+    .unwrap();
 
     // Wait for interval
     sleep(Duration::from_millis(500)).await;
@@ -100,19 +99,17 @@ async fn test_database_async_shutdown_flushes_pending() {
     let dir = std::env::temp_dir().join(format!("core_db_async_shutdown_{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("test.db");
-    
+
     // Config: large batch size, long interval
     let config = AsyncDbConfig {
         channel_capacity: 100,
         batch_size: 100,
-        flush_interval_ms: 10000, 
+        flush_interval_ms: 10000,
     };
-    
-    let db = DatabaseManager::new_with_async(
-        db_path.to_str().unwrap(),
-        config,
-        FallbackStrategy::Drop
-    ).await.unwrap();
+
+    let db = DatabaseManager::new_with_async(db_path.to_str().unwrap(), config, FallbackStrategy::Drop)
+        .await
+        .unwrap();
 
     // Queue 1 result
     db.queue_task_result(QueuedTaskResult {
@@ -123,15 +120,16 @@ async fn test_database_async_shutdown_flushes_pending() {
         message: "shutdown test".into(),
         duration_ms: 10,
         timestamp: chrono::Utc::now().timestamp(),
-    }).unwrap();
+    })
+    .unwrap();
 
     // Shutdown immediately
     db.shutdown().await.unwrap();
-    
+
     // Reopen to verify
     let db2 = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
     assert_eq!(db2.get_transaction_count("0xalice").await.unwrap(), 1);
-    
+
     db2.shutdown().await.unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -141,19 +139,17 @@ async fn test_database_async_fallback_drop() {
     let dir = std::env::temp_dir().join(format!("core_db_fallback_drop_{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("test.db");
-    
+
     // Config: tiny channel capacity
     let config = AsyncDbConfig {
         channel_capacity: 1,
         batch_size: 100,
-        flush_interval_ms: 10000, 
+        flush_interval_ms: 10000,
     };
-    
-    let db = DatabaseManager::new_with_async(
-        db_path.to_str().unwrap(),
-        config,
-        FallbackStrategy::Drop
-    ).await.unwrap();
+
+    let db = DatabaseManager::new_with_async(db_path.to_str().unwrap(), config, FallbackStrategy::Drop)
+        .await
+        .unwrap();
 
     // Fill channel (1 item)
     db.queue_task_result(QueuedTaskResult {
@@ -164,7 +160,8 @@ async fn test_database_async_fallback_drop() {
         message: "msg 1".into(),
         duration_ms: 10,
         timestamp: 12345,
-    }).unwrap();
+    })
+    .unwrap();
 
     // Next one should be dropped but NOT return error
     let result = db.queue_task_result(QueuedTaskResult {
@@ -176,9 +173,9 @@ async fn test_database_async_fallback_drop() {
         duration_ms: 10,
         timestamp: 12346,
     });
-    
+
     assert!(result.is_ok(), "Drop strategy should return Ok even if full");
-    
+
     let (_, dropped) = db.get_async_metrics();
     assert_eq!(dropped, 1);
 
@@ -191,18 +188,16 @@ async fn test_database_async_fallback_hybrid() {
     let dir = std::env::temp_dir().join(format!("core_db_fallback_hybrid_{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("test.db");
-    
+
     let config = AsyncDbConfig {
         channel_capacity: 1,
         batch_size: 100,
-        flush_interval_ms: 10000, 
+        flush_interval_ms: 10000,
     };
-    
-    let db = DatabaseManager::new_with_async(
-        db_path.to_str().unwrap(),
-        config,
-        FallbackStrategy::Hybrid
-    ).await.unwrap();
+
+    let db = DatabaseManager::new_with_async(db_path.to_str().unwrap(), config, FallbackStrategy::Hybrid)
+        .await
+        .unwrap();
 
     // Fill channel
     db.queue_task_result(QueuedTaskResult {
@@ -213,7 +208,8 @@ async fn test_database_async_fallback_hybrid() {
         message: "msg 1".into(),
         duration_ms: 10,
         timestamp: 12345,
-    }).unwrap();
+    })
+    .unwrap();
 
     // Next one should be dropped but NOT return error
     let result = db.queue_task_result(QueuedTaskResult {
@@ -225,9 +221,9 @@ async fn test_database_async_fallback_hybrid() {
         duration_ms: 10,
         timestamp: 12346,
     });
-    
+
     assert!(result.is_ok(), "Hybrid strategy should return Ok even if full");
-    
+
     let (_, dropped) = db.get_async_metrics();
     assert_eq!(dropped, 1);
 
@@ -240,7 +236,7 @@ async fn test_database_is_async_flag() {
     let dir = std::env::temp_dir().join(format!("core_db_async_flag_{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let db_path = dir.join("test.db");
-    
+
     // Test standard new
     let db_sync = DatabaseManager::new(db_path.to_str().unwrap()).await.unwrap();
     assert!(!db_sync.is_async());
@@ -249,14 +245,12 @@ async fn test_database_is_async_flag() {
 
     // Test async new
     let config = AsyncDbConfig::default();
-    let db_async = DatabaseManager::new_with_async(
-        db_path.to_str().unwrap(),
-        config,
-        FallbackStrategy::Drop
-    ).await.unwrap();
+    let db_async = DatabaseManager::new_with_async(db_path.to_str().unwrap(), config, FallbackStrategy::Drop)
+        .await
+        .unwrap();
     assert!(db_async.is_async());
     assert!(db_async.get_async_config().is_some());
-    
+
     // Check initial async metrics
     let (queued, dropped) = db_async.get_async_metrics();
     assert_eq!(queued, 0);

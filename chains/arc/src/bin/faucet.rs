@@ -84,10 +84,7 @@ fn main() -> Result<()> {
     println!();
     println!("{}", result.message);
     println!();
-    println!(
-        "🔍 Explorer: https://testnet.arcscan.app/address/{}",
-        args.address
-    );
+    println!("🔍 Explorer: https://testnet.arcscan.app/address/{}", args.address);
 
     if !result.success {
         std::process::exit(1);

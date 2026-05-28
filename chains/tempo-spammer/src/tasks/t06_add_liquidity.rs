@@ -46,8 +46,7 @@ impl TempoTask for AddLiquidityTask {
         let address = ctx.address();
         let wallet_addr_str = address.to_string();
 
-        let dex_address =
-            Address::from_str(STABLECOIN_DEX_ADDRESS).context("Invalid DEX address")?;
+        let dex_address = Address::from_str(STABLECOIN_DEX_ADDRESS).context("Invalid DEX address")?;
         let pathusd_address = Address::from_str(PATHUSD_ADDRESS).context("Invalid PathUSD")?;
 
         let mut tokens_with_balance: Vec<(String, Address, U256)> = Vec::new();
@@ -66,8 +65,7 @@ impl TempoTask for AddLiquidityTask {
             // Auto-claim from faucet when no system tokens available
             tracing::info!("No system tokens found, claiming from faucet...");
 
-            let faucet_addr =
-                Address::from_str(FAUCET_ADDRESS).context("Invalid faucet address")?;
+            let faucet_addr = Address::from_str(FAUCET_ADDRESS).context("Invalid faucet address")?;
             let mut faucet_data = hex::decode("4f9828f6000000000000000000000000").unwrap();
             faucet_data.extend_from_slice(address.as_slice());
 
@@ -95,22 +93,20 @@ impl TempoTask for AddLiquidityTask {
                     if tokens_with_balance.is_empty() {
                         return Ok(TaskResult {
                             success: false,
-                            message:
-                                "Faucet claimed but tokens not yet available. Try again later."
-                                    .to_string(),
+                            message: "Faucet claimed but tokens not yet available. Try again later.".to_string(),
                             tx_hash: Some(format!("{:?}", tx_hash)),
                         });
                     }
 
                     tracing::info!("Faucet claim successful, proceeding with liquidity add");
-                }
+                },
                 Err(e) => {
                     return Ok(TaskResult {
                         success: false,
                         message: format!("No system tokens and faucet claim failed: {:?}", e),
                         tx_hash: None,
                     });
-                }
+                },
             }
         }
 
@@ -130,8 +126,7 @@ impl TempoTask for AddLiquidityTask {
         //     format_token_amount_u256(pathusd_balance)
         // );
 
-        let dex_pathusd_balance =
-            get_dex_balance(client, dex_address, pathusd_address, address).await?;
+        let dex_pathusd_balance = get_dex_balance(client, dex_address, pathusd_address, address).await?;
         // println!(
         //     "PathUSD DEX balance: {}",
         //     format_token_amount_u256(dex_pathusd_balance)
@@ -195,19 +190,15 @@ impl TempoTask for AddLiquidityTask {
                     let tx_hash = *pending.tx_hash();
                     let tx_hash_str = format!("{:?}", tx_hash);
 
-                    let receipt = pending
-                        .get_receipt()
-                        .await
-                        .context("Failed to get receipt")?;
+                    let receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
                     break (tx_hash, tx_hash_str, receipt);
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     attempt += 1;
 
-                    if (err_str.contains("nonce too low") || err_str.contains("already known"))
-                        && attempt < max_retries
+                    if (err_str.contains("nonce too low") || err_str.contains("already known")) && attempt < max_retries
                     {
                         tracing::warn!(
                             "Nonce error on order placement, attempt {}/{}, resetting cache...",
@@ -226,7 +217,7 @@ impl TempoTask for AddLiquidityTask {
                             tx_hash: None,
                         });
                     }
-                }
+                },
             }
         };
 
@@ -273,19 +264,13 @@ impl TempoTask for AddLiquidityTask {
     }
 }
 
-async fn get_token_balance(
-    client: &crate::TempoClient,
-    token: Address,
-    wallet: Address,
-) -> Result<U256> {
+async fn get_token_balance(client: &crate::TempoClient, token: Address, wallet: Address) -> Result<U256> {
     let mut calldata = Vec::new();
     calldata.extend_from_slice(&[0x70, 0xa0, 0x82, 0x31]);
     calldata.extend_from_slice(&[0u8; 12]);
     calldata.extend_from_slice(wallet.as_slice());
 
-    let balance_data = TransactionRequest::default()
-        .to(token)
-        .input(calldata.into());
+    let balance_data = TransactionRequest::default().to(token).input(calldata.into());
 
     if let Ok(data) = client.provider.call(balance_data).await {
         let bytes = data.as_ref();
@@ -296,12 +281,7 @@ async fn get_token_balance(
     Ok(U256::ZERO)
 }
 
-async fn get_dex_balance(
-    client: &crate::TempoClient,
-    dex: Address,
-    token: Address,
-    user: Address,
-) -> Result<U256> {
+async fn get_dex_balance(client: &crate::TempoClient, dex: Address, token: Address, user: Address) -> Result<U256> {
     let mut calldata = Vec::new();
     calldata.extend_from_slice(&[0x4f, 0x83, 0x29, 0x24]);
     calldata.extend_from_slice(&[0u8; 12]);
@@ -348,9 +328,7 @@ async fn approve_token(
                 let err_str = e.to_string().to_lowercase();
                 attempt += 1;
 
-                if (err_str.contains("nonce too low") || err_str.contains("already known"))
-                    && attempt < max_retries
-                {
+                if (err_str.contains("nonce too low") || err_str.contains("already known")) && attempt < max_retries {
                     tracing::warn!(
                         "Nonce error on approval (add_liquidity), attempt {}/{}, resetting...",
                         attempt,
@@ -362,14 +340,11 @@ async fn approve_token(
                 } else {
                     return Err(e).context("Failed to send approve");
                 }
-            }
+            },
         }
     };
 
-    let _receipt = pending
-        .get_receipt()
-        .await
-        .context("Failed to get receipt")?;
+    let _receipt = pending.get_receipt().await.context("Failed to get receipt")?;
 
     // println!("Approval confirmed");
     Ok(())

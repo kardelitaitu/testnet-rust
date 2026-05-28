@@ -51,18 +51,11 @@ impl Task<TaskContext> for ERC721MintTask {
             .from(address);
 
         let pending_deploy = client.send_transaction(tx, None).await?;
-        let deploy_receipt = pending_deploy
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = pending_deploy.await?.context("Failed to get deploy receipt")?;
         if deploy_receipt.status != Some(U64::from(1)) {
-            return Err(anyhow::anyhow!(
-                "Deployment failed. Receipt: {:?}",
-                deploy_receipt
-            ));
+            return Err(anyhow::anyhow!("Deployment failed. Receipt: {:?}", deploy_receipt));
         }
-        let nft_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let nft_address = deploy_receipt.contract_address.context("No contract address")?;
         let contract = Contract::new(nft_address, abi, client.clone());
         debug!("Deployed TestNFT at {:?}", nft_address);
 
@@ -87,9 +80,7 @@ impl Task<TaskContext> for ERC721MintTask {
             .from(address);
 
         let pending_tx = client.send_transaction(mint_tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         let total_after: U256 = contract
             .method("totalSupply", ())?

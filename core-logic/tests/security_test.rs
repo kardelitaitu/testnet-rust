@@ -9,17 +9,12 @@ const TAG: &str = "04cf5ab8da75d5e94486af0fe9015015";
 #[test]
 fn test_decrypt_with_correct_password() {
     let result = SecurityUtils::decrypt_components(CIPHERTEXT, IV, SALT, TAG, "diNingrat@10");
-    assert!(
-        result.is_ok(),
-        "Decryption should succeed with correct password"
-    );
+    assert!(result.is_ok(), "Decryption should succeed with correct password");
 
     let decrypted = result.unwrap();
     // Should be valid JSON containing an Ethereum private key
     assert!(
-        decrypted.contains("private_key")
-            || decrypted.contains("evm_private_key")
-            || decrypted.contains("address")
+        decrypted.contains("private_key") || decrypted.contains("evm_private_key") || decrypted.contains("address")
     );
     // Should contain the known address
     let known_address_lower = "d7d2e492e6dda0013e9062f00327a06fdb722488";
@@ -29,10 +24,7 @@ fn test_decrypt_with_correct_password() {
 #[test]
 fn test_decrypt_with_wrong_password() {
     let result = SecurityUtils::decrypt_components(CIPHERTEXT, IV, SALT, TAG, "wrong_password");
-    assert!(
-        result.is_err(),
-        "Decryption should fail with wrong password"
-    );
+    assert!(result.is_err(), "Decryption should fail with wrong password");
     let err = format!("{}", result.unwrap_err());
     assert!(err.contains("Decryption failed") || err.contains("decrypt"));
 }
@@ -40,10 +32,7 @@ fn test_decrypt_with_wrong_password() {
 #[test]
 fn test_decrypt_with_empty_password() {
     let result = SecurityUtils::decrypt_components(CIPHERTEXT, IV, SALT, TAG, "");
-    assert!(
-        result.is_err(),
-        "Decryption should fail with empty password"
-    );
+    assert!(result.is_err(), "Decryption should fail with empty password");
 }
 
 #[test]
@@ -54,8 +43,7 @@ fn test_decrypt_invalid_hex() {
 
 #[test]
 fn test_decrypt_invalid_iv_hex() {
-    let result =
-        SecurityUtils::decrypt_components(CIPHERTEXT, "not_hex", SALT, TAG, "diNingrat@10");
+    let result = SecurityUtils::decrypt_components(CIPHERTEXT, "not_hex", SALT, TAG, "diNingrat@10");
     assert!(result.is_err(), "Should fail on invalid IV hex");
 }
 

@@ -15,9 +15,7 @@ pub struct EvmConfig {
 
 impl EvmConfig {
     pub fn load(path: &str) -> Result<Self> {
-        let settings = Config::builder()
-            .add_source(File::with_name(path))
-            .build()?;
+        let settings = Config::builder().add_source(File::with_name(path)).build()?;
 
         settings.try_deserialize().map_err(|e| anyhow::anyhow!(e))
     }
@@ -80,10 +78,7 @@ private_key_file = "wallet.json"
     #[test]
     fn test_evm_config_missing_required() {
         let settings = Config::builder()
-            .add_source(config::File::from_str(
-                r#"rpc_url = "x""#,
-                config::FileFormat::Toml,
-            ))
+            .add_source(config::File::from_str(r#"rpc_url = "x""#, config::FileFormat::Toml))
             .build()
             .unwrap();
         let result: Result<EvmConfig, _> = settings.try_deserialize();

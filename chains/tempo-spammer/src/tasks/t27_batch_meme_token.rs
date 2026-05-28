@@ -76,19 +76,15 @@ impl TempoTask for BatchMemeTokenTask {
                 match db.get_assets_by_type(&wallet_addr_str, "meme").await {
                     Ok(addresses) if !addresses.is_empty() => {
                         meme_tokens = addresses;
-                        tracing::info!(
-                            "Successfully created and found {} meme token(s)",
-                            meme_tokens.len()
-                        );
-                    }
+                        tracing::info!("Successfully created and found {} meme token(s)", meme_tokens.len());
+                    },
                     _ => {
                         return Ok(TaskResult {
                             success: false,
-                            message: "Created meme token but could not find it in database"
-                                .to_string(),
+                            message: "Created meme token but could not find it in database".to_string(),
                             tx_hash: None,
                         });
-                    }
+                    },
                 }
             } else {
                 return Ok(TaskResult {
@@ -133,13 +129,11 @@ impl TempoTask for BatchMemeTokenTask {
                     let _ = pending.get_receipt().await;
                     balance = TempoTokens::get_token_balance(client, token_addr, address).await?;
                     amount_wei = balance * U256::from(2) / U256::from(100) / U256::from(count);
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("nonce too low") || err_str.contains("already known") {
-                        tracing::warn!(
-                            "Nonce error on meme mint (t27), resetting cache and retrying..."
-                        );
+                        tracing::warn!("Nonce error on meme mint (t27), resetting cache and retrying...");
                         client.reset_nonce_cache().await;
                         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
                         if let Ok(pending) = client.provider.send_transaction(mint_tx).await {
@@ -147,27 +141,21 @@ impl TempoTask for BatchMemeTokenTask {
                             balance = TempoTokens::get_token_balance(client, token_addr, address)
                                 .await
                                 .unwrap_or(U256::ZERO);
-                            amount_wei =
-                                balance * U256::from(2) / U256::from(100) / U256::from(count);
+                            amount_wei = balance * U256::from(2) / U256::from(100) / U256::from(count);
                         }
                     } else if err_str.contains("aa4bc69a") {
-                        tracing::warn!(
-                            "Minting skipped: Likely Sold Out or Already Claimed (0xaa4bc69a)"
-                        );
+                        tracing::warn!("Minting skipped: Likely Sold Out or Already Claimed (0xaa4bc69a)");
                     } else {
                         tracing::error!("Minting failed: {:?}", e);
                     }
-                }
+                },
             }
         }
 
         if amount_wei.is_zero() {
             return Ok(TaskResult {
                 success: false,
-                message: format!(
-                    "Insufficient balance for {} even after mint attempt",
-                    symbol
-                ),
+                message: format!("Insufficient balance for {} even after mint attempt", symbol),
                 tx_hash: None,
             });
         }
@@ -176,11 +164,7 @@ impl TempoTask for BatchMemeTokenTask {
         let mut last_hash = String::new();
         let mut success_count = 0;
 
-        tracing::debug!(
-            "Executing Batch of {} {} Transfers (2% of balance)...",
-            count,
-            symbol
-        );
+        tracing::debug!("Executing Batch of {} {} Transfers (2% of balance)...", count, symbol);
 
         for i in 0..count {
             let recipient = get_random_address()?;
@@ -204,36 +188,22 @@ impl TempoTask for BatchMemeTokenTask {
                             if receipt.inner.status() {
                                 success_count += 1;
                                 last_hash = format!("{:?}", tx_hash);
-                                tracing::debug!(
-                                    "✅ {} Transfer {}/{} success: {:?}",
-                                    symbol,
-                                    i + 1,
-                                    count,
-                                    tx_hash
-                                );
+                                tracing::debug!("✅ {} Transfer {}/{} success: {:?}", symbol, i + 1, count, tx_hash);
                                 // Wait for nonce propagation
                                 tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
                             } else {
-                                tracing::error!(
-                                    "❌ {} Transfer {}/{} reverted: {:?}",
-                                    symbol,
-                                    i + 1,
-                                    count,
-                                    tx_hash
-                                );
+                                tracing::error!("❌ {} Transfer {}/{} reverted: {:?}", symbol, i + 1, count, tx_hash);
                             }
-                        }
+                        },
                         Err(e) => {
                             tracing::error!("Error getting receipt for transfer {}: {:?}", i + 1, e)
-                        }
+                        },
                     }
-                }
+                },
                 Err(e) => {
                     let err_str = e.to_string().to_lowercase();
                     if err_str.contains("nonce too low") || err_str.contains("already known") {
-                        tracing::warn!(
-                            "Nonce error on meme transfer (t27 loop), resetting cache and retrying..."
-                        );
+                        tracing::warn!("Nonce error on meme transfer (t27 loop), resetting cache and retrying...");
                         client.reset_nonce_cache().await;
                         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
@@ -249,7 +219,7 @@ impl TempoTask for BatchMemeTokenTask {
                     } else {
                         tracing::error!("{} Transfer {}/{} failed: {:?}", symbol, i + 1, count, e);
                     }
-                }
+                },
             }
         }
 
@@ -259,11 +229,7 @@ impl TempoTask for BatchMemeTokenTask {
                 "Executed {}/{} meme token transfers for {}.",
                 success_count, count, symbol
             ),
-            tx_hash: if last_hash.is_empty() {
-                None
-            } else {
-                Some(last_hash)
-            },
+            tx_hash: if last_hash.is_empty() { None } else { Some(last_hash) },
         })
     }
 }

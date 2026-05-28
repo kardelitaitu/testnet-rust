@@ -50,17 +50,12 @@ impl Task<TaskContext> for IndexedTopicsTask {
             .from(address);
 
         let deploy_pending = client.send_transaction(deploy_tx, None).await?;
-        let deploy_receipt = deploy_pending
-            .await?
-            .context("Failed to get deploy receipt")?;
+        let deploy_receipt = deploy_pending.await?.context("Failed to get deploy receipt")?;
 
-        let contract_address = deploy_receipt
-            .contract_address
-            .context("No contract address")?;
+        let contract_address = deploy_receipt.contract_address.context("No contract address")?;
 
         let indexed_abi: abi::Abi = serde_json::from_str(indexed_abi_json)?;
-        let indexed_contract =
-            Contract::new(contract_address, indexed_abi, Arc::new(provider.clone()));
+        let indexed_contract = Contract::new(contract_address, indexed_abi, Arc::new(provider.clone()));
 
         let recipient: Address = "0x4200000000000000000000000000000000000007"
             .parse()
@@ -68,8 +63,7 @@ impl Task<TaskContext> for IndexedTopicsTask {
         let id1: u64 = 12345;
         let id2: u64 = 67890;
 
-        let emit_data =
-            indexed_contract.encode("emitMultiIndexed", (address, recipient, id1, id2))?;
+        let emit_data = indexed_contract.encode("emitMultiIndexed", (address, recipient, id1, id2))?;
 
         let emit_tx = Eip1559TransactionRequest::new()
             .to(contract_address)
@@ -82,15 +76,12 @@ impl Task<TaskContext> for IndexedTopicsTask {
         let emit_pending = client.send_transaction(emit_tx, None).await?;
         let emit_receipt = emit_pending.await?.context("Failed to get emit receipt")?;
 
-        let event_topic =
-            ethers::utils::keccak256("MultiTransfer(address,address,uint256,uint256)");
+        let event_topic = ethers::utils::keccak256("MultiTransfer(address,address,uint256,uint256)");
 
         let indexed_count = emit_receipt
             .logs
             .iter()
-            .filter(|log| {
-                log.topics.len() >= 3 && log.topics[0] == ethers::types::TxHash(event_topic)
-            })
+            .filter(|log| log.topics.len() >= 3 && log.topics[0] == ethers::types::TxHash(event_topic))
             .count();
 
         Ok(TaskResult {

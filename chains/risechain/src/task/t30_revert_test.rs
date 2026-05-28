@@ -48,8 +48,7 @@ impl Task<TaskContext> for RevertTestTask {
             wallet.clone(),
         ));
 
-        let amount_eth = ethers::utils::format_units(amount_wei, "ether")
-            .unwrap_or_else(|_| amount_wei.to_string());
+        let amount_eth = ethers::utils::format_units(amount_wei, "ether").unwrap_or_else(|_| amount_wei.to_string());
 
         let mut send_result = client.send_transaction(tx, None).await;
         let receipt_result = match send_result {
@@ -71,14 +70,11 @@ impl Task<TaskContext> for RevertTestTask {
                 } else {
                     TaskResult {
                         success: true,
-                        message: format!(
-                            "Transaction succeeded (sent {} ETH to {:?})",
-                            amount_eth, recipient
-                        ),
+                        message: format!("Transaction succeeded (sent {} ETH to {:?})", amount_eth, recipient),
                         tx_hash: Some(format!("{:?}", receipt.transaction_hash)),
                     }
                 }
-            }
+            },
             (Ok(_), Ok(None)) => TaskResult {
                 success: false,
                 message: "Transaction dropped".into(),

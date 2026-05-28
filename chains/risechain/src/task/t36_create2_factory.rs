@@ -28,8 +28,7 @@ impl Task<TaskContext> for Create2FactoryTask {
 
         // Load factory from config or use fallback
         let factory_address: Address = if let Some(addr) = &ctx.config.create2_factory {
-            addr.parse()
-                .context("Invalid create2_factory address in config")?
+            addr.parse().context("Invalid create2_factory address in config")?
         } else {
             // Fallback to the one we deployed in Phase 1 if config not updated
             "0x8628208543e2b16be283e30abec6fec7b91e5721".parse()?
@@ -43,7 +42,8 @@ impl Task<TaskContext> for Create2FactoryTask {
         let salt_hex = format!("0x{:x}", salt);
 
         // Runtime code (Minimal Proxy logic)
-        let runtime_code_hex = "363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf3";
+        let runtime_code_hex =
+            "363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf3";
         let runtime_code = hex::decode(runtime_code_hex)?;
 
         // Wrap in init code loader: 3d60<len>80600a3d3981f3
@@ -79,9 +79,7 @@ impl Task<TaskContext> for Create2FactoryTask {
             wallet.clone(),
         ));
         let pending_tx = client.send_transaction(tx, None).await?;
-        let receipt = pending_tx
-            .await?
-            .context("Failed to get transaction receipt")?;
+        let receipt = pending_tx.await?.context("Failed to get transaction receipt")?;
 
         // In SimpleFactory, the deployed address is in the logs (Deployed event)
         let mut contract_address = Address::zero();
