@@ -1,5 +1,14 @@
 # 📝 Patch Notes: Testnet Framework
 
+## [2026-05-29] - Dynamic RPC Health & Linear Backoff
+
+### 🚀 Reliability & Diagnostics
+*   **Dynamic RpcManager Backoff**: Refactored `RpcManager` to implement a multi-tier linear backoff strategy ($10s \times Tier$). RPCs that fail 2+ times consecutively (e.g., Error 520, Cloudflare blocks, 429s) are automatically paused, and traffic is rerouted to healthy endpoints.
+*   **RPC Health Check Utility**: Introduced `check-rpcs` binary to audit RPC endpoints for latency and throughput (20 rapid requests). Identifies broken or rate-limited endpoints before they impact production.
+*   **DailyRunner Integration**: Integrated `RpcManager` into the `DailyRunner` core. Workers now perform automated health tracking and failover during daily task execution, specifically handling proxy-induced RPC errors.
+*   **Atomic Health State**: Upgraded `RpcEndpoint` to use `AtomicI64` for lock-free, thread-safe time tracking, maintaining $O(1)$ performance on high-concurrency systems.
+*   **Comprehensive Test Suite**: Added 10+ new unit and integration tests covering recovery logic, backoff escalation, and all-paused failure modes.
+
 ## [2026-02-24] - Active Resource Management Update
 
 ### 🚀 Performance & Memory Optimization

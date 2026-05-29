@@ -25,6 +25,10 @@ path = "src/bin/fund.rs"
 name = "wallet-balance-dump"
 path = "src/bin/wallet-balance-dump.rs"
 
+[[bin]]
+name = "check-rpcs"
+path = "src/bin/check_rpcs.rs"
+
 [lib]
 name = "sepolia_overlayer"
 path = "src/lib.rs"

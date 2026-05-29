@@ -3,8 +3,8 @@
 | ID | Name | Description |
 |----|------|-------------|
 | t01 | checkBalance | Check ETH, USDT, USDC, USDT+ (T+), and USDC+ (C+) balances |
-| t02 | mintUsdtPlus | Mint USDT+ (T+) using 3% of USDT balance |
-| t03 | mintUsdcPlus | Mint USDC+ (C+) using 3% of USDC balance |
+| t02 | mintUsdtPlus | Mint USDT+ (T+) using 2% of USDT balance |
+| t03 | mintUsdcPlus | Mint USDC+ (C+) using 2% of USDC balance |
 | t04 | redeemUsdtPlus | Redeem USDT+ (burn T+) for USDT via `redeem(tuple)` (10% of T+) |
 | t05 | redeemUsdcPlus | Redeem USDC+ (burn C+) for USDC via `redeem(tuple)` (10% of C+) |
 | t06 | stakeUsdtPlus | Stake USDT+ (T+) into staking contract via `deposit(uint256,address)` (10% of T+, unlimited approve if needed) |

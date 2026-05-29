@@ -548,7 +548,10 @@ async fn run_spammer(
                             result.message.clone()
                         };
 
-                        let proxy_id_str = client.proxy_index.map(|i| i.to_string()).unwrap_or_else(|| "---".to_string());
+                        let proxy_id_str = client
+                            .proxy_index
+                            .map(|i| i.to_string())
+                            .unwrap_or_else(|| "---".to_string());
                         core_logic::daily_log!(
                             worker_id,
                             wallet_idx,
@@ -638,7 +641,10 @@ async fn run_spammer(
                             let _ = database.queue_task_result(queued_result);
                         }
 
-                        let proxy_id_str = client.proxy_index.map(|i| i.to_string()).unwrap_or_else(|| "---".to_string());
+                        let proxy_id_str = client
+                            .proxy_index
+                            .map(|i| i.to_string())
+                            .unwrap_or_else(|| "---".to_string());
                         if recovered {
                             core_logic::daily_log!(
                                 worker_id,
@@ -675,7 +681,10 @@ async fn run_spammer(
                             };
                             let _ = database.queue_task_result(queued_result);
                         }
-                        let proxy_id_str = client.proxy_index.map(|i| i.to_string()).unwrap_or_else(|| "---".to_string());
+                        let proxy_id_str = client
+                            .proxy_index
+                            .map(|i| i.to_string())
+                            .unwrap_or_else(|| "---".to_string());
                         core_logic::daily_log!(
                             worker_id,
                             wallet_idx,

@@ -100,7 +100,7 @@ fn test_memory_monitor_get_trend() {
         memory_threshold_mb: 99999,
         cpu_threshold_percent: 100.0,
     };
-    let mut monitor = MemoryMonitor::new(config).unwrap();
+    let monitor = MemoryMonitor::new(config).unwrap();
     let trend = monitor.get_trend();
     // Should return some valid trend variant
     let _display = format!("{:?}", trend);

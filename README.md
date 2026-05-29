@@ -11,6 +11,7 @@ A modular, high-performance optimization of the testnet automation framework, re
     *   **Async/Await**: Built on `tokio` for efficient concurrent task execution.
 *   **Modular Design**:
     *   **Core Logic**: Shared library for Wallet Manager, Logging, and Proxy management.
+    *   **RpcManager**: Dynamic health monitoring with linear backoff (10s, 20s, 30s...) to handle 520/429 errors automatically.
     *   **Task System**: Trait-based task definition (`RiseTask`) for easy extension.
     *   **Centralized Logging**: `tracing`-based structured logging with file and console output.
     *   **Gas Strategy**: da-chain uses RPC gas price with a configurable floor; `ExplorerGasTracker` remains available as a framework utility when needed.
@@ -70,6 +71,13 @@ Start the automated worker swarm:
 ```powershell
 $env:WALLET_PASSWORD="your_password"; .\target_final\debug\rise-project.exe --config chains/risechain/config.toml
 ```
+
+### 🔍 RPC Health Check Utility
+Verify the latency and throughput (20 rapid requests) of your configured RPC endpoints:
+```powershell
+cargo run -p sepolia-overlayer --bin check-rpcs
+```
+*This tool identifies broken endpoints (404, Rate Limited) so you can optimize your rotation.*
 
 ## 🔐 Security
 *   **Wallet Encryption**: Wallets are stored as encrypted JSON files (AES-256-GCM / Scrypt).

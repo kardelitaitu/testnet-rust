@@ -3,8 +3,6 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use core_logic::SecurityUtils;
-use hex;
-use scrypt;
 
 #[test]
 fn test_security_utils_roundtrip_manual() {

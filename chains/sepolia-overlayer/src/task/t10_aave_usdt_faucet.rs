@@ -67,7 +67,10 @@ impl SepoliaTask for AaveUsdtFaucetTask {
             message: if success {
                 format!("Minted 10,000 USDT from AAVE faucet (tx: {:?})", tx_hash)
             } else {
-                format!("Failed to mint USDT from AAVE faucet - receipt not confirmed (tx: {:?})", tx_hash)
+                format!(
+                    "Failed to mint USDT from AAVE faucet - receipt not confirmed (tx: {:?})",
+                    tx_hash
+                )
             },
         })
     }

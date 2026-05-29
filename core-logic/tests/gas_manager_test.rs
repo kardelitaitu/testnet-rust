@@ -54,6 +54,12 @@ impl GasManager {
     }
 }
 
+impl Default for GasManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn parse_units_precise(amount: f64, unit: &str) -> U256 {
     if unit == "gwei" {
         let wei_amount = (amount * 1_000_000_000.0) as u64;

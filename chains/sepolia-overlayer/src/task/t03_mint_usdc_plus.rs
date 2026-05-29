@@ -62,8 +62,8 @@ impl SepoliaTask for MintUsdcPlusTask {
         // Check USDC balance
         let usdc_balance = get_usdc_balance(provider, address).await?;
 
-        // Calculate 3% of USDC balance, rounded to nearest whole USDC
-        let mint_amount = calc_pct_rounded(usdc_balance.as_u128(), 3, 100, 6);
+        // Calculate 2% of USDC balance, rounded to nearest whole USDC
+        let mint_amount = calc_pct_rounded(usdc_balance.as_u128(), 2, 100, 6);
         let required = U256::from(mint_amount);
         let whole_usdc = mint_amount / 1_000_000u128;
 

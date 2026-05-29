@@ -55,100 +55,6 @@ fn encode_send(send_param: &Token, fee: &Token, refund: Address) -> Bytes {
     Bytes::from(data)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_build_send_param_creates_7_element_tuple() {
-        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
-        let param = build_send_param(40245, addr, U256::from(100), vec![0x00, 0x03]);
-        match param {
-            Token::Tuple(items) => {
-                assert_eq!(items.len(), 7, "SendParam must have 7 components");
-                // dstEid
-                assert_eq!(items[0], Token::Uint(U256::from(40245)));
-                // to is bytes32
-                assert!(matches!(items[1], Token::FixedBytes(_)));
-                // amountLD and minAmountLD
-                assert_eq!(items[2], Token::Uint(U256::from(100)));
-                assert_eq!(items[3], Token::Uint(U256::from(100)));
-                // extraOptions
-                assert_eq!(items[4], Token::Bytes(vec![0x00, 0x03]));
-                // composeMsg and oftCmd (empty)
-                assert_eq!(items[5], Token::Bytes(vec![]));
-                assert_eq!(items[6], Token::Bytes(vec![]));
-            },
-            _ => panic!("SendParam must be a Tuple token"),
-        }
-    }
-
-    #[test]
-    fn test_build_send_param_addr_to_bytes32() {
-        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
-        let param = build_send_param(1, addr, U256::zero(), vec![]);
-        match param {
-            Token::Tuple(items) => {
-                // The `to` field is at index 1
-                if let Token::FixedBytes(ref bytes) = items[1] {
-                    assert_eq!(bytes.len(), 32, "to must be bytes32 (32 bytes)");
-                    // Last 20 bytes should match the address
-                    assert_eq!(&bytes[12..32], addr.as_bytes());
-                } else {
-                    panic!("Expected FixedBytes for `to`");
-                }
-            },
-            _ => panic!("Expected Tuple"),
-        }
-    }
-
-    #[test]
-    fn test_build_fee_creates_2_element_tuple() {
-        let fee = build_fee(U256::from(1000), U256::from(0));
-        match fee {
-            Token::Tuple(items) => {
-                assert_eq!(items.len(), 2);
-                assert_eq!(items[0], Token::Uint(U256::from(1000)));
-                assert_eq!(items[1], Token::Uint(U256::from(0)));
-            },
-            _ => panic!("Fee must be a Tuple token"),
-        }
-    }
-
-    #[test]
-    fn test_encode_send_starts_with_correct_selector() {
-        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
-        let param = build_send_param(1, addr, U256::zero(), vec![]);
-        let fee = build_fee(U256::zero(), U256::zero());
-        let encoded = encode_send(&param, &fee, addr);
-
-        // First 4 bytes should be the send selector 0xc7c7f5b3
-        assert_eq!(encoded[0], 0xc7);
-        assert_eq!(encoded[1], 0xc7);
-        assert_eq!(encoded[2], 0xf5);
-        assert_eq!(encoded[3], 0xb3);
-    }
-
-    #[test]
-    fn test_addr_to_bytes32_padding() {
-        let addr: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap();
-        let param = build_send_param(0, addr, U256::zero(), vec![]);
-        match param {
-            Token::Tuple(items) => {
-                if let Token::FixedBytes(ref bytes) = items[1] {
-                    // First 12 bytes should be zero (padding)
-                    for i in 0..12 {
-                        assert_eq!(bytes[i], 0, "byte {} of bytes32 padding should be 0", i);
-                    }
-                } else {
-                    panic!("Expected FixedBytes");
-                }
-            },
-            _ => panic!("Expected Tuple"),
-        }
-    }
-}
-
 async fn get_tplus_balance(provider: &Provider<Http>, wallet: Address) -> Result<U256> {
     let addr: Address = USDT_PLUS.parse()?;
     let contract = Contract::new(
@@ -235,5 +141,99 @@ impl SepoliaTask for BridgeTplusTask {
                 format!("Failed to bridge T+ - receipt not confirmed (tx: {:?})", tx_hash)
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_send_param_creates_7_element_tuple() {
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let param = build_send_param(40245, addr, U256::from(100), vec![0x00, 0x03]);
+        match param {
+            Token::Tuple(items) => {
+                assert_eq!(items.len(), 7, "SendParam must have 7 components");
+                // dstEid
+                assert_eq!(items[0], Token::Uint(U256::from(40245)));
+                // to is bytes32
+                assert!(matches!(items[1], Token::FixedBytes(_)));
+                // amountLD and minAmountLD
+                assert_eq!(items[2], Token::Uint(U256::from(100)));
+                assert_eq!(items[3], Token::Uint(U256::from(100)));
+                // extraOptions
+                assert_eq!(items[4], Token::Bytes(vec![0x00, 0x03]));
+                // composeMsg and oftCmd (empty)
+                assert_eq!(items[5], Token::Bytes(vec![]));
+                assert_eq!(items[6], Token::Bytes(vec![]));
+            },
+            _ => panic!("SendParam must be a Tuple token"),
+        }
+    }
+
+    #[test]
+    fn test_build_send_param_addr_to_bytes32() {
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let param = build_send_param(1, addr, U256::zero(), vec![]);
+        match param {
+            Token::Tuple(items) => {
+                // The `to` field is at index 1
+                if let Token::FixedBytes(ref bytes) = items[1] {
+                    assert_eq!(bytes.len(), 32, "to must be bytes32 (32 bytes)");
+                    // Last 20 bytes should match the address
+                    assert_eq!(&bytes[12..32], addr.as_bytes());
+                } else {
+                    panic!("Expected FixedBytes for `to`");
+                }
+            },
+            _ => panic!("Expected Tuple"),
+        }
+    }
+
+    #[test]
+    fn test_build_fee_creates_2_element_tuple() {
+        let fee = build_fee(U256::from(1000), U256::from(0));
+        match fee {
+            Token::Tuple(items) => {
+                assert_eq!(items.len(), 2);
+                assert_eq!(items[0], Token::Uint(U256::from(1000)));
+                assert_eq!(items[1], Token::Uint(U256::from(0)));
+            },
+            _ => panic!("Fee must be a Tuple token"),
+        }
+    }
+
+    #[test]
+    fn test_encode_send_starts_with_correct_selector() {
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let param = build_send_param(1, addr, U256::zero(), vec![]);
+        let fee = build_fee(U256::zero(), U256::zero());
+        let encoded = encode_send(&param, &fee, addr);
+
+        // First 4 bytes should be the send selector 0xc7c7f5b3
+        assert_eq!(encoded[0], 0xc7);
+        assert_eq!(encoded[1], 0xc7);
+        assert_eq!(encoded[2], 0xf5);
+        assert_eq!(encoded[3], 0xb3);
+    }
+
+    #[test]
+    fn test_addr_to_bytes32_padding() {
+        let addr: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".parse().unwrap();
+        let param = build_send_param(0, addr, U256::zero(), vec![]);
+        match param {
+            Token::Tuple(items) => {
+                if let Token::FixedBytes(ref bytes) = items[1] {
+                    // First 12 bytes should be zero (padding)
+                    for (i, byte) in bytes.iter().enumerate().take(12) {
+                        assert_eq!(*byte, 0, "byte {} of bytes32 padding should be 0", i);
+                    }
+                } else {
+                    panic!("Expected FixedBytes");
+                }
+            },
+            _ => panic!("Expected Tuple"),
+        }
     }
 }

@@ -1539,7 +1539,7 @@ mod tests {
         for _ in 0..100 {
             let chosen = choose_gas_price_mgwei(5_000, 1_000, 10_000, &mut rng);
             assert!(
-                chosen >= 1_000 && chosen <= 10_000,
+                (1_000..=10_000).contains(&chosen),
                 "chosen={} out of [1000, 10000]",
                 chosen
             );
@@ -1552,7 +1552,7 @@ mod tests {
         // network = 500 mgwei (0.5 gwei), min=1000, max=2000
         // floor should be 1000 (from min)
         let chosen = choose_gas_price_mgwei(500, 1000, 2000, &mut rng);
-        assert!(chosen >= 1000 && chosen <= 2000);
+        assert!((1000..=2000).contains(&chosen));
     }
 
     #[test]
@@ -1796,7 +1796,7 @@ mod tests {
         let chosen = choose_gas_price_mgwei(10_000, 100, 1_000, &mut rng);
         // floor=9000, ceiling=11000, effective_floor=9000, so result ∈ [9000, 11000]
         assert!(
-            chosen >= 9000 && chosen <= 11_000,
+            (9000..=11_000).contains(&chosen),
             "chosen={} expected in [9000, 11000]",
             chosen
         );

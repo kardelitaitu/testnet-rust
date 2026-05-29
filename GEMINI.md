@@ -40,6 +40,13 @@ All automation units must implement the `RiseTask` trait to ensure variant spawn
 * **Output:** Stdout (Human-Readable) + `logs/smart_main.log` (Audit-Ready / Grepable).
 * **Instruction:** All scripts must include feedback loops to maintain transparency and session discipline.
 
+### 4. Dynamic RPC Health Management
+
+* **Path:** `core-logic/src/utils/rpc_manager.rs`
+* **Pattern:** Linear Backoff $\rightarrow$ Atomic State $\rightarrow$ Auto-Recovery.
+* **Logic:** After 2 failures, an RPC is paused for $10s \times Tier$. Success resets tier to 0.
+* **Benefit:** Eliminates "Error 520" loops by shifting load to healthy accounts/proxies.
+
 ---
 
 ## ⚡ Agentic Workflow Protocols
@@ -91,3 +98,4 @@ Use math-style formatting for all framework benchmarks:
 *   **Build**: `._clean_and_compile_all.bat`
 *   **Debug**: `cargo run --bin debug_task`
 *   **Spam**: `cargo run --bin rise-project`
+*   **RPC Check**: `cargo run -p sepolia-overlayer --bin check-rpcs`

@@ -380,7 +380,7 @@ mod tests {
 
         // With jitter, delay should be within ±25%
         let delay = calculate_delay(&config, 1); // Base: 200ms
-        assert!(delay >= 150 && delay <= 250, "Delay {} outside expected range", delay);
+        assert!((150..=250).contains(&delay), "Delay {} outside expected range", delay);
     }
 
     #[test]
@@ -447,7 +447,7 @@ mod nonce_retry_tests {
             backoff_multiplier: 1.0,
             jitter: false,
         };
-        let result = with_retry(config, || ok_operation()).await;
+        let result = with_retry(config, ok_operation).await;
         assert_eq!(result.unwrap(), 42);
     }
 
@@ -460,7 +460,7 @@ mod nonce_retry_tests {
             backoff_multiplier: 1.0,
             jitter: false,
         };
-        let result = with_retry(config, || always_fail()).await;
+        let result = with_retry(config, always_fail).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("persistent error"));
     }
@@ -468,7 +468,7 @@ mod nonce_retry_tests {
     #[tokio::test]
     async fn test_with_retry_zero_retries() {
         let config = RetryConfig::no_retry();
-        let result = with_retry(config, || always_fail()).await;
+        let result = with_retry(config, always_fail).await;
         assert!(result.is_err());
     }
 
@@ -498,13 +498,10 @@ mod nonce_retry_tests {
     async fn test_nonce_retry_succeeds_first_try() {
         let reset_called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let r = reset_called.clone();
-        let result = with_nonce_retry(
-            || ok_operation(),
-            || {
-                let r = r.clone();
-                async move { tracked_reset(r).await }
-            },
-        )
+        let result = with_nonce_retry(ok_operation, || {
+            let r = r.clone();
+            async move { tracked_reset(r).await }
+        })
         .await;
         assert_eq!(result.unwrap(), 42);
         assert!(!reset_called.load(std::sync::atomic::Ordering::SeqCst));
@@ -514,13 +511,10 @@ mod nonce_retry_tests {
     async fn test_nonce_retry_calls_reset_on_nonce_error() {
         let reset_called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let r = reset_called.clone();
-        let result = with_nonce_retry(
-            || nonce_error_op(),
-            || {
-                let r = r.clone();
-                async move { tracked_reset(r).await }
-            },
-        )
+        let result = with_nonce_retry(nonce_error_op, || {
+            let r = r.clone();
+            async move { tracked_reset(r).await }
+        })
         .await;
         assert!(result.is_err());
         assert!(reset_called.load(std::sync::atomic::Ordering::SeqCst));
@@ -530,13 +524,10 @@ mod nonce_retry_tests {
     async fn test_nonce_retry_does_not_call_reset_on_other_error() {
         let reset_called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let r = reset_called.clone();
-        let result = with_nonce_retry(
-            || funds_error_op(),
-            || {
-                let r = r.clone();
-                async move { tracked_reset(r).await }
-            },
-        )
+        let result = with_nonce_retry(funds_error_op, || {
+            let r = r.clone();
+            async move { tracked_reset(r).await }
+        })
         .await;
         assert!(result.is_err());
         assert!(!reset_called.load(std::sync::atomic::Ordering::SeqCst));
@@ -554,13 +545,13 @@ mod nonce_retry_tests {
                 Ok(100)
             }
         }
-        let result = with_nonce_retry(|| retry_op(a.clone()), || noop_reset()).await;
+        let result = with_nonce_retry(|| retry_op(a.clone()), noop_reset).await;
         assert_eq!(result.unwrap(), 100);
     }
 
     #[tokio::test]
     async fn test_nonce_retry_returns_last_error_on_exhaustion() {
-        let result = with_nonce_retry(|| nonce_error_op(), || noop_reset()).await;
+        let result = with_nonce_retry(nonce_error_op, noop_reset).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("nonce too low"));
     }

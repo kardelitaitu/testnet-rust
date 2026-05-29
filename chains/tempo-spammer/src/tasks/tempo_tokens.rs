@@ -317,7 +317,7 @@ mod tests {
         }
         let avg_words: f64 = word_counts.iter().sum::<usize>() as f64 / word_counts.len() as f64;
         assert!(
-            avg_words >= 2.0 && avg_words <= 4.0,
+            (2.0..=4.0).contains(&avg_words),
             "avg words should be 2-3, got {:.1}",
             avg_words
         );

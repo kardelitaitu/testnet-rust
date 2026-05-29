@@ -80,6 +80,7 @@ Entrypoints:
 - `chains/sepolia-overlayer/src/bin/daily.rs` (`sepolia-daily`) — scheduled daily task execution loop
 - `chains/sepolia-overlayer/src/bin/fund.rs` (`sepolia-funder`) — multi-hop obfuscated ETH funding
 - `chains/sepolia-overlayer/src/bin/wallet-balance-dump.rs` (`wallet-balance-dump`) — parallel wallet balance scanner
+- `chains/sepolia-overlayer/src/bin/check_rpcs.rs` (`check-rpcs`) — RPC health/throughput auditing utility
 
 Task area:
 - `chains/sepolia-overlayer/src/task/` — 22 task modules (t01–t22)

@@ -63,7 +63,10 @@ impl SepoliaTask for AaveWbtcFaucetTask {
             message: if success {
                 format!("Minted 1 WBTC from AAVE faucet (tx: {:?})", tx_hash)
             } else {
-                format!("Failed to mint WBTC from AAVE faucet - receipt not confirmed (tx: {:?})", tx_hash)
+                format!(
+                    "Failed to mint WBTC from AAVE faucet - receipt not confirmed (tx: {:?})",
+                    tx_hash
+                )
             },
         })
     }

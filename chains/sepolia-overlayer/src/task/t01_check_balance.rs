@@ -58,6 +58,50 @@ fn format_eth_5dec(raw: U256) -> String {
 
 pub struct SepoliaCheckBalanceTask;
 
+#[async_trait]
+impl SepoliaTask for SepoliaCheckBalanceTask {
+    fn name(&self) -> &str {
+        "01_checkBalance"
+    }
+
+    async fn run(&self, ctx: TaskContext) -> Result<TaskResult> {
+        let address = ctx.wallet.address();
+
+        // --- Native ETH balance ---
+        let balance = ctx.provider.get_balance(address, None).await?;
+        let eth_display = format_eth_5dec(balance);
+
+        // --- Token balances ---
+        let tokens = [
+            (USDC, "USDC"),
+            (USDT, "USDT"),
+            (USDC_PLUS, "USDC+"),
+            (USDT_PLUS, "USDT+"),
+        ];
+        let mut token_lines = Vec::new();
+
+        for (token_addr, token_name) in &tokens {
+            match get_token_balance(&ctx.provider, token_addr, address).await {
+                Ok((formatted, _raw)) => {
+                    token_lines.push(format!("{}: {}", token_name, formatted));
+                },
+                Err(_e) => {
+                    token_lines.push(format!("{}: error", token_name));
+                },
+            }
+        }
+
+        let (max_fee, _priority_fee) = ctx.gas_manager.get_fees().await?;
+        let max_fee_gwei: f64 = max_fee.as_u128() as f64 / 1e9;
+
+        let token_str = token_lines.join(" | ");
+        Ok(TaskResult {
+            success: true,
+            message: format!("ETH: {} | {} | Gas: {:.2}", eth_display, token_str, max_fee_gwei,),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,49 +147,5 @@ mod tests {
         let raw = U256::from(100000000000000u128);
         let result = format_eth_5dec(raw);
         assert_eq!(result, "0.0001");
-    }
-}
-
-#[async_trait]
-impl SepoliaTask for SepoliaCheckBalanceTask {
-    fn name(&self) -> &str {
-        "01_checkBalance"
-    }
-
-    async fn run(&self, ctx: TaskContext) -> Result<TaskResult> {
-        let address = ctx.wallet.address();
-
-        // --- Native ETH balance ---
-        let balance = ctx.provider.get_balance(address, None).await?;
-        let eth_display = format_eth_5dec(balance);
-
-        // --- Token balances ---
-        let tokens = [
-            (USDC, "USDC"),
-            (USDT, "USDT"),
-            (USDC_PLUS, "USDC+"),
-            (USDT_PLUS, "USDT+"),
-        ];
-        let mut token_lines = Vec::new();
-
-        for (token_addr, token_name) in &tokens {
-            match get_token_balance(&ctx.provider, token_addr, address).await {
-                Ok((formatted, _raw)) => {
-                    token_lines.push(format!("{}: {}", token_name, formatted));
-                },
-                Err(_e) => {
-                    token_lines.push(format!("{}: error", token_name));
-                },
-            }
-        }
-
-        let (max_fee, _priority_fee) = ctx.gas_manager.get_fees().await?;
-        let max_fee_gwei: f64 = max_fee.as_u128() as f64 / 1e9;
-
-        let token_str = token_lines.join(" | ");
-        Ok(TaskResult {
-            success: true,
-            message: format!("ETH: {} | {} | Gas: {:.2}", eth_display, token_str, max_fee_gwei,),
-        })
     }
 }

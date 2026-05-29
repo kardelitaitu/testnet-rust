@@ -46,38 +46,6 @@ pub struct EvmSpammer {
     busy_wallets: Arc<Mutex<HashSet<usize>>>,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_new_returns_error_with_message() {
-        let config = SpamConfig {
-            rpc_url: "http://localhost:8545".into(),
-            chain_id: 1,
-            target_tps: 10,
-            duration_seconds: None,
-            wallet_source: core_logic::config::WalletSource::File {
-                path: "wallet.json".into(),
-                encrypted: true,
-            },
-        };
-        let result = EvmSpammer::new(config).await;
-        assert!(result.is_err());
-        match result {
-            Err(e) => {
-                let msg = e.to_string();
-                assert!(
-                    msg.contains("new_with_signer"),
-                    "Error should mention new_with_signer: {}",
-                    msg
-                );
-            },
-            _ => panic!("Expected Err"),
-        }
-    }
-}
-
 impl EvmSpammer {
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_signer(
@@ -413,5 +381,37 @@ impl Spammer for EvmSpammer {
     async fn stop(&self) -> Result<()> {
         info!("DA-CHAIN Spammer stopping...");
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_new_returns_error_with_message() {
+        let config = SpamConfig {
+            rpc_url: "http://localhost:8545".into(),
+            chain_id: 1,
+            target_tps: 10,
+            duration_seconds: None,
+            wallet_source: core_logic::config::WalletSource::File {
+                path: "wallet.json".into(),
+                encrypted: true,
+            },
+        };
+        let result = EvmSpammer::new(config).await;
+        assert!(result.is_err());
+        match result {
+            Err(e) => {
+                let msg = e.to_string();
+                assert!(
+                    msg.contains("new_with_signer"),
+                    "Error should mention new_with_signer: {}",
+                    msg
+                );
+            },
+            _ => panic!("Expected Err"),
+        }
     }
 }

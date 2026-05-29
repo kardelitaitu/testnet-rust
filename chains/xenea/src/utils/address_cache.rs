@@ -265,18 +265,17 @@ mod tests {
 
     #[test]
     fn test_global_before_init_errors() {
-        let early = AddressCache::global();
-        if early.is_err() {
-            let err = early.unwrap_err().to_string();
-            assert!(err.contains("not initialized"), "Error: {}", err);
+        match AddressCache::global() {
+            Ok(_) => {},
+            Err(err) => {
+                let err = err.to_string();
+                assert!(err.contains("not initialized"), "Error: {}", err);
+            },
         }
     }
 
     #[test]
     fn test_len_before_init_returns_zero() {
-        let len = AddressCache::len();
-        // May be 0 or >0 depending on test ordering (shared OnceCell)
-        // Best-effort: confirm function doesn't panic
-        assert!(true);
+        let _ = AddressCache::len();
     }
 }

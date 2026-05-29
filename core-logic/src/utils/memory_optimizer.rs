@@ -33,90 +33,6 @@ impl Default for MemoryOptimizerConfig {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_memory_optimizer_config_defaults() {
-        let cfg = MemoryOptimizerConfig::default();
-        assert!(cfg.enable_memory_monitoring);
-        assert!(cfg.enable_log_optimization);
-        assert!(cfg.enable_gc_tuning);
-        assert_eq!(cfg.memory_cleanup_interval_ms, 30000);
-        assert_eq!(cfg.max_memory_usage_mb, 300);
-    }
-
-    #[test]
-    fn test_memory_optimizer_config_custom() {
-        let cfg = MemoryOptimizerConfig {
-            enable_memory_monitoring: false,
-            enable_log_optimization: false,
-            enable_gc_tuning: false,
-            memory_cleanup_interval_ms: 60000,
-            max_memory_usage_mb: 512,
-        };
-        assert!(!cfg.enable_memory_monitoring);
-        assert!(!cfg.enable_gc_tuning);
-        assert_eq!(cfg.memory_cleanup_interval_ms, 60000);
-        assert_eq!(cfg.max_memory_usage_mb, 512);
-    }
-
-    #[test]
-    fn test_memory_optimizer_new_default_config() {
-        let optimizer = MemoryOptimizer::new(MemoryOptimizerConfig::default());
-        assert_eq!(optimizer.cleanup_count, 0);
-    }
-
-    #[test]
-    fn test_memory_optimizer_new_with_config() {
-        let cfg = MemoryOptimizerConfig {
-            max_memory_usage_mb: 1024,
-            ..Default::default()
-        };
-        let optimizer = MemoryOptimizer::new(cfg);
-        assert_eq!(optimizer.config.max_memory_usage_mb, 1024);
-    }
-
-    #[test]
-    fn test_get_status_report_contains_info() {
-        let optimizer = MemoryOptimizer::new(MemoryOptimizerConfig::default());
-        let report = optimizer.get_status_report();
-        assert!(report.contains("Cleanups performed"));
-        assert!(report.contains("Last cleanup"));
-    }
-
-    #[tokio::test]
-    async fn test_memory_optimizer_hook_execution() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        let counter = Arc::new(AtomicUsize::new(0));
-        let counter_clone = counter.clone();
-
-        let mut optimizer = MemoryOptimizer::new(MemoryOptimizerConfig::default());
-        optimizer.register_hook(move |emergency| {
-            let c = counter_clone.clone();
-            async move {
-                if emergency {
-                    c.fetch_add(10, Ordering::SeqCst);
-                } else {
-                    c.fetch_add(1, Ordering::SeqCst);
-                }
-            }
-        });
-
-        // Normal cleanup
-        optimizer.perform_cleanup_forced().await.unwrap();
-        assert_eq!(counter.load(Ordering::SeqCst), 1);
-        assert_eq!(optimizer.cleanup_count, 1);
-
-        // Emergency cleanup
-        optimizer.is_emergency_cleaning = true;
-        optimizer.perform_cleanup_forced().await.unwrap();
-        assert_eq!(counter.load(Ordering::SeqCst), 11);
-        assert_eq!(optimizer.cleanup_count, 2);
-    }
-}
-
 pub type AsyncCleanupHook = Box<dyn Fn(bool) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send + Sync>;
 
 /// Memory optimizer that manages various optimization strategies
@@ -384,4 +300,88 @@ pub async fn perform_memory_cleanup() -> Result<()> {
 pub async fn get_memory_status() -> String {
     let optimizer = MEMORY_OPTIMIZER.lock().await;
     optimizer.get_status_report()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_memory_optimizer_config_defaults() {
+        let cfg = MemoryOptimizerConfig::default();
+        assert!(cfg.enable_memory_monitoring);
+        assert!(cfg.enable_log_optimization);
+        assert!(cfg.enable_gc_tuning);
+        assert_eq!(cfg.memory_cleanup_interval_ms, 30000);
+        assert_eq!(cfg.max_memory_usage_mb, 300);
+    }
+
+    #[test]
+    fn test_memory_optimizer_config_custom() {
+        let cfg = MemoryOptimizerConfig {
+            enable_memory_monitoring: false,
+            enable_log_optimization: false,
+            enable_gc_tuning: false,
+            memory_cleanup_interval_ms: 60000,
+            max_memory_usage_mb: 512,
+        };
+        assert!(!cfg.enable_memory_monitoring);
+        assert!(!cfg.enable_gc_tuning);
+        assert_eq!(cfg.memory_cleanup_interval_ms, 60000);
+        assert_eq!(cfg.max_memory_usage_mb, 512);
+    }
+
+    #[test]
+    fn test_memory_optimizer_new_default_config() {
+        let optimizer = MemoryOptimizer::new(MemoryOptimizerConfig::default());
+        assert_eq!(optimizer.cleanup_count, 0);
+    }
+
+    #[test]
+    fn test_memory_optimizer_new_with_config() {
+        let cfg = MemoryOptimizerConfig {
+            max_memory_usage_mb: 1024,
+            ..Default::default()
+        };
+        let optimizer = MemoryOptimizer::new(cfg);
+        assert_eq!(optimizer.config.max_memory_usage_mb, 1024);
+    }
+
+    #[test]
+    fn test_get_status_report_contains_info() {
+        let optimizer = MemoryOptimizer::new(MemoryOptimizerConfig::default());
+        let report = optimizer.get_status_report();
+        assert!(report.contains("Cleanups performed"));
+        assert!(report.contains("Last cleanup"));
+    }
+
+    #[tokio::test]
+    async fn test_memory_optimizer_hook_execution() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let counter = Arc::new(AtomicUsize::new(0));
+        let counter_clone = counter.clone();
+
+        let mut optimizer = MemoryOptimizer::new(MemoryOptimizerConfig::default());
+        optimizer.register_hook(move |emergency| {
+            let c = counter_clone.clone();
+            async move {
+                if emergency {
+                    c.fetch_add(10, Ordering::SeqCst);
+                } else {
+                    c.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        });
+
+        // Normal cleanup
+        optimizer.perform_cleanup_forced().await.unwrap();
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
+        assert_eq!(optimizer.cleanup_count, 1);
+
+        // Emergency cleanup
+        optimizer.is_emergency_cleaning = true;
+        optimizer.perform_cleanup_forced().await.unwrap();
+        assert_eq!(counter.load(Ordering::SeqCst), 11);
+        assert_eq!(optimizer.cleanup_count, 2);
+    }
 }

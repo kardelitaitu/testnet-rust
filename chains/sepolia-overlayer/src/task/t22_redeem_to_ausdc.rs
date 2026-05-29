@@ -104,7 +104,10 @@ impl SepoliaTask for RedeemToAusdcTask {
                     redeem_display, redeem_display, tx_hash
                 )
             } else {
-                format!("Failed to redeem C+ for aUSDC - receipt not confirmed (tx: {:?})", tx_hash)
+                format!(
+                    "Failed to redeem C+ for aUSDC - receipt not confirmed (tx: {:?})",
+                    tx_hash
+                )
             },
         })
     }

@@ -131,9 +131,7 @@ mod tests {
             // Append data bytes for PUSH1..PUSH32
             if opcode >= 0x60 {
                 let n = (opcode - 0x60 + 1) as usize;
-                for _ in 0..n {
-                    input.push(0x42);
-                }
+                input.extend(std::iter::repeat_n(0x42, n));
             }
         }
         let result = strip_push0(&input);

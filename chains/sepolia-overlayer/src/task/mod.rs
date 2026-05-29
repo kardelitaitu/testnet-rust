@@ -181,7 +181,7 @@ mod tests {
             let num: u32 = prefix
                 .parse()
                 .unwrap_or_else(|_| panic!("Task '{}' doesn't start with 2-digit number", name));
-            assert!(num >= 1 && num <= 99, "Task '{}' prefix {} out of range", name, num);
+            assert!((1..=99).contains(&num), "Task '{}' prefix {} out of range", name, num);
             // Third char should be underscore
             assert_eq!(name.as_bytes()[2], b'_', "Task '{}' missing underscore separator", name);
         }

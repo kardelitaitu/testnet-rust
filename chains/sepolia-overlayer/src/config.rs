@@ -320,11 +320,11 @@ tps = 10
         );
         // CamelCase keys should NOT exist
         assert!(
-            limits.get("01_checkBalance").is_none(),
+            !limits.contains_key("01_checkBalance"),
             "camelCase key '01_checkBalance' should NOT exist"
         );
         assert!(
-            limits.get("02_MintUsdtPlus").is_none(),
+            !limits.contains_key("02_MintUsdtPlus"),
             "camelCase key '02_MintUsdtPlus' should NOT exist"
         );
     }

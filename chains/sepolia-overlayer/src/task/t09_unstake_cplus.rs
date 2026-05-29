@@ -80,7 +80,10 @@ impl SepoliaTask for UnstakeCplusTask {
         Ok(TaskResult {
             success,
             message: if success {
-                format!("Redeemed {:.2} sOverl... for underlying (tx: {:?})", shares_display, tx_hash)
+                format!(
+                    "Redeemed {:.2} sOverl... for underlying (tx: {:?})",
+                    shares_display, tx_hash
+                )
             } else {
                 format!("Failed to unstake C+ - receipt not confirmed (tx: {:?})", tx_hash)
             },

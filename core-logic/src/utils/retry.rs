@@ -365,7 +365,7 @@ mod retry_config_tests {
         let cfg = RetryConfig::new(3, 1000);
         let d = cfg.calculate_delay(0);
         let ms = d.as_millis();
-        assert!(ms >= 500 && ms <= 1500);
+        assert!((500..=1500).contains(&ms));
     }
 }
 
@@ -482,7 +482,7 @@ mod proptests {
         #[test]
         fn proptest_calculate_delay_never_exceeds_max(
             base_delay in 1u64..10_000,
-            max_delay in 10_001u64..3600_000,
+            max_delay in 10_001u64..3_600_000,
             attempt in 0u32..50,
             jitter in any::<bool>()
         ) {

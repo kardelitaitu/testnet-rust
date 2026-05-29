@@ -928,7 +928,7 @@ impl DatabaseManager {
              VALUES (?, ?, ?, ?, ?)
              ON CONFLICT(wallet_address, task_name, date) DO UPDATE SET
                 count_success = count_success + excluded.count_success,
-                count_failed = count_failed + excluded.count_failed"
+                count_failed = count_failed + excluded.count_failed",
         )
         .bind(wallet)
         .bind(task)
@@ -969,9 +969,7 @@ impl DatabaseManager {
                         Ok(())
                     }
                 },
-                Err(mpsc::error::TrySendError::Closed(_)) => {
-                    Err(anyhow::anyhow!("Database channel closed"))
-                },
+                Err(mpsc::error::TrySendError::Closed(_)) => Err(anyhow::anyhow!("Database channel closed")),
             }
         } else {
             Err(anyhow::anyhow!("Async logging not initialized"))
@@ -1175,7 +1173,8 @@ impl DatabaseManager {
 
     pub async fn get_all_deployed_counter_contracts(&self, chain_id: u64) -> Result<Vec<String>> {
         let start = std::time::Instant::now();
-        let rows = sqlx::query_as::<_, (String,)>("SELECT contract_address FROM created_counter_contracts WHERE chain_id = ?")
+        let rows =
+            sqlx::query_as::<_, (String,)>("SELECT contract_address FROM created_counter_contracts WHERE chain_id = ?")
                 .bind(chain_id as i64)
                 .fetch_all(&self.pool)
                 .await;
@@ -1193,7 +1192,10 @@ impl DatabaseManager {
         }
     }
 
-    pub async fn get_all_deployed_counter_contracts_with_wallets(&self, chain_id: u64) -> Result<Vec<(String, String)>> {
+    pub async fn get_all_deployed_counter_contracts_with_wallets(
+        &self,
+        chain_id: u64,
+    ) -> Result<Vec<(String, String)>> {
         let start = std::time::Instant::now();
         let rows = sqlx::query_as::<_, (String, String)>(
             "SELECT wallet_address, contract_address FROM created_counter_contracts WHERE chain_id = ?",
@@ -1241,7 +1243,7 @@ impl DatabaseManager {
     pub async fn get_transaction_count(&self, wallet: &str) -> Result<i32> {
         let start = std::time::Instant::now();
         let row = sqlx::query_as::<_, (i32,)>(
-            "SELECT COALESCE(SUM(count_success + count_failed), 0) FROM daily_task_stats WHERE wallet_address = ?"
+            "SELECT COALESCE(SUM(count_success + count_failed), 0) FROM daily_task_stats WHERE wallet_address = ?",
         )
         .bind(wallet)
         .fetch_one(&self.pool)
@@ -1263,7 +1265,7 @@ impl DatabaseManager {
     pub async fn get_success_count(&self, wallet: &str) -> Result<i32> {
         let start = std::time::Instant::now();
         let row = sqlx::query_as::<_, (i32,)>(
-            "SELECT COALESCE(SUM(count_success), 0) FROM daily_task_stats WHERE wallet_address = ?"
+            "SELECT COALESCE(SUM(count_success), 0) FROM daily_task_stats WHERE wallet_address = ?",
         )
         .bind(wallet)
         .fetch_one(&self.pool)
@@ -1306,7 +1308,11 @@ impl DatabaseManager {
     }
 
     /// Return per-task completion counts for a wallet today.
-    pub async fn get_completed_counts(&self, wallet_address: &str, date: &str) -> Result<std::collections::HashMap<String, usize>> {
+    pub async fn get_completed_counts(
+        &self,
+        wallet_address: &str,
+        date: &str,
+    ) -> Result<std::collections::HashMap<String, usize>> {
         let start = std::time::Instant::now();
         let rows = sqlx::query_as::<_, (String, i64)>(
             "SELECT task_name, count_success FROM daily_task_stats WHERE wallet_address = ? AND date = ? AND count_success > 0",
@@ -1315,7 +1321,7 @@ impl DatabaseManager {
         .bind(date)
         .fetch_all(&self.pool)
         .await;
-        
+
         self.metrics.total_selects.fetch_add(1, Ordering::SeqCst);
         self.record_query_time(start, rows.is_ok());
 
@@ -1332,7 +1338,10 @@ impl DatabaseManager {
     }
 
     /// Return completion counts grouped by wallet, then by task.
-    pub async fn get_all_completed_counts(&self, date: &str) -> Result<std::collections::HashMap<String, std::collections::HashMap<String, usize>>> {
+    pub async fn get_all_completed_counts(
+        &self,
+        date: &str,
+    ) -> Result<std::collections::HashMap<String, std::collections::HashMap<String, usize>>> {
         let start = std::time::Instant::now();
         let rows = sqlx::query_as::<_, (String, String, i64)>(
             "SELECT wallet_address, task_name, count_success FROM daily_task_stats WHERE date = ? AND count_success > 0",
@@ -1340,14 +1349,15 @@ impl DatabaseManager {
         .bind(date)
         .fetch_all(&self.pool)
         .await;
-        
+
         self.metrics.total_selects.fetch_add(1, Ordering::SeqCst);
         self.record_query_time(start, rows.is_ok());
 
         match rows {
             Ok(rows) => {
                 self.metrics.total_queries.fetch_add(1, Ordering::SeqCst);
-                let mut result: std::collections::HashMap<String, std::collections::HashMap<String, usize>> = std::collections::HashMap::new();
+                let mut result: std::collections::HashMap<String, std::collections::HashMap<String, usize>> =
+                    std::collections::HashMap::new();
                 for (wallet, task, count) in rows {
                     result.entry(wallet).or_default().insert(task, count as usize);
                 }
@@ -1361,15 +1371,22 @@ impl DatabaseManager {
     }
 
     pub async fn batch_log_task_results(&self, results: &[TaskMetricBatchItem]) -> Result<usize> {
-        if results.is_empty() { return Ok(0); }
+        if results.is_empty() {
+            return Ok(0);
+        }
         type BatchRow = (String, String, String, String, String, i64, i64);
         let mut batch_params: SmallVec<[BatchRow; 32]> = SmallVec::new();
         let timestamp = chrono::Utc::now().timestamp();
         for item in results {
             let status = if item.success { "SUCCESS" } else { "FAILED" };
             batch_params.push((
-                item.worker_id.clone(), item.wallet.clone(), item.task.clone(),
-                status.to_string(), item.message.clone(), item.duration_ms as i64, timestamp,
+                item.worker_id.clone(),
+                item.wallet.clone(),
+                item.task.clone(),
+                status.to_string(),
+                item.message.clone(),
+                item.duration_ms as i64,
+                timestamp,
             ));
         }
         let mut tx = self.pool.begin().await?;
@@ -1401,22 +1418,45 @@ impl DatabaseManager {
         }
     }
 
-    pub fn get_async_config(&self) -> Option<AsyncDbConfig> { self.async_config }
-    pub fn is_async(&self) -> bool { self.async_config.is_some() }
+    pub fn get_async_config(&self) -> Option<AsyncDbConfig> {
+        self.async_config
+    }
+    pub fn is_async(&self) -> bool {
+        self.async_config.is_some()
+    }
     pub fn get_async_metrics(&self) -> (u64, u64) {
-        (self.metrics.queued_entries.load(Ordering::SeqCst), self.metrics.dropped_entries.load(Ordering::SeqCst))
+        (
+            self.metrics.queued_entries.load(Ordering::SeqCst),
+            self.metrics.dropped_entries.load(Ordering::SeqCst),
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn log_dex_order(&self, wallet: &str, order_id: &str, base_token: &str, quote_token: &str, amount: &str, is_bid: bool, tick: i16, tx_hash: &str) -> Result<()> {
+    pub async fn log_dex_order(
+        &self,
+        wallet: &str,
+        order_id: &str,
+        base_token: &str,
+        quote_token: &str,
+        amount: &str,
+        is_bid: bool,
+        tick: i16,
+        tx_hash: &str,
+    ) -> Result<()> {
         let start = std::time::Instant::now();
         let timestamp = chrono::Utc::now().timestamp();
         let result = sqlx::query("INSERT INTO dex_orders (wallet_address, order_id, base_token, quote_token, amount, is_bid, tick, tx_hash, status, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)")
             .bind(wallet).bind(order_id).bind(base_token).bind(quote_token).bind(amount).bind(if is_bid { 1 } else { 0 }).bind(tick as i32).bind(tx_hash).bind(timestamp).execute(&self.pool).await;
         self.record_query_time(start, result.is_ok());
         match result {
-            Ok(_) => { self.metrics.total_inserts.fetch_add(1, Ordering::SeqCst); Ok(()) },
-            Err(e) => { self.metrics.total_errors.fetch_add(1, Ordering::SeqCst); Err(e).context("Failed to insert DEX order") },
+            Ok(_) => {
+                self.metrics.total_inserts.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            },
+            Err(e) => {
+                self.metrics.total_errors.fetch_add(1, Ordering::SeqCst);
+                Err(e).context("Failed to insert DEX order")
+            },
         }
     }
 
@@ -1427,18 +1467,31 @@ impl DatabaseManager {
         self.metrics.total_selects.fetch_add(1, Ordering::SeqCst);
         self.record_query_time(start, rows.is_ok());
         match rows {
-            Ok(orders) => { self.metrics.total_queries.fetch_add(1, Ordering::SeqCst); Ok(orders) },
-            Err(e) => { self.metrics.total_errors.fetch_add(1, Ordering::SeqCst); Err(e).context("Failed to get DEX orders") },
+            Ok(orders) => {
+                self.metrics.total_queries.fetch_add(1, Ordering::SeqCst);
+                Ok(orders)
+            },
+            Err(e) => {
+                self.metrics.total_errors.fetch_add(1, Ordering::SeqCst);
+                Err(e).context("Failed to get DEX orders")
+            },
         }
     }
 
     pub async fn update_order_status(&self, order_id: &str, status: &str) -> Result<()> {
         let start = std::time::Instant::now();
-        let result = sqlx::query("UPDATE dex_orders SET status = ? WHERE order_id = ?").bind(status).bind(order_id).execute(&self.pool).await;
+        let result = sqlx::query("UPDATE dex_orders SET status = ? WHERE order_id = ?")
+            .bind(status)
+            .bind(order_id)
+            .execute(&self.pool)
+            .await;
         self.record_query_time(start, result.is_ok());
         match result {
             Ok(_) => Ok(()),
-            Err(e) => { self.metrics.total_errors.fetch_add(1, Ordering::SeqCst); Err(e).context("Failed to update order status") },
+            Err(e) => {
+                self.metrics.total_errors.fetch_add(1, Ordering::SeqCst);
+                Err(e).context("Failed to update order status")
+            },
         }
     }
 
@@ -1448,7 +1501,11 @@ impl DatabaseManager {
         let current_avg = self.metrics.avg_query_time_ms.load(Ordering::SeqCst);
         if success {
             let new_count = count + 1;
-            let new_avg = if count == 0 { elapsed_ms } else { (current_avg * count + elapsed_ms) / new_count };
+            let new_avg = if count == 0 {
+                elapsed_ms
+            } else {
+                (current_avg * count + elapsed_ms) / new_count
+            };
             self.metrics.query_count_for_avg.store(new_count, Ordering::SeqCst);
             self.metrics.avg_query_time_ms.store(new_avg, Ordering::SeqCst);
         }
@@ -1475,14 +1532,21 @@ pub struct DbMetricsSnapshot {
 
 impl DbMetricsSnapshot {
     pub fn error_rate(&self) -> f64 {
-        if self.total_queries == 0 { 0.0 } else { self.total_errors as f64 / self.total_queries as f64 * 100.0 }
+        if self.total_queries == 0 {
+            0.0
+        } else {
+            self.total_errors as f64 / self.total_queries as f64 * 100.0
+        }
     }
 }
 
 async fn db_flush_worker(mut rx: mpsc::Receiver<QueuedTaskResult>, pool: SqlitePool, config: AsyncDbConfig) {
     let mut batch = Vec::with_capacity(config.batch_size);
     let mut flush_interval = tokio::time::interval(Duration::from_millis(config.flush_interval_ms));
-    info!("Database flush worker started (batch: {}, interval: {}ms)", config.batch_size, config.flush_interval_ms);
+    info!(
+        "Database flush worker started (batch: {}, interval: {}ms)",
+        config.batch_size, config.flush_interval_ms
+    );
     loop {
         tokio::select! {
             res = rx.recv() => {
@@ -1516,7 +1580,9 @@ async fn db_flush_worker(mut rx: mpsc::Receiver<QueuedTaskResult>, pool: SqliteP
 }
 
 async fn flush_batch(batch: &[QueuedTaskResult], pool: &SqlitePool) -> Result<()> {
-    if batch.is_empty() { return Ok(()); }
+    if batch.is_empty() {
+        return Ok(());
+    }
     let start = Instant::now();
     let date = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let mut tx = pool.begin().await?;

@@ -142,6 +142,23 @@ async fn main() -> Result<()> {
     let proxy_health = Arc::new(core_logic::ProxyHealthManager::new(3, 5));
     let proxy_rate_limiter = Arc::new(core_logic::ProxyRateLimiter::new(config.tps));
 
+    // RPC Managers
+    let mut rpc_urls = config.rpc_urls.clone();
+    if rpc_urls.is_empty() {
+        rpc_urls.push(config.rpc_url.clone());
+    }
+    let rpc_manager = Arc::new(core_logic::RpcManager::new(config.chain_id, &rpc_urls));
+
+    let base_rpc_manager = if let Some(ref base_cfg) = base_config {
+        let mut base_urls = base_cfg.rpc_urls.clone();
+        if base_urls.is_empty() {
+            base_urls.push(base_cfg.rpc_url.clone());
+        }
+        Some(Arc::new(core_logic::RpcManager::new(base_cfg.chain_id, &base_urls)))
+    } else {
+        None
+    };
+
     // Daily database
     let db = Arc::new(core_logic::DatabaseManager::new(&args.db_path).await?);
     println!("Daily database ready: {}", args.db_path);
@@ -210,10 +227,12 @@ async fn main() -> Result<()> {
         proxy_pool,
         proxy_health,
         proxy_rate_limiter,
+        rpc_manager,
         gas_manager,
         min_gwei: args.min_gwei,
         busy_wallets: Arc::new(Mutex::new(HashSet::new())),
         base_rpc_url,
+        base_rpc_manager,
         base_gas_manager,
         base_config,
         config_path: Some(args.config.clone()),
@@ -305,7 +324,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_password_without_manager_arg() {
-        let _ = unsafe { std::env::remove_var("WALLET_PASSWORD") };
+        unsafe { std::env::remove_var("WALLET_PASSWORD") };
         let result = resolve_password().await;
         assert!(result.is_err(), "Should error when WALLET_PASSWORD is not set");
         let err = result.unwrap_err().to_string();

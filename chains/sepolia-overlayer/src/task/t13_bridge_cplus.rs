@@ -50,49 +50,6 @@ fn encode_send(send_param: &Token, fee: &Token, refund: Address) -> Bytes {
     Bytes::from(data)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_build_send_param_creates_7_element_tuple() {
-        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
-        let param = build_send_param(40245, addr, U256::from(100), vec![0x00, 0x03]);
-        match param {
-            Token::Tuple(items) => {
-                assert_eq!(items.len(), 7);
-                assert_eq!(items[0], Token::Uint(U256::from(40245)));
-                assert_eq!(items[2], Token::Uint(U256::from(100)));
-            },
-            _ => panic!("SendParam must be a Tuple"),
-        }
-    }
-
-    #[test]
-    fn test_build_fee_creates_2_element_tuple() {
-        let fee = build_fee(U256::from(500), U256::from(1));
-        match fee {
-            Token::Tuple(items) => {
-                assert_eq!(items.len(), 2);
-                assert_eq!(items[0], Token::Uint(U256::from(500)));
-            },
-            _ => panic!("Fee must be a Tuple"),
-        }
-    }
-
-    #[test]
-    fn test_encode_send_starts_with_correct_selector() {
-        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
-        let param = build_send_param(1, addr, U256::zero(), vec![]);
-        let fee = build_fee(U256::zero(), U256::zero());
-        let encoded = encode_send(&param, &fee, addr);
-        assert_eq!(encoded[0], 0xc7);
-        assert_eq!(encoded[1], 0xc7);
-        assert_eq!(encoded[2], 0xf5);
-        assert_eq!(encoded[3], 0xb3);
-    }
-}
-
 async fn get_cplus_balance(provider: &Provider<Http>, wallet: Address) -> Result<U256> {
     let addr: Address = USDC_PLUS.parse()?;
     let contract = Contract::new(
@@ -177,5 +134,48 @@ impl SepoliaTask for BridgeCplusTask {
                 format!("Failed to bridge C+ - receipt not confirmed (tx: {:?})", tx_hash)
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_send_param_creates_7_element_tuple() {
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let param = build_send_param(40245, addr, U256::from(100), vec![0x00, 0x03]);
+        match param {
+            Token::Tuple(items) => {
+                assert_eq!(items.len(), 7);
+                assert_eq!(items[0], Token::Uint(U256::from(40245)));
+                assert_eq!(items[2], Token::Uint(U256::from(100)));
+            },
+            _ => panic!("SendParam must be a Tuple"),
+        }
+    }
+
+    #[test]
+    fn test_build_fee_creates_2_element_tuple() {
+        let fee = build_fee(U256::from(500), U256::from(1));
+        match fee {
+            Token::Tuple(items) => {
+                assert_eq!(items.len(), 2);
+                assert_eq!(items[0], Token::Uint(U256::from(500)));
+            },
+            _ => panic!("Fee must be a Tuple"),
+        }
+    }
+
+    #[test]
+    fn test_encode_send_starts_with_correct_selector() {
+        let addr: Address = "0xd7d2e492e6dda0013e9062f00327a06fdb722488".parse().unwrap();
+        let param = build_send_param(1, addr, U256::zero(), vec![]);
+        let fee = build_fee(U256::zero(), U256::zero());
+        let encoded = encode_send(&param, &fee, addr);
+        assert_eq!(encoded[0], 0xc7);
+        assert_eq!(encoded[1], 0xc7);
+        assert_eq!(encoded[2], 0xf5);
+        assert_eq!(encoded[3], 0xb3);
     }
 }

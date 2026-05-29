@@ -135,7 +135,7 @@ proptest! {
     #[test]
     fn token_bucket_capacity_never_exceeded(acquires: Vec<u64>, capacity: u64) {
         // capacity=0 is legal but divides by zero for per-task acquires
-        let cap = capacity.max(1).min(10_000);
+        let cap = capacity.clamp(1, 10_000);
         let bucket = core_logic::TokenBucket::new(cap, 1000);
         let mut taken: u64 = 0;
         for a in &acquires {
@@ -160,7 +160,7 @@ proptest! {
         let mut expected_failed: u64 = 0;
 
         for (dur_shift, _, success) in ops {
-            let dur_ms = (dur_shift % 1000) as u64;
+            let dur_ms = dur_shift % 1000;
             metrics.record_task("prop", std::time::Duration::from_millis(dur_ms), success);
             expected_total += 1;
             if success { expected_success += 1; } else { expected_failed += 1; }

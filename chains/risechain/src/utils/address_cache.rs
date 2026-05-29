@@ -265,26 +265,21 @@ mod tests {
 
     #[test]
     fn test_global_before_init_errors() {
-        // ADDRESS_CACHE is a OnceCell, so calling global() before init() should fail
-        // unless another test already initialized it
-        let early = AddressCache::global();
-        // If cache was not yet initialized (no test ran before), it should error
-        if early.is_err() {
-            let err = early.unwrap_err().to_string();
-            assert!(
-                err.contains("not initialized"),
-                "Error should mention not initialized: {}",
-                err
-            );
+        match AddressCache::global() {
+            Ok(_) => {},
+            Err(err) => {
+                let err = err.to_string();
+                assert!(
+                    err.contains("not initialized"),
+                    "Error should mention not initialized: {}",
+                    err
+                );
+            },
         }
     }
 
     #[test]
     fn test_len_before_init_returns_zero() {
-        // len() uses global() internally and returns 0 on error
-        let len = AddressCache::len();
-        // May be 0 or >0 depending on test ordering (shared OnceCell)
-        // This is a best-effort test — validates function doesn't panic
-        assert!(true);
+        let _ = AddressCache::len();
     }
 }

@@ -199,183 +199,6 @@ impl ProxyBanlist {
     }
 }
 
-#[cfg(test)]
-mod banlist_tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_new_not_banned() {
-        let bl = ProxyBanlist::new(10);
-        assert!(!bl.is_banned(0).await);
-        assert!(!bl.is_banned(999).await);
-    }
-
-    #[tokio::test]
-    async fn test_ban_and_is_banned() {
-        let bl = ProxyBanlist::new(10);
-        bl.ban(42).await;
-        assert!(bl.is_banned(42).await);
-        assert!(!bl.is_banned(0).await);
-    }
-
-    #[tokio::test]
-    async fn test_unban_removes() {
-        let bl = ProxyBanlist::new(10);
-        bl.ban(5).await;
-        assert!(bl.is_banned(5).await);
-        bl.unban(5).await;
-        assert!(!bl.is_banned(5).await);
-    }
-
-    #[tokio::test]
-    async fn test_ban_multiple() {
-        let bl = ProxyBanlist::new(10);
-        bl.ban(1).await;
-        bl.ban(2).await;
-        bl.ban(3).await;
-        assert!(bl.is_banned(1).await);
-        assert!(bl.is_banned(2).await);
-        assert!(bl.is_banned(3).await);
-    }
-
-    #[tokio::test]
-    async fn test_get_banned_indices() {
-        let bl = ProxyBanlist::new(10);
-        bl.ban(10).await;
-        bl.ban(20).await;
-        let banned = bl.get_banned_indices().await;
-        assert!(banned.contains(&10));
-        assert!(banned.contains(&20));
-        assert_eq!(banned.len(), 2);
-    }
-
-    #[tokio::test]
-    async fn test_cleanup_expired_removes_banned() {
-        let bl = ProxyBanlist::new(0); // 0 minute = instant expiry
-        bl.ban(7).await;
-        // With 0-minute ban, the ban may already be expired
-        bl.cleanup_expired().await;
-        let banned = bl.get_banned_indices().await;
-        assert!(banned.is_empty(), "0-min bans should be cleaned up: {:?}", banned);
-    }
-
-    #[tokio::test]
-    async fn test_unban_unknown_no_panic() {
-        let bl = ProxyBanlist::new(10);
-        bl.unban(999).await; // Should not panic
-        assert!(!bl.is_banned(999).await);
-    }
-
-    #[tokio::test]
-    async fn test_concurrent_ban_all_different_indices() {
-        let bl = std::sync::Arc::new(ProxyBanlist::new(10));
-        let num_tasks = 30;
-        let mut handles = Vec::with_capacity(num_tasks);
-
-        for i in 0..num_tasks {
-            let bl = bl.clone();
-            handles.push(tokio::spawn(async move {
-                bl.ban(i).await;
-            }));
-        }
-
-        for h in handles {
-            h.await.unwrap();
-        }
-
-        // Verify all are banned
-        for i in 0..num_tasks {
-            assert!(bl.is_banned(i).await, "Proxy {} should be banned", i);
-        }
-        assert_eq!(
-            bl.get_banned_indices().await.len(),
-            num_tasks,
-            "All {} proxy indices should appear in banned list",
-            num_tasks
-        );
-    }
-
-    #[tokio::test]
-    async fn test_concurrent_ban_same_index_only_one_entry() {
-        let bl = std::sync::Arc::new(ProxyBanlist::new(10));
-        let num_tasks = 20;
-        let mut handles = Vec::with_capacity(num_tasks);
-
-        for _ in 0..num_tasks {
-            let bl = bl.clone();
-            handles.push(tokio::spawn(async move {
-                bl.ban(5).await; // All ban the same index
-            }));
-        }
-
-        for h in handles {
-            h.await.unwrap();
-        }
-
-        // Should be banned, and the banned list should contain only one entry
-        assert!(bl.is_banned(5).await);
-        assert_eq!(
-            bl.get_banned_indices().await.len(),
-            1,
-            "Multiple bans on same index should only create one entry"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_concurrent_read_during_ban() {
-        let bl = std::sync::Arc::new(ProxyBanlist::new(10));
-        let mut handles = Vec::new();
-
-        // Spawn 10 writers banning different indices
-        for i in 0..10 {
-            let bl = bl.clone();
-            handles.push(tokio::spawn(async move {
-                bl.ban(i).await;
-            }));
-        }
-
-        // Spawn 10 readers checking banned status concurrently
-        for i in 0..10 {
-            let bl = bl.clone();
-            handles.push(tokio::spawn(async move {
-                let _ = bl.is_banned(i).await; // Just read, no panic
-            }));
-        }
-
-        for h in handles {
-            h.await.unwrap();
-        }
-
-        // Verify reads + writes were safe
-        assert!(bl.is_banned(5).await, "Index 5 should be banned after writes");
-        assert!(!bl.is_banned(50).await, "Index 50 should never be banned");
-    }
-
-    #[tokio::test]
-    async fn test_concurrent_ban_then_unban_race() {
-        let bl = std::sync::Arc::new(ProxyBanlist::new(10));
-        let mut handles = Vec::new();
-
-        // Spawn alternating ban/unban on same index
-        for i in 0..5 {
-            let bl = bl.clone();
-            handles.push(tokio::spawn(async move {
-                bl.ban(i).await;
-                bl.unban(i).await; // Immediate unban
-            }));
-        }
-
-        for h in handles {
-            h.await.unwrap();
-        }
-
-        // After ban+unban on each, none should be banned
-        for i in 0..5 {
-            assert!(!bl.is_banned(i).await, "Index {} should have been unbanned", i);
-        }
-    }
-}
-
 /// Clears the proxy health check client cache to free memory
 pub async fn clear_client_cache() {
     if let Some(cache) = CLIENT_CACHE.get() {
@@ -633,5 +456,182 @@ pub async fn start_recheck_task(
 
         // Cleanup expired bans
         banlist.cleanup_expired().await;
+    }
+}
+
+#[cfg(test)]
+mod banlist_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_new_not_banned() {
+        let bl = ProxyBanlist::new(10);
+        assert!(!bl.is_banned(0).await);
+        assert!(!bl.is_banned(999).await);
+    }
+
+    #[tokio::test]
+    async fn test_ban_and_is_banned() {
+        let bl = ProxyBanlist::new(10);
+        bl.ban(42).await;
+        assert!(bl.is_banned(42).await);
+        assert!(!bl.is_banned(0).await);
+    }
+
+    #[tokio::test]
+    async fn test_unban_removes() {
+        let bl = ProxyBanlist::new(10);
+        bl.ban(5).await;
+        assert!(bl.is_banned(5).await);
+        bl.unban(5).await;
+        assert!(!bl.is_banned(5).await);
+    }
+
+    #[tokio::test]
+    async fn test_ban_multiple() {
+        let bl = ProxyBanlist::new(10);
+        bl.ban(1).await;
+        bl.ban(2).await;
+        bl.ban(3).await;
+        assert!(bl.is_banned(1).await);
+        assert!(bl.is_banned(2).await);
+        assert!(bl.is_banned(3).await);
+    }
+
+    #[tokio::test]
+    async fn test_get_banned_indices() {
+        let bl = ProxyBanlist::new(10);
+        bl.ban(10).await;
+        bl.ban(20).await;
+        let banned = bl.get_banned_indices().await;
+        assert!(banned.contains(&10));
+        assert!(banned.contains(&20));
+        assert_eq!(banned.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_expired_removes_banned() {
+        let bl = ProxyBanlist::new(0); // 0 minute = instant expiry
+        bl.ban(7).await;
+        // With 0-minute ban, the ban may already be expired
+        bl.cleanup_expired().await;
+        let banned = bl.get_banned_indices().await;
+        assert!(banned.is_empty(), "0-min bans should be cleaned up: {:?}", banned);
+    }
+
+    #[tokio::test]
+    async fn test_unban_unknown_no_panic() {
+        let bl = ProxyBanlist::new(10);
+        bl.unban(999).await; // Should not panic
+        assert!(!bl.is_banned(999).await);
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_ban_all_different_indices() {
+        let bl = std::sync::Arc::new(ProxyBanlist::new(10));
+        let num_tasks = 30;
+        let mut handles = Vec::with_capacity(num_tasks);
+
+        for i in 0..num_tasks {
+            let bl = bl.clone();
+            handles.push(tokio::spawn(async move {
+                bl.ban(i).await;
+            }));
+        }
+
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        // Verify all are banned
+        for i in 0..num_tasks {
+            assert!(bl.is_banned(i).await, "Proxy {} should be banned", i);
+        }
+        assert_eq!(
+            bl.get_banned_indices().await.len(),
+            num_tasks,
+            "All {} proxy indices should appear in banned list",
+            num_tasks
+        );
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_ban_same_index_only_one_entry() {
+        let bl = std::sync::Arc::new(ProxyBanlist::new(10));
+        let num_tasks = 20;
+        let mut handles = Vec::with_capacity(num_tasks);
+
+        for _ in 0..num_tasks {
+            let bl = bl.clone();
+            handles.push(tokio::spawn(async move {
+                bl.ban(5).await; // All ban the same index
+            }));
+        }
+
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        // Should be banned, and the banned list should contain only one entry
+        assert!(bl.is_banned(5).await);
+        assert_eq!(
+            bl.get_banned_indices().await.len(),
+            1,
+            "Multiple bans on same index should only create one entry"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_read_during_ban() {
+        let bl = std::sync::Arc::new(ProxyBanlist::new(10));
+        let mut handles = Vec::new();
+
+        // Spawn 10 writers banning different indices
+        for i in 0..10 {
+            let bl = bl.clone();
+            handles.push(tokio::spawn(async move {
+                bl.ban(i).await;
+            }));
+        }
+
+        // Spawn 10 readers checking banned status concurrently
+        for i in 0..10 {
+            let bl = bl.clone();
+            handles.push(tokio::spawn(async move {
+                let _ = bl.is_banned(i).await; // Just read, no panic
+            }));
+        }
+
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        // Verify reads + writes were safe
+        assert!(bl.is_banned(5).await, "Index 5 should be banned after writes");
+        assert!(!bl.is_banned(50).await, "Index 50 should never be banned");
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_ban_then_unban_race() {
+        let bl = std::sync::Arc::new(ProxyBanlist::new(10));
+        let mut handles = Vec::new();
+
+        // Spawn alternating ban/unban on same index
+        for i in 0..5 {
+            let bl = bl.clone();
+            handles.push(tokio::spawn(async move {
+                bl.ban(i).await;
+                bl.unban(i).await; // Immediate unban
+            }));
+        }
+
+        for h in handles {
+            h.await.unwrap();
+        }
+
+        // After ban+unban on each, none should be banned
+        for i in 0..5 {
+            assert!(!bl.is_banned(i).await, "Index {} should have been unbanned", i);
+        }
     }
 }

@@ -120,6 +120,7 @@ impl ArcTask for SendCirbtcTask {
 }
 
 #[cfg(test)]
+#[allow(clippy::assertions_on_constants)]
 mod tests {
     use super::*;
 

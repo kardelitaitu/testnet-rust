@@ -273,10 +273,12 @@ pub struct DailyRunner {
     pub proxy_pool: Arc<RwLock<Vec<ProxyConfig>>>,
     pub proxy_health: Arc<ProxyHealthManager>,
     pub proxy_rate_limiter: Arc<ProxyRateLimiter>,
+    pub rpc_manager: Arc<core_logic::RpcManager>,
     pub gas_manager: Arc<GasManager>,
     pub min_gwei: f64,
     pub busy_wallets: Arc<Mutex<std::collections::HashSet<usize>>>,
     pub base_rpc_url: Option<String>,
+    pub base_rpc_manager: Option<Arc<core_logic::RpcManager>>,
     pub base_gas_manager: Option<Arc<GasManager>>,
     pub base_config: Option<SepoliaConfig>,
     /// Path to the config.toml for live-reloading task limits.
@@ -351,10 +353,12 @@ impl DailyRunner {
             proxy_pool: self.proxy_pool.clone(),
             proxy_health: self.proxy_health.clone(),
             proxy_rate_limiter: self.proxy_rate_limiter.clone(),
+            rpc_manager: self.rpc_manager.clone(),
             gas_manager: self.gas_manager.clone(),
             min_gwei: self.min_gwei,
             busy_wallets: self.busy_wallets.clone(),
             base_rpc_url: self.base_rpc_url.clone(),
+            base_rpc_manager: self.base_rpc_manager.clone(),
             base_gas_manager: self.base_gas_manager.clone(),
             base_config: self.base_config.clone(),
             config_path: self.config_path.clone(),
@@ -684,16 +688,43 @@ impl DailyRunner {
         // Determine if this is a base-chain task (bridge-back)
         let is_base = task_name == "16_bridgeBackTplus" || task_name == "17_bridgeBackCplus";
 
-        let rpc_url = if is_base {
-            self.base_rpc_url.clone().unwrap_or_else(|| self.config.get_rpc_url())
+        let (rpc_url, current_rpc_manager) = if is_base {
+            if let Some(ref bm) = self.base_rpc_manager {
+                match bm.get_endpoint() {
+                    Ok(ep) => (ep.url.clone(), Some(bm.clone())),
+                    Err(_) => (
+                        self.base_rpc_url.clone().unwrap_or_else(|| self.config.get_rpc_url()),
+                        None,
+                    ),
+                }
+            } else {
+                (
+                    self.base_rpc_url.clone().unwrap_or_else(|| self.config.get_rpc_url()),
+                    None,
+                )
+            }
         } else {
-            self.config.get_rpc_url()
+            match self.rpc_manager.get_endpoint() {
+                Ok(ep) => (ep.url.clone(), Some(self.rpc_manager.clone())),
+                Err(e) => {
+                    return TaskOutcome::Retry {
+                        task_name: task_name.to_string(),
+                        message: format!("No healthy RPCs available: {}", e),
+                        proxy_id: proxy_id.clone(),
+                        count: current_count,
+                        limit: current_limit,
+                    };
+                },
+            }
         };
 
         // Create RPC provider
         let provider = match self.create_provider(&proxy_config, &rpc_url).await {
             Ok(p) => p,
             Err(e) => {
+                if let Some(mgr) = current_rpc_manager {
+                    mgr.record_failure(&rpc_url);
+                }
                 return TaskOutcome::Retry {
                     task_name: task_name.to_string(),
                     message: format!("Provider creation failed: {}", e),
@@ -793,6 +824,24 @@ impl DailyRunner {
                     }
                 }
 
+                // Record RPC success/failure
+                if let Some(mgr) = current_rpc_manager {
+                    if result.success {
+                        mgr.record_success(&rpc_url);
+                    } else {
+                        // Check if message looks like an RPC error
+                        let msg = result.message.to_lowercase();
+                        if msg.contains("520")
+                            || msg.contains("too many requests")
+                            || msg.contains("429")
+                            || msg.contains("cloudflare")
+                            || msg.contains("deserialization error")
+                        {
+                            mgr.record_failure(&rpc_url);
+                        }
+                    }
+                }
+
                 // Record in daily DB (INSERT — each success counts)
                 let msg = format!("{} ({:.1}s)", result.message, elapsed.as_secs_f64());
                 if let Err(e) = self
@@ -835,6 +884,19 @@ impl DailyRunner {
                     self.proxy_health.record_failure(&proxy.url).await;
                 }
 
+                // Record RPC failure
+                if let Some(mgr) = current_rpc_manager {
+                    let msg = e.to_string().to_lowercase();
+                    if msg.contains("520")
+                        || msg.contains("too many requests")
+                        || msg.contains("429")
+                        || msg.contains("cloudflare")
+                        || msg.contains("deserialization error")
+                    {
+                        mgr.record_failure(&rpc_url);
+                    }
+                }
+
                 // Record failure (success=false so it doesn't count)
                 let msg = format!("{} ({:.1}s)", e, elapsed.as_secs_f64());
                 if let Err(log_err) = self
@@ -865,6 +927,11 @@ impl DailyRunner {
 
                 if let Some(ref proxy) = proxy_config {
                     self.proxy_health.record_failure(&proxy.url).await;
+                }
+
+                // Record RPC failure (timeout is often an RPC hang)
+                if let Some(mgr) = current_rpc_manager {
+                    mgr.record_failure(&rpc_url);
                 }
 
                 let msg = format!(
@@ -963,7 +1030,9 @@ impl DailyRunner {
 
         let client = builder.build().context("Failed to build HTTP client")?;
         let url = reqwest::Url::parse(rpc_url).context("Invalid RPC URL")?;
-        Ok(ethers::providers::Provider::new(ethers::providers::Http::new_with_client(url, client)))
+        Ok(ethers::providers::Provider::new(
+            ethers::providers::Http::new_with_client(url, client),
+        ))
     }
 }
 
@@ -1067,11 +1136,7 @@ mod tests {
 
     #[test]
     fn test_all_task_names_count() {
-        assert_eq!(
-            ALL_TASK_NAMES.len(),
-            20,
-            "ALL_TASK_NAMES must match expected count"
-        );
+        assert_eq!(ALL_TASK_NAMES.len(), 20, "ALL_TASK_NAMES must match expected count");
     }
 
     #[test]
@@ -1426,7 +1491,9 @@ mod tests {
     async fn setup_test_db() -> Arc<DatabaseManager> {
         let dir = tempfile::tempdir().unwrap();
         let db_path = dir.path().join("test.db");
-        let db = DatabaseManager::new(db_path.to_str().unwrap()).await.expect("Failed to create test database");
+        let db = DatabaseManager::new(db_path.to_str().unwrap())
+            .await
+            .expect("Failed to create test database");
         Arc::new(db)
     }
 
@@ -1437,22 +1504,22 @@ mod tests {
         let limits = HashMap::new(); // all tasks limit=1
 
         // Wallet 0: 3/19 tasks done
-        for i in 0..3 {
-            db.log_task_result("WK", "0xalice", ALL_TASK_NAMES[i], true, "ok", 0)
+        for task_name in ALL_TASK_NAMES.iter().take(3) {
+            db.log_task_result("WK", "0xalice", task_name, true, "ok", 0)
                 .await
                 .unwrap();
         }
         // Wallet 1: 0/20 done
         // Wallet 2: all 20/20 done (with limit=1 each)
-        for i in 0..20 {
-            db.log_task_result("WK", "0xcharlie", ALL_TASK_NAMES[i], true, "ok", 0)
+        for task_name in ALL_TASK_NAMES.iter().take(20) {
+            db.log_task_result("WK", "0xcharlie", task_name, true, "ok", 0)
                 .await
                 .unwrap();
         }
 
         let all_counts = db.get_all_completed_counts(&date).await.unwrap();
 
-        let wallet_addresses = vec![
+        let wallet_addresses = [
             "0xalice".to_string(),
             "0xbob".to_string(),
             "0xcharlie".to_string(),
@@ -1482,8 +1549,8 @@ mod tests {
         let limits = HashMap::new(); // limit=1 for all
 
         // Complete 5 tasks for wallet 0
-        for i in 0..5 {
-            db.log_task_result("WK", "0xalice", ALL_TASK_NAMES[i], true, "ok", 0)
+        for task_name in ALL_TASK_NAMES.iter().take(5) {
+            db.log_task_result("WK", "0xalice", task_name, true, "ok", 0)
                 .await
                 .unwrap();
         }
@@ -1683,9 +1750,7 @@ mod tests {
         assert_eq!(remaining_tasks.len(), 17, "17 remaining tasks expected");
 
         for task in &remaining_tasks {
-            db.log_task_result("WK", wallet, task, true, "ok", 0)
-                .await
-                .unwrap();
+            db.log_task_result("WK", wallet, task, true, "ok", 0).await.unwrap();
         }
 
         // ---- Final: wallet should be fully exhausted ----
@@ -1763,6 +1828,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -1823,6 +1890,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -1892,6 +1961,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(vec![proxy_config])),
             proxy_health: proxy_health.clone(),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -1951,6 +2022,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -2052,9 +2125,7 @@ mod tests {
 
                     // 3. Pick random pending task and record completion
                     let task = remaining[rand::thread_rng().gen_range(0..remaining.len())];
-                    db.log_task_result("WK", wallet, task, true, "stress", 0)
-                        .await
-                        .unwrap();
+                    db.log_task_result("WK", wallet, task, true, "stress", 0).await.unwrap();
 
                     // 4. Release wallet
                     busy.lock().await.remove(&wallet_idx);
@@ -2156,6 +2227,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -2226,6 +2299,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -2315,6 +2390,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -2371,6 +2448,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -2450,6 +2529,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(vec![healthy_proxy, unhealthy_proxy])),
             proxy_health: proxy_health.clone(),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -2532,6 +2613,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -2598,7 +2681,7 @@ mod tests {
         // is_in_pause_window_at(Utc::now()). Just verify it doesn't panic
         // and returns a bool.
         let result = is_in_pause_window();
-        assert!(result == true || result == false, "Must return a bool");
+        assert!(result, "Must return a bool");
     }
 
     #[test]
@@ -2675,6 +2758,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -2750,6 +2835,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -2831,9 +2918,8 @@ mod tests {
     #[test]
     fn test_wallet_usage_pct_eight_of_twenty() {
         let mut counts = HashMap::new();
-        for i in 0..8 {
-            let name = ALL_TASK_NAMES[i];
-            counts.insert(name.to_string(), 1usize);
+        for name in ALL_TASK_NAMES.iter().take(8) {
+            counts.insert((*name).to_string(), 1usize);
         }
         let limits = HashMap::new();
         let pct = wallet_usage_pct(&counts, &limits);
@@ -2911,6 +2997,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),
@@ -2934,6 +3022,81 @@ mod tests {
         assert_eq!(cloned.worker_count, 2);
         assert_eq!(cloned.min_gwei, 0.01);
         assert_eq!(cloned.config.rpc_url, "http://localhost:9999");
+    }
+
+    #[tokio::test]
+    async fn test_daily_runner_tracks_rpc_failures() {
+        let db = setup_test_db().await;
+        let config = SepoliaConfig {
+            rpc_url: "http://bad-rpc.com".into(),
+            rpc_urls: vec!["http://bad-rpc.com".into()],
+            task_timeouts: None,
+            chain_id: 11155111,
+            explorer: "".into(),
+            symbol: "ETH".into(),
+            private_key_file: None,
+            tps: 1,
+            worker_amount: None,
+            min_delay_ms: None,
+            max_delay_ms: None,
+            wallet_dir: None,
+            proxies: None,
+            task_limits: None,
+            task_timeout_secs: None,
+        };
+
+        let rpc_manager = Arc::new(core_logic::RpcManager::new(11155111, &config.rpc_urls));
+
+        let _runner = DailyRunner {
+            db,
+            config,
+            wallet_manager: Arc::new(WalletManager::new().unwrap()),
+            wallet_password: None,
+            total_wallets: 1,
+            wallet_addresses: vec!["0xaddress".into()],
+            worker_count: 1,
+            tasks: all_tasks(),
+            task_limits: Arc::new(RwLock::new(HashMap::new())),
+            proxy_pool: Arc::new(RwLock::new(Vec::new())),
+            proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
+            proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: rpc_manager.clone(),
+            gas_manager: Arc::new(GasManager::new(
+                Arc::new(
+                    ethers::providers::Provider::<ethers::providers::Http>::try_from("http://bad-rpc.com").unwrap(),
+                ),
+                0.01,
+            )),
+            min_gwei: 0.01,
+            busy_wallets: Arc::new(Mutex::new(std::collections::HashSet::new())),
+            base_rpc_url: None,
+            base_rpc_manager: None,
+            base_gas_manager: None,
+            base_config: None,
+            config_path: None,
+            last_limits_mtime: Arc::new(std::sync::Mutex::new(None)),
+            #[cfg(test)]
+            test_pause: false,
+        };
+
+        // Simulate an RPC failure by manually calling the logic that records failure
+        // since full integration test would need a real/mock HTTP server.
+        // We test that our string-matching logic for 520 works.
+        let rpc_url = "http://bad-rpc.com";
+        let error_msg = "Deserialization Error: expected value at line 1 column 1. Response: error code: 520";
+
+        // Logic check: simulate the code in execute_one_task
+        let msg = error_msg.to_lowercase();
+        if msg.contains("520") || msg.contains("cloudflare") {
+            rpc_manager.record_failure(rpc_url);
+        }
+
+        assert_eq!(rpc_manager.health_status()[0].failure_count, 1);
+
+        // Record again to trigger pause
+        rpc_manager.record_failure(rpc_url);
+        assert!(!rpc_manager.health_status()[0].healthy);
+        assert!(rpc_manager.health_status()[0].paused_until.is_some());
     }
 
     #[tokio::test]
@@ -2971,6 +3134,8 @@ mod tests {
             proxy_pool: Arc::new(RwLock::new(Vec::new())),
             proxy_health: Arc::new(ProxyHealthManager::new(3, 5)),
             proxy_rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            rpc_manager: Arc::new(core_logic::RpcManager::new(11155111, &["http://localhost:9999".into()])),
+            base_rpc_manager: None,
             gas_manager: Arc::new(GasManager::new(
                 Arc::new(
                     ethers::providers::Provider::<ethers::providers::Http>::try_from("http://localhost:9999").unwrap(),

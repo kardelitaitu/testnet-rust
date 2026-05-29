@@ -345,7 +345,7 @@ mod tests {
         let log_files: Vec<_> = std::fs::read_dir(dir.path())
             .unwrap()
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map_or(false, |ext| ext == "log"))
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "log"))
             .collect();
 
         assert!(log_files.len() <= 2, "at most 2 log files, got {}", log_files.len());
