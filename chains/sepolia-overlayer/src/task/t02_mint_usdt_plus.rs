@@ -63,14 +63,14 @@ impl SepoliaTask for MintUsdtPlusTask {
         let usdt_balance = get_usdt_balance(provider, address).await?;
 
         // Calculate 2% of USDT balance, rounded to nearest whole USDT
-        let mint_amount = calc_pct_rounded(usdt_balance.as_u128(), 2, 100, 6);
+        let mint_amount = calc_pct_rounded(usdt_balance.as_u128(), 1, 100, 6);
         let required = U256::from(mint_amount);
         let whole_usdt = mint_amount / 1_000_000u128;
 
         if whole_usdt == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "3% of USDT balance rounds to 0, nothing to mint".to_string(),
+                message: "1% of USDT balance rounds to 0, nothing to mint".to_string(),
             });
         }
 

@@ -3,30 +3,30 @@ rpc_url = "https://sepolia.drpc.org"
 # Optional: RPC URL rotation — picked randomly each task. Falls back to rpc_url if empty.
 rpc_urls = [
     "https://sepolia.drpc.org",
-    # "https://sepolia.gateway.tenderly.co",
-    # "https://gateway.tenderly.co/public/sepolia",
-    # "https://ethereum-sepolia-rpc.publicnode.com",
-    # "https://eth-sepolia.api.onfinality.io/public",
-    # "https://ethereum-sepolia-public.nodies.app",
-    # "https://sepolia.rpc.sentio.xyz",
-    # "https://rpc.sepolia.ethpandaops.io",
+    "https://sepolia.gateway.tenderly.co",
+    "https://gateway.tenderly.co/public/sepolia",
+    "https://ethereum-sepolia-rpc.publicnode.com",
+    "https://eth-sepolia.api.onfinality.io/public",
+    "https://ethereum-sepolia-public.nodies.app",
+    "https://sepolia.rpc.sentio.xyz",
+    "https://rpc.sepolia.ethpandaops.io",
     # "https://sepolia.infura.io/v3/93832f5b5b9042b79e7291b6e14951d0",
-    "https://lb.drpc.live/sepolia/AlHuoKLqTUrduFE980gLB7PYeSlrWtUR8bI_IqM_iWcm",
-    "https://lb.drpc.live/sepolia/AvcB4HgkAEg0lo6LkqA1GRNyb7JnWtgR8bJAIqM_iWcm",
-    "https://lb.drpc.live/sepolia/AuUFKKrspkNqvfkoqfRElF6dXRFAWtgR8bJBIqM_iWcm",
-    "https://lb.drpc.live/sepolia/AngzXAjrpEaWrn_uJdklrBa8t0xvWtgR8bJCIqM_iWcm",
-    "https://lb.drpc.live/sepolia/As0tmESq-k7uhs8g2mIX-dTXqrfFWtgR8bJDIqM_iWcm",
-    "https://lb.drpc.live/sepolia/AkY6VhMtDETvlxMJzcmkgJnteGk-WtgR8bJEIqM_iWcm",
-    "https://lb.drpc.live/sepolia/AkdstHGFIklJscVAffHOHviZDZVLW4gR8bbGIqM_iWcm",
-    "https://lb.drpc.live/sepolia/ArMPpHlmXUChrhO79GodlIuZfZmWW4gR8bbLIqM_iWcm",
-    "https://lb.drpc.live/sepolia/Aor6BW0e4EagpO_Pme1WfLSZg_LFW4gR8bbNIqM_iWcm",
-    "https://lb.drpc.live/sepolia/Ana2X0GVkUsGpaXsNCp-AzyZgL9cW4gR8bbMIqM_iWcm",
-    "https://lb.drpc.live/sepolia/AqWeJ98mDk8vtOTbOfJLLQiZiwraW4gR8bbOIqM_iWcm",
-    "https://lb.drpc.live/sepolia/AuKu_cXpPUsGm5mq_fxtjpmZexUKW4gR8bbKIqM_iWcm",
-    "https://lb.drpc.live/sepolia/AvcvMIzp70Bpl2P0mbWBALiZbeAEW4gR8bbJIqM_iWcm",
-    "https://lb.drpc.live/sepolia/ApcOsCDG80hxjoluHrkIYrSZbXnGW4gR8bbIIqM_iWcm",
-    "https://lb.drpc.live/sepolia/AguLSM961kTwm1_2okzOA8GZLvg9W4gR8bbHIqM_iWcm",
-    "https://lb.drpc.live/sepolia/AhGBWPq4OUBGuJkCEHyTOgOZ3UieW4gR8bbPIqM_iWcm"
+    # "https://lb.drpc.live/sepolia/AlHuoKLqTUrduFE980gLB7PYeSlrWtUR8bI_IqM_iWcm",
+    # "https://lb.drpc.live/sepolia/AvcB4HgkAEg0lo6LkqA1GRNyb7JnWtgR8bJAIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/AuUFKKrspkNqvfkoqfRElF6dXRFAWtgR8bJBIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/AngzXAjrpEaWrn_uJdklrBa8t0xvWtgR8bJCIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/As0tmESq-k7uhs8g2mIX-dTXqrfFWtgR8bJDIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/AkY6VhMtDETvlxMJzcmkgJnteGk-WtgR8bJEIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/AkdstHGFIklJscVAffHOHviZDZVLW4gR8bbGIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/ArMPpHlmXUChrhO79GodlIuZfZmWW4gR8bbLIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/Aor6BW0e4EagpO_Pme1WfLSZg_LFW4gR8bbNIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/Ana2X0GVkUsGpaXsNCp-AzyZgL9cW4gR8bbMIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/AqWeJ98mDk8vtOTbOfJLLQiZiwraW4gR8bbOIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/AuKu_cXpPUsGm5mq_fxtjpmZexUKW4gR8bbKIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/AvcvMIzp70Bpl2P0mbWBALiZbeAEW4gR8bbJIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/ApcOsCDG80hxjoluHrkIYrSZbXnGW4gR8bbIIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/AguLSM961kTwm1_2okzOA8GZLvg9W4gR8bbHIqM_iWcm",
+    # "https://lb.drpc.live/sepolia/AhGBWPq4OUBGuJkCEHyTOgOZ3UieW4gR8bbPIqM_iWcm"
 ]
 chain_id = 11155111
 explorer = "https://sepolia.etherscan.io"
@@ -60,25 +60,25 @@ task_timeout_secs = 120
 #
 [task_limits]
 01_checkbalance = 1
-02_mintusdtplus = 30
-03_mintusdcplus = 30
+02_mintusdtplus = 25
+03_mintusdcplus = 25
 04_redeemusdtplus = 1
 05_redeemusdcplus = 1
 06_stakeusdtplus = 1
 07_stakeusdcplus = 1
 08_unstaketplus = 1
 09_unstakecplus = 1
-10_aaveusdtfaucet = 5
-11_aaveusdcfaucet = 5
+10_aaveusdtfaucet = 6
+11_aaveusdcfaucet = 6
 12_bridgetplus = 1
-13_bridgecplus = 0
-14_sendrandomusdtplus = 5
-15_sendrandomusdcplus = 5
+13_bridgecplus = 1
+14_sendrandomusdtplus = 0
+15_sendrandomusdcplus = 1
 16_bridgebacktplus = 0
 17_bridgebackcplus = 0
-18_receivetplus = 1
+18_receivetplus = 0
 19_receivecplus = 1
-20_aavewbtcfaucet = 0
+20_aavewbtcfaucet = 1
 21_redeemtoausdt = 0
 22_redeemtoausdc = 0
 
@@ -89,7 +89,7 @@ task_timeout_secs = 120
 # ── Per-Task Timeout Overrides ────────────────────────────────────────
 # Override timeout (seconds) for specific tasks. Falls back to task_timeout_secs.
 [task_timeouts]
-16_bridgebacktplus = 300
-17_bridgebackcplus = 300
-18_receivetplus = 300
-19_receivecplus = 300
+16_bridgebacktplus = 450
+17_bridgebackcplus = 450
+18_receivetplus = 450
+19_receivecplus = 450

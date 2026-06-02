@@ -63,14 +63,14 @@ impl SepoliaTask for MintUsdcPlusTask {
         let usdc_balance = get_usdc_balance(provider, address).await?;
 
         // Calculate 2% of USDC balance, rounded to nearest whole USDC
-        let mint_amount = calc_pct_rounded(usdc_balance.as_u128(), 2, 100, 6);
+        let mint_amount = calc_pct_rounded(usdc_balance.as_u128(), 1, 100, 6);
         let required = U256::from(mint_amount);
         let whole_usdc = mint_amount / 1_000_000u128;
 
         if whole_usdc == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "3% of USDC balance rounds to 0, nothing to mint".to_string(),
+                message: "1% of USDC balance rounds to 0, nothing to mint".to_string(),
             });
         }
 

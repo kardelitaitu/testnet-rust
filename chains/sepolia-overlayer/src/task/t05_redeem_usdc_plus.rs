@@ -50,7 +50,7 @@ impl SepoliaTask for RedeemUsdcPlusTask {
         // --- 2. Calculate 10% of C+ balance, round down to nearest whole C+ ---
         // C+ has 18 decimals, USDC has 6 decimals
         // 1 C+ = 10^18, 1 USDC = 10^6
-        let redeem_overlayer = calc_pct_rounded(cplus_balance.as_u128(), 10, 100, 18);
+        let redeem_overlayer = calc_pct_rounded(cplus_balance.as_u128(), 5, 100, 18);
         let dec18: u128 = 1_000_000_000_000_000_000;
         let whole_cplus = redeem_overlayer / dec18;
         let collateral_amount = whole_cplus * 1_000_000u128;
@@ -58,7 +58,7 @@ impl SepoliaTask for RedeemUsdcPlusTask {
         if whole_cplus == 0 {
             return Ok(TaskResult {
                 success: false,
-                message: "10% of C+ balance rounds to 0, nothing to redeem".to_string(),
+                message: "5% of C+ balance rounds to 0, nothing to redeem".to_string(),
             });
         }
 
