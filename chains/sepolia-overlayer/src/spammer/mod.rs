@@ -21,6 +21,14 @@ use crate::task::t19_receive_cplus::ReceiveCplusTask;
 use crate::task::t20_aave_wbtc_faucet::AaveWbtcFaucetTask;
 use crate::task::t21_redeem_to_ausdt::RedeemToAusdtTask;
 use crate::task::t22_redeem_to_ausdc::RedeemToAusdcTask;
+use crate::task::t23_add_liquidity_tplus::AddLiquidityTplusTask;
+use crate::task::t24_add_liquidity_cplus::AddLiquidityCplusTask;
+use crate::task::t25_remove_liquidity_tplus::RemoveLiquidityTplusTask;
+use crate::task::t26_remove_liquidity_cplus::RemoveLiquidityCplusTask;
+use crate::task::t27_add_liquidity_stplus::AddLiquiditySplusTask;
+use crate::task::t28_add_liquidity_scplus::AddLiquidityScplusTask;
+use crate::task::t29_remove_liquidity_stplus::RemoveLiquiditySplusTask;
+use crate::task::t30_remove_liquidity_scplus::RemoveLiquidityScplusTask;
 use crate::task::{SepoliaTask, TaskContext};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -123,6 +131,14 @@ impl EvmSpammer {
             Box::new(AaveWbtcFaucetTask),
             Box::new(RedeemToAusdtTask),
             Box::new(RedeemToAusdcTask),
+            Box::new(AddLiquidityTplusTask),
+            Box::new(AddLiquidityCplusTask),
+            Box::new(RemoveLiquidityTplusTask),
+            Box::new(RemoveLiquidityCplusTask),
+            Box::new(AddLiquiditySplusTask),
+            Box::new(AddLiquidityScplusTask),
+            Box::new(RemoveLiquiditySplusTask),
+            Box::new(RemoveLiquidityScplusTask),
         ];
 
         let gas_manager = Arc::new(crate::utils::gas::GasManager::with_max(

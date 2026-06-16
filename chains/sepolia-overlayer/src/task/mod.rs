@@ -63,6 +63,14 @@ pub mod t19_receive_cplus;
 pub mod t20_aave_wbtc_faucet;
 pub mod t21_redeem_to_ausdt;
 pub mod t22_redeem_to_ausdc;
+pub mod t23_add_liquidity_tplus;
+pub mod t24_add_liquidity_cplus;
+pub mod t25_remove_liquidity_tplus;
+pub mod t26_remove_liquidity_cplus;
+pub mod t27_add_liquidity_stplus;
+pub mod t28_add_liquidity_scplus;
+pub mod t29_remove_liquidity_stplus;
+pub mod t30_remove_liquidity_scplus;
 
 pub use t01_check_balance::SepoliaCheckBalanceTask;
 pub use t02_mint_usdt_plus::MintUsdtPlusTask;
@@ -86,6 +94,14 @@ pub use t19_receive_cplus::ReceiveCplusTask;
 pub use t20_aave_wbtc_faucet::AaveWbtcFaucetTask;
 pub use t21_redeem_to_ausdt::RedeemToAusdtTask;
 pub use t22_redeem_to_ausdc::RedeemToAusdcTask;
+pub use t23_add_liquidity_tplus::AddLiquidityTplusTask;
+pub use t24_add_liquidity_cplus::AddLiquidityCplusTask;
+pub use t25_remove_liquidity_tplus::RemoveLiquidityTplusTask;
+pub use t26_remove_liquidity_cplus::RemoveLiquidityCplusTask;
+pub use t27_add_liquidity_stplus::AddLiquiditySplusTask;
+pub use t28_add_liquidity_scplus::AddLiquidityScplusTask;
+pub use t29_remove_liquidity_stplus::RemoveLiquiditySplusTask;
+pub use t30_remove_liquidity_scplus::RemoveLiquidityScplusTask;
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,6 +131,14 @@ mod tests {
             Box::new(AaveWbtcFaucetTask),
             Box::new(RedeemToAusdtTask),
             Box::new(RedeemToAusdcTask),
+            Box::new(AddLiquidityTplusTask),
+            Box::new(AddLiquidityCplusTask),
+            Box::new(RemoveLiquidityTplusTask),
+            Box::new(RemoveLiquidityCplusTask),
+            Box::new(AddLiquiditySplusTask),
+            Box::new(AddLiquidityScplusTask),
+            Box::new(RemoveLiquiditySplusTask),
+            Box::new(RemoveLiquidityScplusTask),
         ];
 
         let expected = [
@@ -140,6 +164,14 @@ mod tests {
             "20_aaveWbtcFaucet",
             "21_redeemToAusdt",
             "22_redeemToAusdc",
+            "23_addLiquidityTplus",
+            "24_addLiquidityCplus",
+            "25_removeLiquidityTplus",
+            "26_removeLiquidityCplus",
+            "27_addLiquiditySplus",
+            "28_addLiquidityScplus",
+            "29_removeLiquiditySplus",
+            "30_removeLiquidityScplus",
         ];
         assert_eq!(tasks.len(), expected.len(), "tasks len != expected len");
 

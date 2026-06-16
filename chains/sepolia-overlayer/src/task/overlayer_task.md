@@ -24,3 +24,11 @@
 | t20 | aaveWbtcFaucet | Mint 1 WBTC from AAVE faucet via `mint(address,address,uint256)` |
 | t21 | redeemToAusdt | Redeem USDT+ (T+) to aUSDT via overlayer redeem → AAVE deposit (1% of contract's aUSDT) |
 | t22 | redeemToAusdc | Redeem USDC+ (C+) to aUSDC via overlayer redeem → AAVE deposit (1% of contract's aUSDC) |
+| t23 | addLiquidityTplus | Add T+ liquidity to pool 0 via `deposit(uint256,uint256)` (1% of T+) |
+| t24 | addLiquidityCplus | Add C+ liquidity to pool 0 via `deposit(uint256,uint256)` (1% of C+) |
+| t25 | removeLiquidityTplus | Remove T+ liquidity from pool 0 via `withdraw(uint256,uint256)` (5% of staked T+) |
+| t26 | removeLiquidityCplus | Remove C+ liquidity from pool 0 via `withdraw(uint256,uint256)` (5% of staked C+) |
+| t27 | addLiquiditySplus | Add sOverl (T+ staked) liquidity to sT+ pool 0 via `deposit(uint256,uint256)` (1% of sOverl balance, unlimited approve if needed) |
+| t28 | addLiquidityScplus | Add sOverl (C+ staked) liquidity to sC+ pool 0 via `deposit(uint256,uint256)` (1% of sOverl balance, unlimited approve if needed) |
+| t29 | removeLiquiditySplus | Remove sOverl liquidity from sT+ pool 0 via `withdraw(uint256,uint256)` (5% of staked sOverl) |
+| t30 | removeLiquidityScplus | Remove sOverl liquidity from sC+ pool 0 via `withdraw(uint256,uint256)` (5% of staked sOverl) |

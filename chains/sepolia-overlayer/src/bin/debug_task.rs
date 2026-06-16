@@ -14,7 +14,11 @@ use sepolia_overlayer::task::{
     t14_send_random_usdt_plus::SendRandomUsdtPlusTask, t15_send_random_usdc_plus::SendRandomUsdcPlusTask,
     t16_bridge_back_tplus::BridgeBackTplusTask, t17_bridge_back_cplus::BridgeBackCplusTask,
     t18_receive_tplus::ReceiveTplusTask, t19_receive_cplus::ReceiveCplusTask, t20_aave_wbtc_faucet::AaveWbtcFaucetTask,
-    t21_redeem_to_ausdt::RedeemToAusdtTask, t22_redeem_to_ausdc::RedeemToAusdcTask, SepoliaTask, TaskContext,
+    t21_redeem_to_ausdt::RedeemToAusdtTask, t22_redeem_to_ausdc::RedeemToAusdcTask, t23_add_liquidity_tplus::AddLiquidityTplusTask,
+    t24_add_liquidity_cplus::AddLiquidityCplusTask, t25_remove_liquidity_tplus::RemoveLiquidityTplusTask,
+    t26_remove_liquidity_cplus::RemoveLiquidityCplusTask, t27_add_liquidity_stplus::AddLiquiditySplusTask,
+    t28_add_liquidity_scplus::AddLiquidityScplusTask, t29_remove_liquidity_stplus::RemoveLiquiditySplusTask,
+    t30_remove_liquidity_scplus::RemoveLiquidityScplusTask, SepoliaTask, TaskContext,
 };
 use std::env;
 use std::path::Path;
@@ -207,6 +211,14 @@ async fn main() -> Result<()> {
         Box::new(AaveWbtcFaucetTask),
         Box::new(RedeemToAusdtTask),
         Box::new(RedeemToAusdcTask),
+        Box::new(AddLiquidityTplusTask),
+        Box::new(AddLiquidityCplusTask),
+        Box::new(RemoveLiquidityTplusTask),
+        Box::new(RemoveLiquidityCplusTask),
+        Box::new(AddLiquiditySplusTask),
+        Box::new(AddLiquidityScplusTask),
+        Box::new(RemoveLiquiditySplusTask),
+        Box::new(RemoveLiquidityScplusTask),
     ];
     let items: Vec<&str> = tasks.iter().map(|t| t.name()).collect();
 
