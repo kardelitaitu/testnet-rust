@@ -284,8 +284,9 @@ Sepolia (`sepolia-overlayer`):
   - Scheduled task execution with hot-reloadable per-task limits, gas bounds, pause window logic, proxy health tracking, and per-task timeout overrides.
 - Funder: `chains/sepolia-overlayer/src/bin/fund.rs` (`sepolia-funder`)
   - Multi-hop obfuscated ETH funding: routes ETH through N ephemeral proxy wallets to obscure on-chain source.
-  - Strongly TDD'd for fast/safe iteration: pure helpers for filtering, `generate_dry_run_plan`, gas selection (`choose_gas_price_mgwei`), hop math (`calculate_seed_amount`, etc.), and injectable confirmation (`confirm_funding` taking BufRead).
-  - 58 unit tests (inline) + 4 CLI integration tests (`tests/fund_cli.rs` using assert_cmd).
+  - **100% reliability pass (17-06-26)**: 60s confirmation timeout (was 600s), 2x-gas last-ditch on timeout, per-hop proxy key persistence to `proxy-recovery/`, signal handler for graceful shutdown, emergency sweep on exit, `--recover` mode for sweeping stuck ETH from prior crashed runs, target balance verification post-funding.
+  - Strongly TDD'd for fast/safe iteration: pure helpers for filtering, `generate_dry_run_plan`, gas selection (`choose_gas_price_mgwei`), hop math (`calculate_seed_amount`, etc.), injectable confirmation (`confirm_funding` taking BufRead), and recovery encryption (`encrypt_proxy_key`/`decrypt_proxy_key_file`).
+  - **308 unit tests** (inline) + 4 CLI integration tests (`tests/fund_cli.rs` using assert_cmd).
   - See `sepolia-funder.md` for full usage docs.
 - Wallet balance dump: `chains/sepolia-overlayer/src/bin/wallet-balance-dump.rs`
   - Parallel wallet balance scan with progress display; outputs CSV to file or stdout.

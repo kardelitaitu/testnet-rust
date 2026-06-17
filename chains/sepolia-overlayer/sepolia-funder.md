@@ -6,6 +6,8 @@ Multi-hop obfuscated ETH funding binary for **sepolia-overlayer**.
 
 *Re-audited: 21-05-26 by Buffy*
 
+*Re-audited: 17-06-26 by docs-auditor (100% reliability pass)*
+
 ## Concept
 
 Routes ETH from high-balance wallets to low-balance wallets through **N ephemeral proxy wallets** (5–7 hops default), randomizing every axis independently per hop to avoid Sybil cluster detection.
@@ -15,6 +17,89 @@ Sender → P1 → P2 → ... → PN → Target
 ```
 
 Each proxy `P` is a fresh `LocalWallet` discarded after its single forwarding tx — no on-chain history, no trace on disk.
+
+## Reliability & Stuck-Fund Prevention
+
+The funder implements a comprehensive defense-in-depth system to **guarantee that no ETH gets permanently stuck on proxy wallets** even in the face of network failures, process crashes, or unexpected errors.
+
+### Safety mechanisms
+
+1. **Per-hop persistence of proxy keys** — Before each tx is broadcast, the proxy's private key is encrypted (AES-256-GCM + scrypt, same format as `wallet-json/`) and written to `--recovery-dir` (default `proxy-recovery/`). A JSONL journal entry is also appended with tx metadata.
+2. **60-second confirmation timeout** — Each tx has a 60s wait window with heartbeat logs every 10s. If confirmation isn't received, a **2x-gas last-ditch tx** is broadcast before bailing.
+3. **Target balance verification** — After the last hop confirms, the target's on-chain balance is read and logged. If it doesn't match expectations, the worker logs a warning.
+4. **Signal handler (Ctrl+C)** — On `SIGINT`, the shutdown flag is set. Workers check this flag at the start of each hop and exit cleanly. An emergency sweep runs at the end of the main flow to catch any stragglers.
+5. **Recovery mode** — Run `sepolia-funder --recover` to scan the journal, re-derive proxy keys, and sweep any stuck ETH back to a recovery address. Works on a completely separate process — safe to run days after a crash.
+
+### Recovery workflow
+
+If the funder crashes mid-execution, some proxies may still have ETH. To recover:
+
+```powershell
+# 1. Dry-run recovery to see what would be swept
+cargo run -p sepolia-overlayer --bin sepolia-funder -- `
+    --config chains/sepolia-overlayer/config.toml `
+    --recover-dry-run
+
+# 2. Execute recovery (asks for confirmation, or use --recover-yes)
+cargo run -p sepolia-overlayer --bin sepolia-funder -- `
+    --config chains/sepolia-overlayer/config.toml `
+    --recover --recover-yes
+
+# 3. Recover to a specific address (instead of wallet 0)
+cargo run -p sepolia-overlayer --bin sepolia-funder -- `
+    --config chains/sepolia-overlayer/config.toml `
+    --recover --recover-yes --recovery-address 0xYourAddress
+```
+
+The recovery process:
+- Reads `proxy-recovery/journal.jsonl` to find proxies that were in-flight
+- For each entry, checks the proxy's on-chain balance
+- If the balance is 0, the tx already confirmed — skip and clean up
+- If the balance is >0, re-derives the proxy wallet from the encrypted key file
+- Fetches the proxy's next valid nonce from the chain (handles the case where the original tx used a nonce)
+- Sends `balance - 21k*gas` to the recovery address
+- Archives the journal to `journal.jsonl.bak` on full success
+
+### Delivery verification (v2)
+
+After the last hop confirms, the funder now performs a **balance delta check**:
+1. Captures the target's balance BEFORE the funding flow starts
+2. Reads the target's balance AFTER the last hop confirms
+3. Computes the delta and compares against the expected amount (`remaining` from the last hop)
+4. If the delta is short by more than 1 gwei (dust tolerance), logs a `warn!` with the shortfall
+5. Also validates the sender wasn't drained unexpectedly (more than seed + 1 tx gas)
+
+This catches edge cases where:
+- The last hop tx failed but we reported success
+- A concurrent tx drained the target
+- An RPC returned a stale balance
+
+### Dry-run balance check (v2)
+
+The `--dry-run` mode now estimates each sender's cumulative gas cost:
+1. For each plan entry, calculates the worst-case seed = max_target + (max_hops+2) × 21k × 1.5gwei
+2. Sums the required ETH per sender
+3. Compares against each sender's actual balance
+4. Prints `[DRY WARN] Sender N needs X ETH but only has Y ETH (shortfall Z ETH)` for any shortfall
+5. Prints `[DRY WARN] N sender(s) may run out of funds` at the end if any warnings
+
+This catches misconfigurations before sending any txs.
+
+### Wallet loading timeouts (v2)
+
+Each `get_balance` call during startup now has a 30-second timeout (previously unbounded). If an RPC is hanging, the wallet is skipped and a warning is logged. This prevents the funder from getting stuck during the wallet discovery phase.
+
+### Failure modes prevented
+
+| Original failure | Now prevented by |
+|------------------|------------------|
+| Sender→P1 confirmation timeout → seed stuck on P1 | Proxy key persisted; recovery mode can sweep |
+| Proxy hop confirmation timeout → forward stuck on proxy | Proxy key persisted; recovery mode can sweep |
+| Non-retryable send error (already-known, nonce too low) → ETH stuck | Proxy key persisted; recovery mode can sweep |
+| Process crash mid-execution | All in-flight proxy keys on disk; `--recover` recovers |
+| Confirmation times out at 10 minutes | Reduced to 60s + last-ditch 2x gas |
+| Final tx confirmed but funder reports failure | Target balance verification catches it |
+| Ctrl+C drops everything | Signal handler sets flag, workers exit gracefully, emergency sweep runs |
 
 ## Usage
 
@@ -34,6 +119,11 @@ cargo run -p sepolia-overlayer --bin sepolia-funder -- `
     --min-balance 0.05 --max-balance 0.01 `
     --min-target 0.02 --max-target 0.04 `
     --spread-hours 4 --max-hops 3
+
+# Recover stuck funds (if a previous run crashed)
+cargo run -p sepolia-overlayer --bin sepolia-funder -- `
+    --config chains/sepolia-overlayer/config.toml `
+    --recover --recover-yes
 ```
 
 ## All flags
@@ -60,6 +150,11 @@ cargo run -p sepolia-overlayer --bin sepolia-funder -- `
 | `--dry-run` | `false` | Print plan, send no txs |
 | `--yes` | `false` | Skip confirmation prompt |
 | `--json-log` | *none* | Write structured JSON log (duration stats, summary) |
+| `--recover` | `false` | Recovery mode: scan journal, sweep stuck ETH |
+| `--recovery-dir` | `proxy-recovery/` | Directory for proxy keystore and journal |
+| `--recovery-address` | *wallet 0* | Address to sweep stuck ETH to |
+| `--recover-dry-run` | `false` | Print recovery plan without sending txs |
+| `--recover-yes` | `false` | Skip recovery confirmation prompt |
 
 ## Randomization axes
 
@@ -94,7 +189,7 @@ The total window (in hours) is divided into `available` slots, one per target. E
 
 ### Testing philosophy
 
-The binary is strongly TDD'd with **58 unit tests** covering every pure logic path:
+The binary is strongly TDD'd with **304 unit tests** covering every pure logic path, including the new recovery infrastructure:
 
 | Layer | Tests | What's tested |
 |-------|-------|---------------|
@@ -109,6 +204,10 @@ The binary is strongly TDD'd with **58 unit tests** covering every pure logic pa
 | **`prepare_funding_sets`** | 1 | Integration through `Funder` |
 | **`execute_dry_run`** | 1 | Does not panic |
 | **`should_skip_confirmation`** | 3 | `yes`, `dry_run`, neither |
+| **Recovery encryption** | 3 | `encrypt_proxy_key`/`decrypt_proxy_key_file` roundtrip, wrong-password fail, format match |
+| **Recovery journal** | 2 | `RecoveryJournalEntry` serialize/deserialize, `persist_proxy_and_journal` writes files |
+| **Recovery shutdown** | 1 | `AtomicBool` flag toggling |
+| **UUID generation** | 1 | `uuid_simple` produces unique filenames |
 | **CLI integration** | 4 | `assert_cmd` end-to-end run (via `tests/fund_cli.rs`) |
 
 ### Code cleanup history

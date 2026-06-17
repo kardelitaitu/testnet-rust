@@ -210,7 +210,10 @@ impl MemoryOptimizer {
         #[cfg(not(target_env = "msvc"))]
         {
             unsafe {
-                libc::malloc_trim(0);
+                extern "C" {
+                    fn malloc_trim(pad: usize) -> i32;
+                }
+                malloc_trim(0);
             }
         }
         Ok(())
