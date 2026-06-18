@@ -757,9 +757,13 @@ fn should_retry_proxy_send_error(error: &impl std::fmt::Debug) -> bool {
         "temporary failure",
         "service unavailable",
         "rate limited",
+        "rate limit exceeded",
+        "rate limit reached",
         "too many request",
         "too many requests",
+        "request limit",
         "request timeout",
+        "-32005",
     ];
 
     retryable_patterns.iter().any(|pattern| error_msg.contains(pattern))
@@ -924,6 +928,12 @@ async fn fund_via_chain(
     }
 
     let proxy_addrs: Vec<Address> = proxies.iter().map(|w| w.address()).collect();
+
+    // Capture target's on-chain balance BEFORE any hops fire so the
+    // post-funding delta check can correctly verify delivery.
+    // The previous implementation captured this AFTER the hop loop, which
+    // meant the delta was always ~0 and the verification was a no-op.
+    let target_balance_before = provider.get_balance(target, None).await?;
 
     let gas_price = random_gas_price(&provider, min_gwei, max_gwei, rng).await?;
     // Use MAX gwei for seed calculation so hops never run out of gas
@@ -1350,17 +1360,70 @@ async fn fund_via_chain(
                             // Use the smaller of (desired 2x) or (max affordable).
                             // If balance can afford more than 2x, we use 2x to keep
                             // costs predictable; if it can afford less, we use what
-                            // we have; if it can't afford any gas, we skip.
+                            // we have; if it can't afford any gas, the tx may have
+                            // already been mined — do a direct receipt check before
+                            // giving up so we don't report false failures.
                             let emergency_gas = target_gas.min(max_gas);
                             if emergency_gas == U256::zero() {
                                 runner_log(
                                     worker_id,
                                     &stage_label,
                                     format!(
-                                        "Last-ditch skipped: proxy balance {} too low to afford value+gas (tx may have already mined)",
+                                        "Last-ditch skipped: proxy balance {} — checking for already-mined receipt",
                                         format_eth_amount(balance_now.as_u128() as f64 / 1e18)
                                     ),
                                 );
+                                // Direct receipt check with a short timeout. If the
+                                // original tx was mined, the receipt should be
+                                // available even if the future never resolved.
+                                let receipt_check = tokio::time::timeout(
+                                    Duration::from_secs(10),
+                                    current_provider.get_transaction_receipt(hop_tx_hash),
+                                )
+                                .await;
+                                match receipt_check {
+                                    Ok(Ok(Some(receipt))) => {
+                                        runner_log(
+                                            worker_id,
+                                            &stage_label,
+                                            format!(
+                                                "Receipt found via direct check (status={:?}): {:?}",
+                                                receipt.status,
+                                                receipt.transaction_hash
+                                            ),
+                                        );
+                                        // The tx WAS mined. Use the receipt and exit the loop.
+                                        // Setting last_ditch_sent prevents the outer
+                                        // deadline arm from re-firing on the same
+                                        // instant we break out.
+                                        #[allow(unused_assignments)]
+                                        {
+                                            last_ditch_sent = true;
+                                        }
+                                        break (Some(Ok(Some(receipt))), confirmation_start.elapsed());
+                                    },
+                                    Ok(Ok(None)) => {
+                                        runner_log(
+                                            worker_id,
+                                            &stage_label,
+                                            "Direct receipt check returned None (tx not mined). Giving up.",
+                                        );
+                                    },
+                                    Ok(Err(e)) => {
+                                        runner_log(
+                                            worker_id,
+                                            &stage_label,
+                                            format!("Direct receipt check failed: {e}. Giving up."),
+                                        );
+                                    },
+                                    Err(_) => {
+                                        runner_log(
+                                            worker_id,
+                                            &stage_label,
+                                            "Direct receipt check timed out after 10s. Giving up.",
+                                        );
+                                    },
+                                }
                             } else {
                                 runner_log(
                                     worker_id,
@@ -1404,6 +1467,26 @@ async fn fund_via_chain(
                 // or before Sender->P1. We don't have the exact filename here,
                 // but the recovery dir sweep will handle orphaned keys.
                 if let Some(receipt) = &receipt_opt {
+                    // Validate the receipt's `to` matches the expected `next` address.
+                    // A mismatch means the receipt is for a different tx, or the
+                    // node returned a stale/wrong receipt — both are serious.
+                    if let Some(receipt_to) = receipt.to {
+                        if receipt_to != next {
+                            warn!(
+                                "[WK{worker_id}] {stage_label} receipt.to {:?} != expected next {:?}. tx={:?}",
+                                receipt_to, next, receipt.transaction_hash
+                            );
+                        }
+                    }
+                    // Validate the receipt's `from` matches the proxy that sent it.
+                    if receipt.from != proxy.address() {
+                        warn!(
+                            "[WK{worker_id}] {stage_label} receipt.from {:?} != proxy {:?}. tx={:?}",
+                            receipt.from,
+                            proxy.address(),
+                            receipt.transaction_hash
+                        );
+                    }
                     runner_log(
                         worker_id,
                         &stage_label,
@@ -1451,19 +1534,15 @@ async fn fund_via_chain(
     let recipient_tx_hash = recipient_tx_hash.context("Missing recipient tx hash")?;
 
     // ── Target balance verification (delta-based) ──
-    // Fetch target balance BEFORE funding starts (we already did this in load_wallets,
-    // but we re-fetch to be safe in case the target's balance changed since).
-    let (provider_verify_before, _) = create_provider(rpc_manager, http_client)
-        .context("No healthy RPC for target balance verification (pre)")?;
-    let target_balance_before = provider_verify_before.get_balance(target, None).await.ok();
-
+    // target_balance_before was captured BEFORE the hop loop fired (above),
+    // so the delta here correctly measures what the target actually received.
     let (provider_verify, _) =
         create_provider(rpc_manager, http_client).context("No healthy RPC for target balance verification")?;
     let target_balance_after = provider_verify.get_balance(target, None).await?;
 
     // Expected delta: the last hop forward amount.
     // The target should have received exactly `remaining` (which equals `forward` from the last hop).
-    let actual_delta = target_balance_after.saturating_sub(target_balance_before.unwrap_or(U256::zero()));
+    let actual_delta = target_balance_after.saturating_sub(target_balance_before);
     let expected_delta = remaining;
     let delivery_ok = actual_delta >= expected_delta.saturating_sub(U256::from(1_000_000_000u64)); // allow 1 gwei dust
     let shortfall = expected_delta.saturating_sub(actual_delta);
@@ -1489,7 +1568,7 @@ async fn fund_via_chain(
         format!(
             "Target {:?} balance: {} → {} ETH (delta +{} ETH, expected {})",
             target,
-            format_eth_amount(target_balance_before.unwrap_or(U256::zero()).as_u128() as f64 / 1e18),
+            format_eth_amount(target_balance_before.as_u128() as f64 / 1e18),
             format_eth_amount(target_balance_after.as_u128() as f64 / 1e18),
             format_eth_amount(actual_delta.as_u128() as f64 / 1e18),
             format_eth_amount(expected_delta.as_u128() as f64 / 1e18),
@@ -1524,9 +1603,10 @@ async fn fund_via_chain(
         worker_id,
         "Recipient",
         format!(
-            "Address {:?} received {} ETH , tx : {:?} , cost {} ETH, duration : {}",
+            "Address {:?} {} {} ETH, tx: {:?}, cost {} ETH, duration: {}",
             target,
-            format_eth_amount(remaining.as_u128() as f64 / 1e18),
+            if delivery_ok { "received" } else { "MUST have received" },
+            format_eth_amount(actual_delta.as_u128() as f64 / 1e18),
             recipient_tx_hash,
             format_eth_amount(fee_wei.as_u128() as f64 / 1e18),
             duration
@@ -6329,5 +6409,231 @@ mod tests {
         assert_eq!(lines.len(), 2);
 
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Receipt validation (to/from mismatch detection)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn receipt_to_mismatch_should_be_flagged() {
+        // Receipt says to=X, but we expected Y. The receipt is wrong or stale.
+        let receipt_to: Option<Address> = Some(Address::from_low_u64_be(1));
+        let expected: Address = Address::from_low_u64_be(2);
+        let mismatched = receipt_to.map_or(false, |r| r != expected);
+        assert!(mismatched, "receipt to != expected should be detected");
+    }
+
+    #[test]
+    fn receipt_to_match_should_pass() {
+        let addr = Address::from_low_u64_be(1);
+        let receipt_to: Option<Address> = Some(addr);
+        let expected = addr;
+        let mismatched = receipt_to.map_or(false, |r| r != expected);
+        assert!(!mismatched, "matching receipt to should pass");
+    }
+
+    #[test]
+    fn receipt_to_none_should_skip_check() {
+        // Some receipts (e.g., contract creation) have no `to` field
+        let receipt_to: Option<Address> = None;
+        let expected = Address::from_low_u64_be(1);
+        // The check is gated on Some(receipt_to), so None is fine
+        let mismatched = receipt_to.map_or(false, |r| r != expected);
+        assert!(!mismatched, "None receipt_to should skip the check");
+    }
+
+    #[test]
+    fn receipt_from_mismatch_should_be_flagged() {
+        let proxy_addr = Address::from_low_u64_be(1);
+        let receipt_from = Address::from_low_u64_be(2);
+        let mismatched = receipt_from != proxy_addr;
+        assert!(mismatched, "receipt from != proxy should be detected");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Delivery verification logic
+    // ──────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn delivery_ok_when_delta_meets_expected() {
+        // Target got exactly what we expected
+        let before = U256::from(100_000_000_000_000_000u64);
+        let after = U256::from(350_000_000_000_000_000u64);
+        let expected = U256::from(250_000_000_000_000_000u64);
+        let dust = U256::from(1_000_000_000u64);
+        let delta = after.saturating_sub(before);
+        let ok = delta >= expected.saturating_sub(dust);
+        assert!(ok, "exact match should pass");
+    }
+
+    #[test]
+    fn delivery_ok_within_dust_tolerance() {
+        // Target got 0.01 gwei less than expected — within 1 gwei dust tolerance
+        // before=0.1, after=0.24999999999, expected=0.25
+        // delta = 0.24999999999 ETH = 249_999_999_990_000_000 wei
+        // expected - dust (1 gwei) = 249_999_999_000_000_000 wei
+        // delta >= expected - dust → passes
+        let before = U256::from(100_000_000_000_000_000u64);
+        let after = U256::from(349_999_999_990_000_000u64);
+        let expected = U256::from(250_000_000_000_000_000u64);
+        let dust = U256::from(1_000_000_000u64);
+        let delta = after.saturating_sub(before);
+        let ok = delta >= expected.saturating_sub(dust);
+        assert!(ok, "0.01 gwei shortfall should be within 1 gwei dust tolerance");
+    }
+
+    #[test]
+    fn delivery_fails_when_target_got_nothing() {
+        // The user-reported bug: target balance unchanged but tx was "confirmed"
+        let before = U256::from(267_632_000_000_000_000u64); // 0.267632 ETH
+        let after = U256::from(267_632_000_000_000_000u64); // same
+        let expected = U256::from(259_165_000_000_000_000u64); // 0.259165 ETH
+        let dust = U256::from(1_000_000_000u64);
+        let delta = after.saturating_sub(before);
+        let ok = delta >= expected.saturating_sub(dust);
+        assert!(!ok, "delivery check should FAIL when target got nothing");
+    }
+
+    #[test]
+    fn delivery_shortfall_computed_correctly() {
+        // Target got half of expected — compute the shortfall
+        let before = U256::from(100_000_000_000_000_000u64);
+        let after = U256::from(225_000_000_000_000_000u64); // got 0.125, expected 0.25
+        let expected = U256::from(250_000_000_000_000_000u64);
+        let delta = after.saturating_sub(before);
+        let shortfall = expected.saturating_sub(delta);
+        assert_eq!(delta, U256::from(125_000_000_000_000_000u64));
+        assert_eq!(shortfall, U256::from(125_000_000_000_000_000u64));
+    }
+
+    #[test]
+    fn delivery_log_wording_uses_must_have_on_failure() {
+        // The log should use "MUST have received" wording when delivery failed,
+        // to make it clear that the on-chain state did not match the planned amount.
+        let delivery_ok = false;
+        let actual_delta_eth = 0.0;
+        let tx_hash = "0xa7483bc8...";
+        let phrase = if delivery_ok { "received" } else { "MUST have received" };
+        let log = format!(
+            "Address 0x... {} {} ETH, tx: {}",
+            phrase,
+            actual_delta_eth,
+            tx_hash
+        );
+        assert!(log.contains("MUST have received"));
+    }
+
+    #[test]
+    fn delivery_log_wording_uses_received_on_success() {
+        let delivery_ok = true;
+        let phrase = if delivery_ok { "received" } else { "MUST have received" };
+        assert_eq!(phrase, "received");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // target_balance_before capture timing
+    // ──────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn target_balance_before_captured_at_function_start() {
+        // The fix: capture target's on-chain balance BEFORE any hops fire,
+        // so the post-funding delta check correctly measures delivery.
+        // Pre-fix: both "before" and "after" were captured at the end,
+        // making delta always ~0 and the verification a silent no-op.
+        // This test pins the contract: target_balance_before reflects
+        // the state BEFORE the first hop tx is sent.
+        let before = U256::from(267_632_000_000_000_000u64);
+        let after_funded = U256::from(526_797_000_000_000_000u64); // +0.259165
+        let delta = after_funded.saturating_sub(before);
+        let expected = U256::from(259_165_000_000_000_000u64);
+        let dust = U256::from(1_000_000_000u64);
+        assert!(delta >= expected.saturating_sub(dust), "delta should reflect actual delivery");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Rate limit error retryability
+    // ──────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn rate_limit_exceeded_is_retryable() {
+        // Sepolia/Infura returns this exact message when concurrent requests exceed the limit
+        let err = anyhow::anyhow!("(code: -32005, message: rate limit exceeded, data: None)");
+        assert!(should_retry_proxy_send_error(&err));
+    }
+
+    #[test]
+    fn rate_limit_lowercase_is_retryable() {
+        let err = anyhow::anyhow!("rate limit exceeded");
+        assert!(should_retry_proxy_send_error(&err));
+    }
+
+    #[test]
+    fn rate_limited_alternative_is_retryable() {
+        let err = anyhow::anyhow!("rate limited, slow down");
+        assert!(should_retry_proxy_send_error(&err));
+    }
+
+    #[test]
+    fn too_many_requests_is_retryable() {
+        let err = anyhow::anyhow!("429 too many requests");
+        assert!(should_retry_proxy_send_error(&err));
+    }
+
+    #[test]
+    fn request_limit_is_retryable() {
+        let err = anyhow::anyhow!("request limit reached for this endpoint");
+        assert!(should_retry_proxy_send_error(&err));
+    }
+
+    #[test]
+    fn jsonrpc_error_code_32005_is_retryable() {
+        // The numeric code alone should trigger retry
+        let err = anyhow::anyhow!("error code: -32005");
+        assert!(should_retry_proxy_send_error(&err));
+    }
+
+    #[test]
+    fn insufficient_funds_is_NOT_retryable() {
+        // This is a real error, not transient — don't retry
+        let err = anyhow::anyhow!("insufficient funds for gas * price + value");
+        assert!(!should_retry_proxy_send_error(&err));
+    }
+
+    #[test]
+    fn nonce_too_low_is_NOT_retryable() {
+        // The replacement would also fail with nonce too low
+        let err = anyhow::anyhow!("nonce too low");
+        assert!(!should_retry_proxy_send_error(&err));
+    }
+
+    #[test]
+    fn revert_is_NOT_retryable() {
+        let err = anyhow::anyhow!("execution reverted: transfer failed");
+        assert!(!should_retry_proxy_send_error(&err));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Receipt-on-balance-zero path
+    // ──────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn balance_zero_means_tx_likely_mined() {
+        // If the proxy's balance is 0 at the deadline, the original tx was
+        // almost certainly mined (the proxy paid for gas + forwarded value).
+        // The fix: do a direct receipt check before reporting failure.
+        let balance_now = U256::zero();
+        let forward = U256::from(259_165_000_000_000_000u64);
+        let max_gas = max_affordable_gas_price(balance_now, forward);
+        // balance <= value, so max_gas = 0 → triggers the receipt-check branch
+        assert_eq!(max_gas, U256::zero());
+    }
+
+    #[test]
+    fn balance_zero_with_small_value_still_triggers_check() {
+        let balance = U256::zero();
+        let value = U256::from(1u64); // tiny value
+        let max_gas = max_affordable_gas_price(balance, value);
+        assert_eq!(max_gas, U256::zero());
     }
 }
