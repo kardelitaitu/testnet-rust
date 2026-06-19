@@ -10,7 +10,12 @@ use aes_gcm::{
 use anyhow::{ensure, Context, Result};
 use chrono::Local;
 use clap::Parser;
+use core_logic::config::ProxyConfig;
+use core_logic::security::SecurityUtils;
 use core_logic::setup_logger;
+use core_logic::ProxyHealthManager;
+use core_logic::ProxyManager;
+use core_logic::ProxyRateLimiter;
 use core_logic::RpcManager;
 use ethers::prelude::*;
 use ethers::utils::parse_units;
@@ -21,12 +26,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashSet, VecDeque};
 use std::env;
 use std::fs;
-use std::io::Write;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex as TokioMutex;
+use tokio::sync::RwLock;
 use tokio::sync::Semaphore;
 use tracing::{info, warn};
 
@@ -34,12 +39,266 @@ const DEFAULT_LOAD_CONCURRENCY: usize = 100;
 const CONFIRMATION_TIMEOUT_SECS: u64 = 60;
 const CONFIRMATION_HEARTBEAT_SECS: u64 = 10;
 
+/// Shared proxy infrastructure for routing RPC calls through egress proxies.
+struct ProxyContext {
+    pool: Arc<RwLock<Vec<ProxyConfig>>>,
+    health: Arc<ProxyHealthManager>,
+    rate_limiter: Arc<ProxyRateLimiter>,
+}
+
 /// Create a Provider<Http> from the RPC manager's next healthy endpoint.
 fn create_provider(rpc_manager: &RpcManager, http_client: &reqwest::Client) -> Result<(Provider<Http>, String)> {
     let endpoint = rpc_manager.get_endpoint()?;
     let url = reqwest::Url::parse(&endpoint.url)?;
     let provider = Provider::new(Http::new_with_client(url, http_client.clone()));
     Ok((provider, endpoint.url.clone()))
+}
+
+/// Build an HTTP client, optionally tunnelled through an egress proxy.
+fn build_http_client(proxy_config: Option<&ProxyConfig>) -> Result<reqwest::Client> {
+    let mut builder = reqwest::Client::builder();
+    if let Some(pc) = proxy_config {
+        let mut proxy =
+            reqwest::Proxy::all(&pc.url).map_err(|e| anyhow::anyhow!("Invalid proxy URL {}: {e}", pc.url))?;
+        if let (Some(u), Some(p)) = (&pc.username, &pc.password) {
+            proxy = proxy.basic_auth(u, p);
+        }
+        builder = builder.proxy(proxy);
+    }
+    builder
+        .build()
+        .map_err(|e| anyhow::anyhow!("Failed to build HTTP client: {e}"))
+}
+
+/// Select a healthy proxy from the pool, or return None.
+async fn select_proxy(proxy_ctx: Option<&ProxyContext>) -> Option<ProxyConfig> {
+    let ctx = proxy_ctx?;
+    let proxies = ctx.pool.read().await;
+    if proxies.is_empty() {
+        return None;
+    }
+    let mut available = Vec::new();
+    for p in proxies.iter() {
+        if ctx.health.is_available(&p.url).await {
+            available.push(p);
+        }
+    }
+    if available.is_empty() {
+        return None;
+    }
+    let mut rng = rand::thread_rng();
+    Some(available[rng.gen_range(0..available.len())].clone())
+}
+
+/// Create a proxy-tunnelled Provider for a specific RPC URL.
+async fn create_provider_with_proxy(rpc_url: &str, proxy_config: Option<&ProxyConfig>) -> Result<Provider<Http>> {
+    let url = reqwest::Url::parse(rpc_url).context("Invalid RPC URL")?;
+    let client = build_http_client(proxy_config)?;
+    Ok(Provider::new(Http::new_with_client(url, client)))
+}
+
+/// Create a Provider from the RPC manager, optionally routing through an egress proxy.
+/// If a healthy proxy is available, it's selected and the call goes through it.
+async fn create_provider_routed(
+    rpc_manager: &RpcManager,
+    proxy_ctx: Option<&ProxyContext>,
+) -> Result<(Provider<Http>, String)> {
+    let endpoint = rpc_manager.get_endpoint()?;
+    let rpc_url = endpoint.url.clone();
+    if let Some(ctx) = proxy_ctx {
+        if let Some(proxy) = select_proxy(Some(ctx)).await {
+            ctx.rate_limiter.wait_until_available(&proxy.url).await;
+            let provider = create_provider_with_proxy(&rpc_url, Some(&proxy)).await?;
+            return Ok((provider, rpc_url));
+        }
+    }
+    // Fallback: direct connection
+    let url = reqwest::Url::parse(&rpc_url)?;
+    let client = reqwest::Client::new();
+    let provider = Provider::new(Http::new_with_client(url, client));
+    Ok((provider, rpc_url))
+}
+
+/// Summary of RPC endpoint health probe results.
+#[derive(Debug, Clone)]
+struct ProbeSummary {
+    total: usize,
+    healthy: usize,
+}
+
+/// Probe all configured RPC endpoints before funding starts.
+/// Each endpoint is tested through available egress proxies (if configured).
+/// If the first proxy fails, the next proxy is tried before marking the RPC unhealthy.
+async fn probe_rpc_endpoints(
+    rpc_manager: &RpcManager,
+    http_client: &reqwest::Client,
+    chain_id: u64,
+    timeout_secs: u64,
+    proxy_ctx: Option<&ProxyContext>,
+) -> Result<ProbeSummary> {
+    let urls = rpc_manager.urls();
+    if urls.is_empty() {
+        anyhow::bail!("No RPC endpoints configured");
+    }
+
+    let has_proxies = match proxy_ctx {
+        Some(ctx) => !ctx.pool.read().await.is_empty(),
+        None => false,
+    };
+
+    println!("=== RPC Health Probe ===");
+    if has_proxies {
+        println!("Checking {} endpoint(s) through proxy pool...", urls.len());
+    } else {
+        println!("Checking {} endpoint(s) directly...", urls.len());
+    }
+
+    let mut healthy = 0usize;
+    let mut unhealthy = 0usize;
+
+    for (i, url_str) in urls.iter().enumerate() {
+        let parsed_url = match reqwest::Url::parse(url_str) {
+            Ok(u) => u,
+            Err(e) => {
+                warn!("  [{}/{}] {} — invalid URL: {}", i + 1, urls.len(), url_str, e);
+                rpc_manager.record_failure(url_str);
+                unhealthy += 1;
+                continue;
+            },
+        };
+
+        let mut probe_ok = false;
+
+        // If we have proxies, try each one
+        if has_proxies {
+            let ctx = proxy_ctx.unwrap();
+            let proxies = ctx.pool.read().await;
+            // Shuffle proxy indices for random order
+            let mut proxy_indices: Vec<usize> = (0..proxies.len()).collect();
+            let mut rng = rand::thread_rng();
+            for idx in (1..proxy_indices.len()).rev() {
+                let j = rng.gen_range(0..=idx);
+                proxy_indices.swap(idx, j);
+            }
+
+            for pi in &proxy_indices {
+                let pc = &proxies[*pi];
+                if !ctx.health.is_available(&pc.url).await {
+                    continue;
+                }
+
+                let client = match build_http_client(Some(pc)) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        warn!("  proxy {} build failed: {e}; trying next proxy", pc.url);
+                        continue;
+                    },
+                };
+                let provider = Provider::new(Http::new_with_client(parsed_url.clone(), client));
+
+                let start = std::time::Instant::now();
+                let probe = tokio::time::timeout(Duration::from_secs(timeout_secs), provider.get_chainid()).await;
+
+                let latency_ms = start.elapsed().as_millis() as u64;
+
+                match probe {
+                    Ok(Ok(reported_chain_id)) if reported_chain_id.as_u64() == chain_id => {
+                        ctx.health.record_success(&pc.url).await;
+                        rpc_manager.record_success(url_str);
+                        rpc_manager.record_latency(url_str, latency_ms);
+                        healthy += 1;
+                        probe_ok = true;
+                        println!(
+                            "  [{}/{}] {} — OK via proxy {} ({}ms, chain {})",
+                            i + 1,
+                            urls.len(),
+                            url_str,
+                            pc.url,
+                            latency_ms,
+                            reported_chain_id
+                        );
+                        break;
+                    },
+                    _ => {
+                        ctx.health.record_failure(&pc.url).await;
+                        // continue to next proxy
+                    },
+                }
+            }
+        }
+
+        // Fallback: try direct connection if proxies didn't work or none configured
+        if !probe_ok {
+            let provider = Provider::new(Http::new_with_client(parsed_url, http_client.clone()));
+            let start = std::time::Instant::now();
+            let probe = tokio::time::timeout(Duration::from_secs(timeout_secs), provider.get_chainid()).await;
+            let latency_ms = start.elapsed().as_millis() as u64;
+
+            match probe {
+                Ok(Ok(reported_chain_id)) if reported_chain_id.as_u64() == chain_id => {
+                    rpc_manager.record_success(url_str);
+                    rpc_manager.record_latency(url_str, latency_ms);
+                    healthy += 1;
+                    println!(
+                        "  [{}/{}] {} — OK (direct, {}ms, chain {})",
+                        i + 1,
+                        urls.len(),
+                        url_str,
+                        latency_ms,
+                        reported_chain_id
+                    );
+                },
+                Ok(Ok(reported_chain_id)) => {
+                    warn!(
+                        "  [{}/{}] {} — chain mismatch: expected {}, got {}",
+                        i + 1,
+                        urls.len(),
+                        url_str,
+                        chain_id,
+                        reported_chain_id
+                    );
+                    rpc_manager.record_failure(url_str);
+                    unhealthy += 1;
+                },
+                Ok(Err(e)) => {
+                    warn!(
+                        "  [{}/{}] {} — RPC error after {}ms: {}",
+                        i + 1,
+                        urls.len(),
+                        url_str,
+                        latency_ms,
+                        e
+                    );
+                    rpc_manager.record_failure(url_str);
+                    unhealthy += 1;
+                },
+                Err(_) => {
+                    warn!(
+                        "  [{}/{}] {} — timed out after {}s",
+                        i + 1,
+                        urls.len(),
+                        url_str,
+                        timeout_secs
+                    );
+                    rpc_manager.record_failure(url_str);
+                    unhealthy += 1;
+                },
+            }
+        }
+    }
+
+    println!(
+        "Probe complete: {}/{} healthy, {}/{} unhealthy",
+        healthy,
+        urls.len(),
+        unhealthy,
+        urls.len()
+    );
+
+    Ok(ProbeSummary {
+        total: urls.len(),
+        healthy,
+    })
 }
 
 /// Funder orchestrates the multi-hop ETH funding flow.
@@ -53,6 +312,7 @@ struct Funder {
     chain_id: u64,
     max_targets: Option<usize>,
     recovery: Option<Arc<RecoveryContext>>,
+    proxy_ctx: Option<Arc<ProxyContext>>,
 }
 
 /// Info for a single wallet loaded from disk.
@@ -62,6 +322,160 @@ struct WalletInfo {
     idx: usize,
     address: Address,
     balance_eth: f64,
+}
+
+/// A single journal entry for one funding flow.
+/// Everything needed to recover all proxy keys is in this one file.
+/// The flow_seed is encrypted with WALLET_PASSWORD (same scheme as wallet-json).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct FlowEntry {
+    /// Hex-encoded AES-256-GCM ciphertext of the 32-byte flow_seed
+    ciphertext: String,
+    /// Hex-encoded 12-byte IV
+    iv: String,
+    /// Hex-encoded 32-byte scrypt salt
+    salt: String,
+    /// Hex-encoded 16-byte GCM authentication tag
+    tag: String,
+    /// Number of proxy hops
+    hop_count: usize,
+    /// Chain ID
+    chain_id: u64,
+    /// Timestamp for diagnostics
+    timestamp: String,
+}
+
+const DOMAIN_SEPARATOR: &[u8] = b"sepolia-funder-flow-v1";
+const FLOW_FILE_PREFIX: &str = "flow_";
+
+/// Derive a deterministic proxy private key (32 bytes) from the flow_seed + hop index.
+/// Uses keccak256(domain || flow_seed || index || counter), with a rejection loop
+/// for the astronomically-unlikely case that the output is >= secp256k1 curve order n.
+/// In practice counter will always be 0.
+fn derive_proxy_key_bytes(flow_seed: &[u8; 32], hop_index: usize) -> [u8; 32] {
+    let mut counter = 0u64;
+    let curve_order = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
+    let n = U256::from_str_radix(curve_order, 16).expect("valid curve order hex");
+    loop {
+        let mut data = Vec::with_capacity(DOMAIN_SEPARATOR.len() + 32 + 8 + 8);
+        data.extend_from_slice(DOMAIN_SEPARATOR);
+        data.extend_from_slice(flow_seed);
+        data.extend_from_slice(&hop_index.to_le_bytes());
+        data.extend_from_slice(&counter.to_le_bytes());
+        let hash: [u8; 32] = ethers::utils::keccak256(&data);
+        if U256::from(hash) < n && hash != [0u8; 32] {
+            return hash;
+        }
+        counter += 1;
+    }
+}
+
+/// Derive a LocalWallet from a flow_seed + hop index.
+fn derive_proxy_wallet(flow_seed: &[u8; 32], hop_index: usize, chain_id: u64) -> Result<LocalWallet> {
+    let key_bytes = derive_proxy_key_bytes(flow_seed, hop_index);
+    let key_hex = hex::encode(key_bytes);
+    key_hex
+        .parse::<LocalWallet>()
+        .context("flow-derived key is valid secp256k1")
+        .map(|w| w.with_chain_id(chain_id))
+}
+
+/// Encrypt the 32-byte flow_seed with WALLET_PASSWORD (same AES-256-GCM + scrypt as wallet-json).
+/// Hex-encodes the seed first so the plaintext is always valid UTF-8.
+/// Returns (ciphertext_hex, iv_hex, salt_hex, tag_hex).
+fn encrypt_flow_seed(flow_seed: &[u8; 32], password: &str) -> Result<(String, String, String, String)> {
+    // Hex-encode first so the encrypted payload is valid UTF-8 (compatible with SecurityUtils)
+    let seed_hex = hex::encode(flow_seed);
+    let mut rng = rand::thread_rng();
+    let mut salt = [0u8; 32];
+    let mut iv = [0u8; 12];
+    rng.fill(&mut salt);
+    rng.fill(&mut iv);
+
+    let params = scrypt::Params::new(14, 8, 1, 32).map_err(|e| anyhow::anyhow!("scrypt params: {e}"))?;
+    let mut key = [0u8; 32];
+    scrypt::scrypt(password.as_bytes(), &salt, &params, &mut key).map_err(|e| anyhow::anyhow!("scrypt: {e}"))?;
+
+    let cipher = Aes256Gcm::new(&key.into());
+    let nonce = Nonce::from_slice(&iv);
+    let ciphertext_with_tag = cipher
+        .encrypt(nonce, seed_hex.as_bytes())
+        .map_err(|e| anyhow::anyhow!("encrypt: {e}"))?;
+
+    let tag_pos = ciphertext_with_tag.len().saturating_sub(16);
+    let ciphertext = &ciphertext_with_tag[..tag_pos];
+    let tag = &ciphertext_with_tag[tag_pos..];
+
+    Ok((
+        hex::encode(ciphertext),
+        hex::encode(iv),
+        hex::encode(salt),
+        hex::encode(tag),
+    ))
+}
+
+/// Write one flow file atomically: write to temp, then rename.
+/// Returns the filename written.
+fn write_flow_file(recovery_dir: &str, entry: &FlowEntry) -> Result<String> {
+    let _ = fs::create_dir_all(recovery_dir);
+    let filename = format!("flow_{}.json", uuid_fast());
+    let tmp_filename = format!(".tmp_{}", uuid_fast());
+    let tmp_path = Path::new(recovery_dir).join(&tmp_filename);
+    let final_path = Path::new(recovery_dir).join(&filename);
+
+    let json = serde_json::to_string_pretty(entry).context("Failed to serialize flow entry")?;
+    fs::write(&tmp_path, &json).with_context(|| format!("Failed to write temp flow file: {}", tmp_path.display()))?;
+    fs::rename(&tmp_path, &final_path)
+        .with_context(|| format!("Failed to rename temp flow file: {}", final_path.display()))?;
+
+    Ok(filename)
+}
+
+/// Remove a flow file by filename.
+fn remove_flow_file(recovery_dir: &str, filename: &str) {
+    let path = Path::new(recovery_dir).join(filename);
+    let _ = fs::remove_file(&path);
+}
+
+/// Quick 8-byte random hex suffix for temp/filename uniqueness.
+fn uuid_fast() -> String {
+    let mut rng = rand::thread_rng();
+    let bytes: [u8; 8] = rng.gen();
+    hex::encode(bytes)
+}
+
+/// Decrypt a flow_seed from a FlowEntry using WALLET_PASSWORD.
+fn decrypt_flow_seed(entry: &FlowEntry, password: &str) -> Result<[u8; 32]> {
+    let plaintext = SecurityUtils::decrypt_components(&entry.ciphertext, &entry.iv, &entry.salt, &entry.tag, password)?;
+    let bytes = hex::decode(plaintext.trim()).context("flow_seed is not valid hex")?;
+    if bytes.len() != 32 {
+        anyhow::bail!("flow_seed is {} bytes, expected 32", bytes.len());
+    }
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice(&bytes);
+    Ok(seed)
+}
+
+/// Read all flow files from the recovery directory.
+fn read_flow_files(recovery_dir: &str) -> Result<Vec<(String, FlowEntry)>> {
+    let dir = Path::new(recovery_dir);
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
+    let mut results = Vec::new();
+    for entry in fs::read_dir(dir).context("Failed to read recovery dir")?.flatten() {
+        let fname = entry.file_name().to_string_lossy().to_string();
+        if !fname.starts_with(FLOW_FILE_PREFIX) || !fname.ends_with(".json") {
+            continue;
+        }
+        let content =
+            fs::read_to_string(entry.path()).with_context(|| format!("Failed to read flow file: {}", fname))?;
+        match serde_json::from_str::<FlowEntry>(&content) {
+            Ok(flow) => results.push((fname, flow)),
+            Err(e) => warn!("Flow file {} has invalid JSON: {}. Skipping.", fname, e),
+        }
+    }
+    Ok(results)
 }
 
 /// Runtime state shared between the orchestrator and the per-target completion tasks.
@@ -102,36 +516,9 @@ const RECOVERY_DIR_DEFAULT: &str = "proxy-recovery";
 
 /// One row in the recovery journal — written atomically *before* each tx is broadcast.
 /// All fields are needed to re-derive the proxy wallet and check/replay the tx.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct RecoveryJournalEntry {
-    /// 0-based index of the proxy in the hop chain (0 = P1, 1 = P2, etc.)
-    hop_index: usize,
-    /// Total number of hops for this funding flow
-    hop_count: usize,
-    /// Tx hash that was broadcast (or will be broadcast — written before send)
-    tx_hash: String,
-    /// Proxy's own address (derived from the persisted key)
-    from_addr: String,
-    /// Destination address for this hop
-    to_addr: String,
-    /// ETH value being sent (in wei, as string for JSON)
-    value_wei: String,
-    /// Gas price used (in wei, as string)
-    gas_price_wei: String,
-    /// Nonce used
-    nonce: u64,
-    /// Chain ID
-    chain_id: u64,
-    /// The recovery address where stuck ETH should be swept to
-    recovery_address: String,
-    /// Timestamp when journaled (for diagnostics)
-    timestamp: String,
-}
-
 /// Recovery context shared across all funding operations.
-/// Holds the directory for proxy keystore + journal files, and the recovery address.
 struct RecoveryContext {
-    /// Directory where proxy-{idx}.json encrypted key files and journal.jsonl are stored
+    /// Directory where flow_*.json files are stored
     dir: String,
     /// Password for encrypting proxy keys (same as WALLET_PASSWORD)
     password: String,
@@ -143,158 +530,8 @@ struct RecoveryContext {
     shutdown_requested: Arc<AtomicBool>,
 }
 
-/// Encrypt a proxy private key using the same AES-256-GCM + scrypt format as wallet-json.
-/// Returns a JSON string ready to write to disk.
-fn encrypt_proxy_key(private_key: &str, password: &str, chain_id: u64) -> Result<String> {
-    let mut rng = rand::thread_rng();
-    let mut salt = [0u8; 32];
-    let mut iv = [0u8; 12];
-    rng.fill(&mut salt);
-    rng.fill(&mut iv);
-
-    let params = scrypt::Params::new(14, 8, 1, 32).map_err(|e| anyhow::anyhow!("scrypt params: {e}"))?;
-    let mut key = [0u8; 32];
-    scrypt::scrypt(password.as_bytes(), &salt, &params, &mut key).map_err(|e| anyhow::anyhow!("scrypt: {e}"))?;
-
-    let cipher = Aes256Gcm::new(&key.into());
-    let nonce = Nonce::from_slice(&iv);
-
-    let ciphertext_with_tag = cipher
-        .encrypt(nonce, private_key.as_bytes())
-        .map_err(|e| anyhow::anyhow!("encrypt: {e}"))?;
-
-    let tag_pos = ciphertext_with_tag.len().saturating_sub(16);
-    let ciphertext = &ciphertext_with_tag[..tag_pos];
-    let tag = &ciphertext_with_tag[tag_pos..];
-
-    // Build the same JSON format as wallet-json files
-    let json = serde_json::json!({
-        "encrypted": {
-            "ciphertext": hex::encode(ciphertext),
-            "iv": hex::encode(iv),
-            "salt": hex::encode(salt),
-            "tag": hex::encode(tag),
-        },
-        "encryption_type": "aes-256-gcm",
-        "chain_id": chain_id,
-    });
-
-    serde_json::to_string_pretty(&json).context("Failed to serialize proxy key JSON")
-}
-
-/// Decrypt a proxy key file (same format as wallet-json).
-fn decrypt_proxy_key_file(path: &Path, password: &str) -> Result<String> {
-    let content = fs::read_to_string(path)?;
-    let json: serde_json::Value = serde_json::from_str(&content)?;
-
-    let encrypted = json
-        .get("encrypted")
-        .context("Missing 'encrypted' field in proxy key file")?;
-
-    let ciphertext_hex = encrypted.get("ciphertext").and_then(|v| v.as_str()).unwrap_or("");
-    let iv_hex = encrypted.get("iv").and_then(|v| v.as_str()).unwrap_or("");
-    let salt_hex = encrypted.get("salt").and_then(|v| v.as_str()).unwrap_or("");
-    let tag_hex = encrypted.get("tag").and_then(|v| v.as_str()).unwrap_or("");
-
-    if ciphertext_hex.is_empty() {
-        anyhow::bail!("Empty ciphertext in proxy key file");
-    }
-
-    // Use the same decryption as wallet-json
-    let ciphertext = hex::decode(ciphertext_hex).context("Invalid ciphertext hex")?;
-    let iv = hex::decode(iv_hex).context("Invalid IV hex")?;
-    let salt = hex::decode(salt_hex).context("Invalid salt hex")?;
-    let mut tag = hex::decode(tag_hex).context("Invalid tag hex")?;
-
-    let params = scrypt::Params::new(14, 8, 1, 32).map_err(|e| anyhow::anyhow!("scrypt params: {e}"))?;
-    let mut key = [0u8; 32];
-    scrypt::scrypt(password.as_bytes(), &salt, &params, &mut key).map_err(|e| anyhow::anyhow!("scrypt: {e}"))?;
-
-    let cipher = Aes256Gcm::new(&key.into());
-    let nonce = Nonce::from_slice(&iv);
-
-    let mut full_payload = ciphertext;
-    full_payload.append(&mut tag);
-
-    let plaintext = cipher
-        .decrypt(nonce, full_payload.as_ref())
-        .map_err(|e| anyhow::anyhow!("Decryption failed: {e}"))?;
-
-    String::from_utf8(plaintext).context("Proxy key is not valid UTF-8")
-}
-
-/// Persist a proxy key file and append a journal entry before broadcasting a tx.
-/// Returns the filename written (for later cleanup).
-fn persist_proxy_and_journal(
-    recovery: &RecoveryContext,
-    hop_index: usize,
-    hop_count: usize,
-    proxy_private_key: &str,
-    from_addr: Address,
-    to_addr: Address,
-    value_wei: U256,
-    gas_price_wei: U256,
-    nonce: u64,
-) -> Result<String> {
-    // 1. Write encrypted proxy key file
-    let key_filename = format!("proxy-{}.json", &uuid_simple(hop_index));
-    let key_path = Path::new(&recovery.dir).join(&key_filename);
-    let encrypted_json = encrypt_proxy_key(proxy_private_key, &recovery.password, recovery.chain_id)?;
-    fs::write(&key_path, &encrypted_json)
-        .with_context(|| format!("Failed to write proxy key file: {}", key_path.display()))?;
-
-    // 2. Append journal entry
-    let entry = RecoveryJournalEntry {
-        hop_index,
-        hop_count,
-        tx_hash: String::new(), // Will be populated after broadcast; we write it here for the key file reference
-        from_addr: format!("{from_addr:?}"),
-        to_addr: format!("{to_addr:?}"),
-        value_wei: value_wei.to_string(),
-        gas_price_wei: gas_price_wei.to_string(),
-        nonce,
-        chain_id: recovery.chain_id,
-        recovery_address: format!("{:?}", recovery.recovery_address),
-        timestamp: chrono::Utc::now().to_rfc3339(),
-    };
-
-    let journal_path = Path::new(&recovery.dir).join("journal.jsonl");
-    let mut line = serde_json::to_string(&entry).context("Failed to serialize journal entry")?;
-    line.push('\n');
-
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&journal_path)
-        .with_context(|| format!("Failed to open journal: {}", journal_path.display()))?;
-    file.write_all(line.as_bytes())
-        .with_context(|| format!("Failed to write journal entry: {}", journal_path.display()))?;
-
-    Ok(key_filename)
-}
-
-/// After successful confirmation, clean up the proxy key file and journal entry.
-fn cleanup_proxy_and_journal(recovery: &RecoveryContext, key_filename: &str, _hop_index: usize) {
-    // Remove key file
-    let key_path = Path::new(&recovery.dir).join(key_filename);
-    let _ = fs::remove_file(&key_path);
-
-    // We don't try to edit the journal in-place (complex and error-prone).
-    // Instead, confirmed entries will be filtered out during recovery sweep
-    // because the on-chain tx is confirmed and the proxy balance will be 0.
-    // The journal file is append-only; recovery mode checks each entry against
-    // the chain and only sweeps entries where the proxy still has a balance.
-}
-
-/// Generate a simple unique suffix for proxy key filenames to avoid collisions.
-fn uuid_simple(hop_index: usize) -> String {
-    let mut rng = rand::thread_rng();
-    let bytes: [u8; 8] = rng.gen();
-    format!("{}-{}", hop_index, hex::encode(bytes))
-}
-
-/// Recovery mode: read journal.jsonl, derive proxy keys, check tx status, and sweep any
-/// remaining ETH back to the recovery address. Also sweeps any orphaned proxy key files.
+/// Recovery mode: read flow_*.json files, decrypt flow seed, derive all proxy keys,
+/// check on-chain balances, and sweep any remaining ETH back to the recovery address.
 async fn recover_proxies(
     recovery_dir: &str,
     password: &str,
@@ -304,12 +541,9 @@ async fn recover_proxies(
     http_client: &reqwest::Client,
     dry_run: bool,
 ) -> Result<()> {
-    let journal_path = Path::new(recovery_dir).join("journal.jsonl");
-    if !journal_path.exists() {
-        println!(
-            "No recovery journal found at {}. Nothing to recover.",
-            journal_path.display()
-        );
+    let flow_files = read_flow_files(recovery_dir)?;
+    if flow_files.is_empty() {
+        println!("No flow files found in {}. Nothing to recover.", recovery_dir);
         return Ok(());
     }
 
@@ -320,208 +554,137 @@ async fn recover_proxies(
     if dry_run {
         println!("Mode:            DRY RUN (no txs will be sent)");
     }
-    println!();
+    println!("Found {} flow entries.\n", flow_files.len());
 
     let (provider, _url) = create_provider(rpc_manager, http_client).context("No healthy RPC for recovery")?;
-
-    // Parse journal entries from the JSONL file
-    let content = fs::read_to_string(&journal_path)
-        .with_context(|| format!("Failed to read journal: {}", journal_path.display()))?;
-
-    let mut entries: Vec<RecoveryJournalEntry> = Vec::new();
-    for (line_no, line) in content.lines().enumerate() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        match serde_json::from_str::<RecoveryJournalEntry>(trimmed) {
-            Ok(entry) => entries.push(entry),
-            Err(e) => {
-                warn!("Journal line {} is invalid JSON: {}. Skipping.", line_no + 1, e);
-            },
-        }
-    }
-
-    if entries.is_empty() {
-        println!("No valid journal entries found. Nothing to recover.");
-        return Ok(());
-    }
-
-    println!("Found {} journal entries.\n", entries.len());
-
     let mut swept_count = 0usize;
     let mut already_spent_count = 0usize;
     let mut error_count = 0usize;
 
-    // Group entries by hop_index to find proxy key files
-    for entry in &entries {
-        let from_addr: Address = entry
-            .from_addr
-            .parse()
-            .context(format!("Invalid from_addr in journal: {}", entry.from_addr))?;
+    for (fname, entry) in &flow_files {
+        println!("--- Flow: {} ---", fname);
 
-        // First check: does the proxy still have a balance?
-        let balance = provider
-            .get_balance(from_addr, None)
-            .await
-            .context(format!("Failed to fetch balance for {:?}", from_addr))?;
+        // Decrypt the flow seed
+        let flow_seed = match decrypt_flow_seed(entry, password) {
+            Ok(s) => s,
+            Err(e) => {
+                warn!("[ERROR] Failed to decrypt flow_seed in {}: {e}. Skipping.", fname);
+                error_count += 1;
+                continue;
+            },
+        };
 
-        if balance.is_zero() {
-            println!(
-                "[SKIP] {:?} — balance is 0. Tx {} likely confirmed. Already safe.",
-                from_addr, entry.tx_hash
-            );
-            already_spent_count += 1;
-            continue;
-        }
+        // Derive ALL proxy keys from the flow seed and check each one
+        for i in 0..entry.hop_count {
+            let proxy_key_bytes = derive_proxy_key_bytes(&flow_seed, i);
+            let proxy_hex = hex::encode(proxy_key_bytes);
+            let proxy_wallet = match proxy_hex.parse::<LocalWallet>() {
+                Ok(w) => w.with_chain_id(chain_id),
+                Err(e) => {
+                    warn!("[ERROR] Failed to parse derived key {i}: {e}. Skipping.");
+                    error_count += 1;
+                    continue;
+                },
+            };
+            let proxy_addr = proxy_wallet.address();
 
-        let balance_eth = balance.as_u128() as f64 / 1e18;
-        println!(
-            "[FOUND] {:?} has {} ETH stuck. Tx: {}",
-            from_addr,
-            format_eth_amount(balance_eth),
-            if entry.tx_hash.is_empty() {
-                "unknown"
-            } else {
-                &entry.tx_hash
+            let balance = match provider.get_balance(proxy_addr, None).await {
+                Ok(b) => b,
+                Err(e) => {
+                    warn!("[ERROR] Failed to fetch balance for {proxy_addr:?} (proxy {i}): {e}. Skipping.");
+                    error_count += 1;
+                    continue;
+                },
+            };
+
+            if balance.is_zero() {
+                println!("  [SKIP] {proxy_addr:?} (proxy {i}) — balance is 0. Already safe.");
+                already_spent_count += 1;
+                continue;
             }
-        );
 
-        // Find the corresponding proxy key file
-        let key_filename = format!("proxy-{}-", entry.hop_index);
-        let mut found_key: Option<String> = None;
-        let mut found_key_file: Option<String> = None;
+            let balance_eth = balance.as_u128() as f64 / 1e18;
+            println!(
+                "  [FOUND] {proxy_addr:?} (proxy {i}) has {} ETH stuck.",
+                format_eth_amount(balance_eth)
+            );
 
-        if let Ok(read_dir) = std::fs::read_dir(recovery_dir) {
-            for dir_entry in read_dir.flatten() {
-                let fname = dir_entry.file_name().to_string_lossy().to_string();
-                if fname.starts_with(&key_filename) && fname.ends_with(".json") {
-                    found_key_file = Some(fname.clone());
-                    let key_path = Path::new(recovery_dir).join(&fname);
-                    match decrypt_proxy_key_file(&key_path, password) {
-                        Ok(key) => {
-                            found_key = Some(key);
-                            break;
+            // Fetch nonce from chain
+            let on_chain_nonce = match provider.get_transaction_count(proxy_addr, None).await {
+                Ok(n) => n,
+                Err(e) => {
+                    warn!("[ERROR] Failed to fetch nonce for {proxy_addr:?}: {e}.");
+                    error_count += 1;
+                    continue;
+                },
+            };
+
+            // Sweep: balance - 21k*gas
+            let gas_price = provider.get_gas_price().await.unwrap_or(U256::from(1_000_000_000u64));
+            let gas_cost = U256::from(21_000u64) * gas_price;
+            let sweep_amount = balance.saturating_sub(gas_cost);
+
+            if sweep_amount.is_zero() {
+                println!(
+                    "  [SKIP] {proxy_addr:?} — balance ({:.6} ETH) insufficient to cover gas.",
+                    balance_eth
+                );
+                already_spent_count += 1;
+                continue;
+            }
+
+            let sweep_eth = sweep_amount.as_u128() as f64 / 1e18;
+            println!(
+                "  [SWEEP] {proxy_addr:?} → {recovery_address:?} : {} ETH (nonce {on_chain_nonce})",
+                format_eth_amount(sweep_eth)
+            );
+
+            if dry_run {
+                println!("    (dry run — no tx sent)");
+                swept_count += 1;
+                continue;
+            }
+
+            // Use a fresh provider for the sweep
+            let (sweep_provider, _sweep_url) = match create_provider(rpc_manager, http_client) {
+                Ok(p) => p,
+                Err(e) => {
+                    warn!("[ERROR] Failed to create RPC for sweep: {e}");
+                    error_count += 1;
+                    continue;
+                },
+            };
+            let signer = SignerMiddleware::new(sweep_provider, proxy_wallet);
+            let tx = TransactionRequest::pay(recovery_address, sweep_amount)
+                .gas(21_000)
+                .gas_price(gas_price)
+                .nonce(on_chain_nonce);
+            let send_result = { signer.send_transaction(tx, None).await };
+            match send_result {
+                Ok(pending) => {
+                    let tx_hash = pending.tx_hash();
+                    println!("    Tx broadcast: {tx_hash:?}. Waiting for confirmation...");
+                    let confirm_result = pending.confirmations(1).interval(Duration::from_millis(500)).await;
+                    match confirm_result {
+                        Ok(Some(_)) => {
+                            println!("    ✅ Confirmed. {} ETH recovered.", format_eth_amount(sweep_eth));
+                            swept_count += 1;
+                        },
+                        Ok(None) => {
+                            println!("    ⚠️ Tx may have dropped. Check {tx_hash:?} manually.");
+                            error_count += 1;
                         },
                         Err(e) => {
-                            warn!("Failed to decrypt {}: {}. Will try next.", fname, e);
+                            warn!("    ❌ Confirmation failed: {e}. Check {tx_hash:?} manually.");
+                            error_count += 1;
                         },
                     }
-                }
+                },
+                Err(e) => {
+                    warn!("    ❌ Send failed: {e}. Cannot sweep {proxy_addr:?}.");
+                    error_count += 1;
+                },
             }
-        }
-
-        let private_key = match found_key {
-            Some(k) => k,
-            None => {
-                warn!(
-                    "[ERROR] No decryptable proxy key file found for {:?}. Cannot sweep {} ETH.",
-                    from_addr, balance_eth
-                );
-                error_count += 1;
-                continue;
-            },
-        };
-
-        // Derive the wallet and sweep
-        let proxy_wallet = match private_key.parse::<LocalWallet>() {
-            Ok(w) => w.with_chain_id(chain_id),
-            Err(e) => {
-                warn!("[ERROR] Failed to parse proxy key for {:?}: {}.", from_addr, e);
-                error_count += 1;
-                continue;
-            },
-        };
-
-        let derived_addr = proxy_wallet.address();
-        if derived_addr != from_addr {
-            warn!(
-                "[WARN] Derived address {:?} != journal from_addr {:?}. Key file may be wrong. Skipping.",
-                derived_addr, from_addr
-            );
-            error_count += 1;
-            continue;
-        }
-
-        // Fetch nonce from chain to handle the case where the original tx already used a nonce.
-        // ethers' auto-nonce fetches the next nonce which works if no txs are pending.
-        // But if there's a pending tx, we need to manually manage nonce.
-        let on_chain_nonce = match provider.get_transaction_count(from_addr, None).await {
-            Ok(n) => n,
-            Err(e) => {
-                warn!("[ERROR] Failed to fetch nonce for {:?}: {}.", from_addr, e);
-                error_count += 1;
-                continue;
-            },
-        };
-
-        // Sweep: send balance - 21k*gas back to recovery address
-        let gas_price = provider.get_gas_price().await.unwrap_or(U256::from(1_000_000_000u64));
-        let gas_cost = U256::from(21_000u64) * gas_price;
-        let sweep_amount = balance.saturating_sub(gas_cost);
-
-        if sweep_amount.is_zero() {
-            println!(
-                "[SKIP] {:?} — balance ({:.6} ETH) is insufficient to cover gas. Dust left.",
-                from_addr, balance_eth
-            );
-            already_spent_count += 1;
-            continue;
-        }
-
-        let sweep_eth = sweep_amount.as_u128() as f64 / 1e18;
-        println!(
-            "[SWEEP] {:?} → {:?} : {} ETH (nonce {})",
-            from_addr,
-            recovery_address,
-            format_eth_amount(sweep_eth),
-            on_chain_nonce,
-        );
-
-        if dry_run {
-            println!("  (dry run — no tx sent)");
-            swept_count += 1;
-            continue;
-        }
-
-        // Use a fresh provider for the sweep
-        let (sweep_provider, _sweep_url) = create_provider(rpc_manager, http_client)?;
-        let signer = SignerMiddleware::new(sweep_provider, proxy_wallet);
-        // Explicit nonce to handle the case where the proxy already has a pending tx.
-        // ethers' auto-nonce will use pending_nonce + 1, but explicit is safer.
-        let tx = TransactionRequest::pay(recovery_address, sweep_amount)
-            .gas(21_000)
-            .gas_price(gas_price)
-            .nonce(on_chain_nonce);
-        let pending_result = signer.send_transaction(tx, None).await;
-        match pending_result {
-            Ok(pending) => {
-                let tx_hash = pending.tx_hash();
-                println!("  Tx broadcast: {:?}. Waiting for confirmation...", tx_hash);
-                let confirm_result = pending.confirmations(1).interval(Duration::from_millis(500)).await;
-                match confirm_result {
-                    Ok(Some(_)) => {
-                        println!("  ✅ Confirmed. {} ETH recovered.", format_eth_amount(sweep_eth));
-                        swept_count += 1;
-                        // Clean up key file
-                        if let Some(ref kf) = found_key_file {
-                            let _ = fs::remove_file(Path::new(recovery_dir).join(kf));
-                        }
-                    },
-                    Ok(None) => {
-                        println!("  ⚠️ Tx may have dropped. Check {:?} manually.", tx_hash);
-                        error_count += 1;
-                    },
-                    Err(e) => {
-                        warn!("  ❌ Confirmation failed: {}. Check {:?} manually.", e, tx_hash);
-                        error_count += 1;
-                    },
-                }
-            },
-            Err(e) => {
-                warn!("  ❌ Send failed: {}. Cannot sweep {:?}.", e, from_addr);
-                error_count += 1;
-            },
         }
     }
 
@@ -531,11 +694,17 @@ async fn recover_proxies(
     println!("Already safe:   {}", already_spent_count);
     println!("Errors:         {}", error_count);
 
-    // If all sweeps succeeded, clean up journal
-    if !dry_run && error_count == 0 && swept_count + already_spent_count == entries.len() {
-        let backup = format!("{}.bak", journal_path.display());
-        fs::rename(&journal_path, &backup).unwrap_or_default();
-        println!("Journal archived to {}", backup);
+    // If all sweeps succeeded, archive each flow file
+    if !dry_run && error_count == 0 {
+        for (fname, _) in &flow_files {
+            let src = Path::new(recovery_dir).join(fname);
+            let dst = format!("{}.bak", src.display());
+            if Path::new(&dst).exists() {
+                let _ = fs::remove_file(&dst);
+            }
+            let _ = fs::rename(&src, &dst);
+        }
+        println!("All flow files archived.");
     }
 
     Ok(())
@@ -549,33 +718,28 @@ async fn emergency_sweep_all(
     http_client: &reqwest::Client,
 ) -> Result<()> {
     let (provider, _) = create_provider(rpc_manager, http_client)?;
+    let flow_files = read_flow_files(&recovery.dir)?;
 
-    if let Ok(read_dir) = std::fs::read_dir(&recovery.dir) {
-        for entry in read_dir.flatten() {
-            let fname = entry.file_name().to_string_lossy().to_string();
-            if !fname.starts_with("proxy-") || !fname.ends_with(".json") {
-                continue;
-            }
+    for (fname, entry) in &flow_files {
+        let flow_seed = match decrypt_flow_seed(entry, &recovery.password) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
 
-            let key_path = Path::new(&recovery.dir).join(&fname);
-            let private_key = match decrypt_proxy_key_file(&key_path, &recovery.password) {
-                Ok(k) => k,
-                Err(_) => continue,
-            };
-
-            let wallet = match private_key.parse::<LocalWallet>() {
+        for i in 0..entry.hop_count {
+            let proxy_hex = hex::encode(derive_proxy_key_bytes(&flow_seed, i));
+            let wallet = match proxy_hex.parse::<LocalWallet>() {
                 Ok(w) => w.with_chain_id(recovery.chain_id),
                 Err(_) => continue,
             };
-
             let addr = wallet.address();
+
             let balance = match provider.get_balance(addr, None).await {
                 Ok(b) => b,
                 Err(_) => continue,
             };
 
             if balance.is_zero() {
-                let _ = fs::remove_file(&key_path);
                 continue;
             }
 
@@ -587,13 +751,11 @@ async fn emergency_sweep_all(
                 continue;
             }
 
-            // Fetch nonce to handle pending txs
             let nonce = match provider.get_transaction_count(addr, None).await {
                 Ok(n) => n,
                 Err(_) => continue,
             };
 
-            // Use a fresh provider for the sweep
             let (sweep_provider, _sweep_url) = match create_provider(rpc_manager, http_client) {
                 Ok(p) => p,
                 Err(_) => continue,
@@ -604,8 +766,8 @@ async fn emergency_sweep_all(
                 .gas_price(gas_price)
                 .nonce(nonce);
 
-            let pending_result = signer.send_transaction(tx, None).await;
-            match pending_result {
+            let send_result = { signer.send_transaction(tx, None).await };
+            match send_result {
                 Ok(pending) => {
                     let tx_hash = pending.tx_hash();
                     warn!(
@@ -616,13 +778,13 @@ async fn emergency_sweep_all(
                         tx_hash
                     );
                     let _ = pending.confirmations(1).interval(Duration::from_millis(500)).await;
-                    let _ = fs::remove_file(&key_path);
                 },
-                Err(e) => {
-                    warn!("[EMERGENCY SWEEP] Failed to sweep {:?}: {}", addr, e);
-                },
+                Err(e) => warn!("[EMERGENCY SWEEP] Failed to sweep {:?}: {}", addr, e),
             }
         }
+
+        // Remove flow file if all proxies were processed
+        let _ = fs::remove_file(Path::new(&recovery.dir).join(fname));
     }
 
     Ok(())
@@ -891,9 +1053,12 @@ async fn fund_via_chain(
     max_gwei: f64,
     chain_id: u64,
     recovery: Option<&RecoveryContext>,
+    proxy_ctx: Option<&ProxyContext>,
     rng: &mut StdRng,
 ) -> Result<()> {
-    let (provider, _) = create_provider(rpc_manager, http_client).context("No healthy RPC for wallet check")?;
+    let (provider, rpc_url) = create_provider_routed(rpc_manager, proxy_ctx)
+        .await
+        .context("No healthy RPC for wallet check")?;
 
     let decrypted = manager
         .get_wallet(sender_idx, Some(password))
@@ -906,38 +1071,51 @@ async fn fund_via_chain(
         .with_chain_id(chain_id);
     let sender_address = sender.address();
 
-    // Pre-check: fetch sender's on-chain balance and log it prominently
-    // so any "insufficient funds" failure is traceable to the source.
+    // Pre-check: fetch sender's on-chain balance
     let sender_balance = provider.get_balance(sender_address, None).await?;
     let sender_balance_eth = sender_balance.as_u128() as f64 / 1e18;
 
-    // Generate fresh random private keys for each proxy, then derive wallets.
-    // This way we have the hex key available for recovery persistence.
-    let mut proxy_keys_hex: Vec<String> = Vec::with_capacity(hop_count);
-    let mut proxies: Vec<LocalWallet> = Vec::with_capacity(hop_count);
-    for _ in 0..hop_count {
-        let mut key_bytes = [0u8; 32];
-        rng.fill(&mut key_bytes[..]);
-        let key_hex = hex::encode(key_bytes);
-        let wallet: LocalWallet = key_hex
-            .parse::<LocalWallet>()
-            .expect("valid hex private key")
-            .with_chain_id(chain_id);
-        proxies.push(wallet);
-        proxy_keys_hex.push(key_hex);
-    }
+    // ── Generate flow seed — all proxy keys derive from this ──
+    // One 32-byte random seed per funding flow. Persisted ONCE in a single
+    // flow file for recovery. No per-proxy key management needed.
+    let mut flow_seed = [0u8; 32];
+    rng.fill(&mut flow_seed[..]);
 
+    // Derive ALL proxy wallets deterministically from the flow seed
+    let mut proxies: Vec<LocalWallet> = Vec::with_capacity(hop_count);
+    for i in 0..hop_count {
+        proxies.push(derive_proxy_wallet(&flow_seed, i, chain_id)?);
+    }
     let proxy_addrs: Vec<Address> = proxies.iter().map(|w| w.address()).collect();
 
-    // Capture target's on-chain balance BEFORE any hops fire so the
-    // post-funding delta check can correctly verify delivery.
-    // The previous implementation captured this AFTER the hop loop, which
-    // meant the delta was always ~0 and the verification was a no-op.
+    // ── Write ONE flow file atomically before Sender→P1 ──
+    // This is the single source of truth for recovery. Written via temp→rename
+    // so it's either fully present or not at all.
+    let mut flow_filename: Option<String> = None;
+    if let Some(rc) = recovery {
+        let (ct, iv, salt, tag) = encrypt_flow_seed(&flow_seed, &rc.password)?;
+        let entry = FlowEntry {
+            ciphertext: ct,
+            iv,
+            salt,
+            tag,
+            hop_count,
+            chain_id,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        };
+        match write_flow_file(&rc.dir, &entry) {
+            Ok(fname) => {
+                runner_log(worker_id, "Funder", format!("Flow file written: {fname}"));
+                flow_filename = Some(fname);
+            },
+            Err(e) => warn!("[WK{worker_id}] Failed to write flow file: {e}"),
+        }
+    }
+
+    // Capture target's balance BEFORE any hops for delta verification
     let target_balance_before = provider.get_balance(target, None).await?;
 
     let gas_price = random_gas_price(&provider, min_gwei, max_gwei, rng).await?;
-    // Use MAX gwei for seed calculation so hops never run out of gas
-    // even if network gas spikes during the multi-hop flow.
     let max_gas_price_wei = U256::from((max_gwei * 1_000_000_000.0) as u64);
     let seed = calculate_seed_amount(target_amount, max_gas_price_wei, hop_count);
     let seed_eth = seed.as_u128() as f64 / 1e18;
@@ -968,39 +1146,61 @@ async fn fund_via_chain(
         );
     }
 
-    // ── Track proxy key filenames for cleanup ──
-    let mut proxy_key_files: Vec<String> = Vec::with_capacity(hop_count);
-
-    // ── Sender -> P1 ──
-    //
-    // Safety: Before broadcasting, persist proxy key + journal. After confirm, clean up.
-    if let Some(rc) = recovery {
-        let _ = fs::create_dir_all(&rc.dir);
-        let key_file = persist_proxy_and_journal(
-            rc,
-            0,
-            hop_count,
-            &proxy_keys_hex[0],
-            proxy_addrs[0],
-            get_next_hop_address(0, hop_count, target, &proxy_addrs),
-            seed,
-            gas_price,
-            0, // nonce will be set by ethers
-        );
-        match key_file {
-            Ok(kf) => proxy_key_files.push(kf),
-            Err(e) => warn!("[WK{worker_id}] Failed to persist proxy 0 key: {e}"),
+    // ── Sender -> P1 (with RPC rotation on retryable errors) ──
+    const MAX_SEND_ATTEMPTS: usize = 5;
+    let mut send_attempt = 0usize;
+    let mut current_provider = provider.clone();
+    let mut current_rpc_url = rpc_url;
+    let mut sender_signer = SignerMiddleware::new(current_provider.clone(), sender.clone());
+    let pending = loop {
+        let tx = TransactionRequest::pay(proxy_addrs[0], seed)
+            .gas(21_000)
+            .gas_price(gas_price);
+        let retry_info = match sender_signer.send_transaction(tx.clone(), None).await {
+            Ok(p) => {
+                rpc_manager.record_success(&current_rpc_url);
+                break p;
+            },
+            Err(e) => {
+                if should_retry_proxy_send_error(&e) {
+                    rpc_manager.record_failure(&current_rpc_url);
+                    Some(format!("{e:#}"))
+                } else {
+                    return Err(e).context("Sender -> P1 tx failed");
+                }
+            },
+        };
+        if let Some(err_msg) = retry_info {
+            if send_attempt + 1 >= MAX_SEND_ATTEMPTS {
+                anyhow::bail!(
+                    "Sender -> P1 send exhausted after {} attempts. Last error: {}. Flow file persists for recovery.",
+                    MAX_SEND_ATTEMPTS,
+                    err_msg
+                );
+            }
+            let (new_provider, new_url) = match create_provider_routed(rpc_manager, proxy_ctx).await {
+                Ok(p) => p,
+                Err(e) => anyhow::bail!("No healthy RPC for Sender->P1 retry: {e}"),
+            };
+            current_provider = new_provider;
+            current_rpc_url = new_url;
+            sender_signer = SignerMiddleware::new(current_provider.clone(), sender.clone());
+            let retry_after_secs = (1u64 << send_attempt as u32).min(120);
+            runner_log(
+                worker_id,
+                "Funder",
+                format!(
+                    "Sender -> P1 send attempt {} failed ({}); rotating RPC, retrying in {}s",
+                    send_attempt + 1,
+                    err_msg,
+                    retry_after_secs
+                ),
+            );
+            tokio::time::sleep(Duration::from_secs(retry_after_secs)).await;
+            send_attempt += 1;
+            continue;
         }
-    }
-
-    let sender_signer = SignerMiddleware::new(provider.clone(), sender);
-    let tx = TransactionRequest::pay(proxy_addrs[0], seed)
-        .gas(21_000)
-        .gas_price(gas_price);
-    let pending = sender_signer
-        .send_transaction(tx, None)
-        .await
-        .context("Sender -> P1 tx failed")?;
+    };
     runner_log(
         worker_id,
         "Funder",
@@ -1011,31 +1211,6 @@ async fn fund_via_chain(
             format_eth_amount(target_amount_eth)
         ),
     );
-    let sender_tx_hash = pending.tx_hash();
-    // Update journal with tx hash
-    if let Some(rc) = recovery {
-        if !proxy_key_files.is_empty() {
-            let entry = RecoveryJournalEntry {
-                hop_index: 0,
-                hop_count,
-                tx_hash: format!("{sender_tx_hash:?}"),
-                from_addr: format!("{:?}", proxy_addrs[0]),
-                to_addr: format!("{:?}", get_next_hop_address(0, hop_count, target, &proxy_addrs)),
-                value_wei: seed.to_string(),
-                gas_price_wei: gas_price.to_string(),
-                nonce: 0,
-                chain_id,
-                recovery_address: format!("{:?}", rc.recovery_address),
-                timestamp: chrono::Utc::now().to_rfc3339(),
-            };
-            let journal_path = Path::new(&rc.dir).join("journal.jsonl");
-            let mut line = serde_json::to_string(&entry).unwrap_or_default();
-            line.push('\n');
-            if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&journal_path) {
-                let _ = f.write_all(line.as_bytes());
-            }
-        }
-    }
 
     let sender_wait_label = "Sender -> P1";
     runner_log(
@@ -1043,6 +1218,7 @@ async fn fund_via_chain(
         "Funder",
         format!("Waiting for {sender_wait_label} confirmation"),
     );
+    let sender_tx_hash;
     match await_confirmation_with_progress(
         worker_id,
         "Funder",
@@ -1055,55 +1231,101 @@ async fn fund_via_chain(
     {
         Ok(receipt) => {
             let receipt = receipt.context("Sender -> P1 receipt not confirmed (Ok(None))")?;
-            // Clean up proxy 0 key file after confirmation
-            if let Some(kf) = proxy_key_files.first() {
-                if let Some(rc) = recovery {
-                    cleanup_proxy_and_journal(rc, kf, 0);
-                }
-            }
+            sender_tx_hash = receipt.transaction_hash;
             runner_log(
                 worker_id,
                 "Funder",
-                format!("Sender -> P1 confirmed: {:?}", receipt.transaction_hash),
+                format!("Sender -> P1 confirmed: {:?}", sender_tx_hash),
             );
         },
         Err(e) => {
-            // Tx was broadcast, may confirm later. Proxy key is persisted.
-            // Return error so the worker marks failure but proxy key survives for recovery.
+            // Tx was broadcast but timed out. Send a 2x replacement from the
+            // SENDER (not proxy 0 — proxy 0 hasn't received funds yet).
             runner_log(
                 worker_id,
                 "Funder",
                 format!(
-                    "Sender -> P1 confirmation failed: {:#}. Proxy key persisted for recovery.",
+                    "Sender -> P1 confirmation failed: {:#}. Sending 2x last-ditch from sender.",
                     e
                 ),
             );
-            // Broadcast a replacement tx with 2x gas as last-ditch effort
-            if let Ok((new_provider, _)) = create_provider(rpc_manager, http_client) {
+            if let Ok((new_provider, _)) = create_provider_routed(rpc_manager, proxy_ctx).await {
                 let last_ditch_gas = gas_price + gas_price;
-                let proxy0_wallet: LocalWallet = proxy_keys_hex[0]
+                let (provider_reload, _) = create_provider_routed(rpc_manager, proxy_ctx)
+                    .await
+                    .unwrap_or_else(|_| (new_provider.clone(), String::new()));
+                let decrypted_reload = manager
+                    .get_wallet(sender_idx, Some(password))
+                    .await
+                    .context("Sender decrypt for last-ditch failed")?;
+                let sender_reload: LocalWallet = decrypted_reload
+                    .evm_private_key
                     .parse::<LocalWallet>()
-                    .expect("valid hex")
+                    .context("Sender key parse for last-ditch failed")?
                     .with_chain_id(chain_id);
-                let ls_signer = SignerMiddleware::new(new_provider, proxy0_wallet);
-                let ls_tx = TransactionRequest::pay(get_next_hop_address(0, hop_count, target, &proxy_addrs), seed)
+                let ls_signer = SignerMiddleware::new(provider_reload, sender_reload);
+                let ls_tx = TransactionRequest::pay(proxy_addrs[0], seed)
                     .gas(21_000)
                     .gas_price(last_ditch_gas);
-                let ls_result = ls_signer.send_transaction(ls_tx, None).await;
-                match ls_result {
+                let ls_result_tx = { ls_signer.send_transaction(ls_tx, None).await };
+                match ls_result_tx {
                     Ok(ls_pending) => {
                         runner_log(
                             worker_id,
                             "Funder",
-                            format!("Last-ditch tx sent: {:?}", ls_pending.tx_hash()),
+                            format!("Last-ditch from sender sent: {:?}", ls_pending.tx_hash()),
                         );
+                        // Wait for confirmation, polling every 5s for shutdown flag
+                        let ls_result = {
+                            let mut fut = Box::pin(ls_pending.confirmations(1).interval(Duration::from_millis(500)));
+                            let deadline = tokio::time::Instant::now() + Duration::from_secs(CONFIRMATION_TIMEOUT_SECS);
+                            let mut result = None;
+                            while tokio::time::Instant::now() < deadline {
+                                if let Some(rc) = recovery {
+                                    if rc.shutdown_requested.load(Ordering::SeqCst) {
+                                        warn!("Shutdown during last-ditch wait. Flow file persists for recovery.");
+                                        result = Some(Err(anyhow::anyhow!("Shutdown during last-ditch")));
+                                        break;
+                                    }
+                                }
+                                match tokio::time::timeout(Duration::from_millis(500), fut.as_mut()).await {
+                                    Ok(Ok(Some(receipt))) => {
+                                        result = Some(Ok(Ok(Some(receipt))));
+                                        break;
+                                    },
+                                    Ok(Ok(None)) => continue,
+                                    Ok(Err(e)) => {
+                                        result = Some(Ok(Err(e)));
+                                        break;
+                                    },
+                                    Err(_) => continue,
+                                }
+                            }
+                            result.unwrap_or(Err(anyhow::anyhow!(
+                                "Last-ditch timed out after {}s",
+                                CONFIRMATION_TIMEOUT_SECS
+                            )))
+                        };
+                        if let Ok(Ok(Some(ls_receipt))) = ls_result {
+                            sender_tx_hash = ls_receipt.transaction_hash;
+                            runner_log(
+                                worker_id,
+                                "Funder",
+                                format!("Last-ditch confirmed: {:?}", sender_tx_hash),
+                            );
+                        } else {
+                            warn!("Last-ditch also timed out. Flow file persists for recovery.");
+                            return Err(e);
+                        }
                     },
                     Err(ls_e) => {
-                        warn!("Last-ditch send failed: {ls_e}");
+                        warn!("Last-ditch send failed: {ls_e}. Flow file persists for recovery.");
+                        return Err(e);
                     },
                 }
+            } else {
+                return Err(e);
             }
-            return Err(e);
         },
     }
 
@@ -1125,8 +1347,9 @@ async fn fund_via_chain(
             tokio::time::sleep(Duration::from_secs(delay)).await;
         }
 
-        let (mut current_provider, mut current_rpc_url) =
-            create_provider(rpc_manager, http_client).context("No healthy RPC for proxy hop")?;
+        let (mut current_provider, mut current_rpc_url) = create_provider_routed(rpc_manager, proxy_ctx)
+            .await
+            .context("No healthy RPC for proxy hop")?;
         let hop_gas = random_gas_price(&current_provider, min_gwei, max_gwei, rng).await?;
 
         let next = get_next_hop_address(i, hop_count, target, &proxy_addrs);
@@ -1151,57 +1374,7 @@ async fn fund_via_chain(
             ),
         );
 
-        // SAFETY HOOK: Persist proxy key + journal BEFORE broadcast
-        if let Some(rc) = recovery {
-            let _ = fs::create_dir_all(&rc.dir);
-            // For proxy at index i, we persist the *next* proxy's key (i+1) because
-            // proxy i is already in-flight from the previous hop or Sender->P1.
-            // Actually, for the current hop (i), the proxy is the one sending.
-            // We already persisted proxy[i]'s key earlier. But for proxy[i+1] we
-            // need to persist it now before the tx to proxy[i+1] is broadcast.
-            // Wait — let me rethink. The persistence is per-proxy, not per-hop.
-            // Proxy i has ETH right now. When we broadcast, the funds go to next.
-            // If the broadcast succeeds and confirmation fails, proxy i still has ETH
-            // (the tx may not have been mined). So we need proxy i's key persisted.
-            //
-            // Actually, for hop i:
-            // - Proxy i has the funds
-            // - We broadcast: proxy i -> next
-            // - If this broadcast succeeds but confirmation fails: funds are on next
-            // - If we need to recover, we need proxy i's key (to check tx status)
-            //   OR next's key (to sweep if funds landed there)
-            //
-            // The safest approach: BEFORE each broadcast, persist BOTH the sender
-            // (proxy i) key AND the receiver (next proxy) key if it exists.
-        }
-        if let Some(rc) = recovery {
-            let _ = fs::create_dir_all(&rc.dir);
-            // Persist the *next* proxy's key (i+1) if this isn't the last hop,
-            // so if the tx confirms but this function errors out, the next proxy can be recovered.
-            if i + 1 < hop_count {
-                let next_key_hex = proxy_keys_hex[i + 1].clone();
-                let next_dest = if i + 2 < hop_count { proxy_addrs[i + 2] } else { target };
-                let key_file = persist_proxy_and_journal(
-                    rc,
-                    i + 1,
-                    hop_count,
-                    &next_key_hex,
-                    proxy_addrs[i + 1],
-                    next_dest,
-                    forward,
-                    hop_gas,
-                    0,
-                );
-                match key_file {
-                    Ok(kf) => proxy_key_files.push(kf),
-                    Err(e) => warn!("[WK{worker_id}] Failed to persist proxy {} key: {e}", i + 1),
-                }
-            }
-        }
-
         // Phase 1: Send tx with RPC rotation on failure
-        // MAX_SEND_ATTEMPTS bounds the retry loop to prevent infinite spinning
-        // if the RPC keeps returning retryable errors.
         const MAX_SEND_ATTEMPTS: usize = 5;
         let pending = {
             let mut send_attempt = 0usize;
@@ -1233,14 +1406,14 @@ async fn fund_via_chain(
                     if send_attempt + 1 >= MAX_SEND_ATTEMPTS {
                         let hop_label = format_hop_label(i, hop_count);
                         anyhow::bail!(
-                            "P{} -> {} send exhausted after {} attempts. Last error: {}. Proxy key persisted for recovery.",
+                            "P{} -> {} send exhausted after {} attempts. Last error: {}. Flow file persists for recovery.",
                             i + 1,
                             hop_label,
                             MAX_SEND_ATTEMPTS,
                             err_msg
                         );
                     }
-                    if let Ok((new_provider, new_url)) = create_provider(rpc_manager, http_client) {
+                    if let Ok((new_provider, new_url)) = create_provider_routed(rpc_manager, proxy_ctx).await {
                         current_rpc_url = new_url;
                         current_provider = new_provider;
                         proxy_signer = SignerMiddleware::new(current_provider.clone(), proxy.clone());
@@ -1263,7 +1436,7 @@ async fn fund_via_chain(
             }
         };
 
-        // Phase 2: Wait for confirmation with gas bump on heartbeat
+        // Phase 2: Wait for confirmation
         let hop_wait_label = format_hop_label(i, hop_count);
         let hop_tx_hash = pending.tx_hash();
         runner_log(
@@ -1271,30 +1444,6 @@ async fn fund_via_chain(
             &stage_label,
             format!("Waiting for {hop_wait_label} confirmation"),
         );
-
-        // Update journal with tx hash for this hop
-        if let Some(rc) = recovery {
-            let journal_path = Path::new(&rc.dir).join("journal.jsonl");
-            let from_addr = proxy.address();
-            let entry = RecoveryJournalEntry {
-                hop_index: if i + 1 < hop_count { i + 1 } else { i },
-                hop_count,
-                tx_hash: format!("{hop_tx_hash:?}"),
-                from_addr: format!("{from_addr:?}"),
-                to_addr: format!("{next:?}"),
-                value_wei: forward.to_string(),
-                gas_price_wei: hop_gas.to_string(),
-                nonce: 0,
-                chain_id,
-                recovery_address: format!("{:?}", rc.recovery_address),
-                timestamp: chrono::Utc::now().to_rfc3339(),
-            };
-            let mut line = serde_json::to_string(&entry).unwrap_or_default();
-            line.push('\n');
-            if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(&journal_path) {
-                let _ = f.write_all(line.as_bytes());
-            }
-        }
 
         let confirm_result = {
             let mut pending_tx = Box::pin(pending);
@@ -1309,148 +1458,62 @@ async fn fund_via_chain(
                         break (Some(result), confirmation_start.elapsed());
                     }
                     _ = tokio::time::sleep(heartbeat) => {
-                        // Heartbeat: log progress, do NOT bump gas.
-                        // Bumping during heartbeats fails because the proxy's gas
-                        // budget is sized for the original price — a higher-gas
-                        // replacement carries the same value transfer, so the
-                        // bumped (gas*21000 + value) exceeds the proxy's balance.
-                        // The original 1.5 gwei should confirm in 60s on Sepolia;
-                        // if not, the deadline branch below does a single 2x bump.
                         let elapsed = confirmation_start.elapsed();
                         runner_log(
                             worker_id,
                             &stage_label,
-                            format!(
-                                "Still waiting for {hop_wait_label} confirmation... {} elapsed",
-                                format_compact_duration(elapsed)
-                            ),
+                            format!("Still waiting for {hop_wait_label} confirmation... {} elapsed", format_compact_duration(elapsed)),
                         );
                     }
                     _ = tokio::time::sleep_until(deadline) => {
-                        // ── Last-ditch: 2x gas before giving up ──
                         if !last_ditch_sent {
                             #[allow(unused_assignments)]
-                            {
-                                last_ditch_sent = true;
-                            }
-                            // Check proxy balance first. The replacement carries
-                            // the full forward value, so it costs forward + gas.
-                            // The proxy must still have headroom above `forward`.
-                            // The seed formula gives (hop_count+2) hops of gas
-                            // headroom, of which 1 was spent on the original tx's
-                            // gas; the 2x last-ditch needs 1 more hop's worth,
-                            // which is available as long as the original tx
-                            // hasn't already been mined (in which case the proxy
-                            // balance is 0 anyway and we're done).
+                            { last_ditch_sent = true; }
                             let balance_now = match current_provider.get_balance(proxy.address(), None).await {
                                 Ok(b) => b,
                                 Err(e) => {
-                                    runner_log(
-                                        worker_id,
-                                        &stage_label,
-                                        format!("Last-ditch balance check failed: {e}; skipping bump"),
-                                    );
+                                    runner_log(worker_id, &stage_label, format!("Last-ditch balance check failed: {e}; skipping bump"));
                                     U256::zero()
                                 }
                             };
-                            // Compute the MAX gas price the proxy can afford for
-                            // a replacement tx that carries the full `forward` value.
                             let max_gas = max_affordable_gas_price(balance_now, forward);
-                            let target_gas = hop_gas + hop_gas; // desired 2x
-                            // Use the smaller of (desired 2x) or (max affordable).
-                            // If balance can afford more than 2x, we use 2x to keep
-                            // costs predictable; if it can afford less, we use what
-                            // we have; if it can't afford any gas, the tx may have
-                            // already been mined — do a direct receipt check before
-                            // giving up so we don't report false failures.
+                            let target_gas = hop_gas + hop_gas;
                             let emergency_gas = target_gas.min(max_gas);
                             if emergency_gas == U256::zero() {
                                 runner_log(
                                     worker_id,
                                     &stage_label,
-                                    format!(
-                                        "Last-ditch skipped: proxy balance {} — checking for already-mined receipt",
-                                        format_eth_amount(balance_now.as_u128() as f64 / 1e18)
-                                    ),
+                                    format!("Last-ditch skipped: proxy balance {} — checking for already-mined receipt", format_eth_amount(balance_now.as_u128() as f64 / 1e18)),
                                 );
-                                // Direct receipt check with a short timeout. If the
-                                // original tx was mined, the receipt should be
-                                // available even if the future never resolved.
                                 let receipt_check = tokio::time::timeout(
                                     Duration::from_secs(10),
                                     current_provider.get_transaction_receipt(hop_tx_hash),
-                                )
-                                .await;
+                                ).await;
                                 match receipt_check {
                                     Ok(Ok(Some(receipt))) => {
-                                        runner_log(
-                                            worker_id,
-                                            &stage_label,
-                                            format!(
-                                                "Receipt found via direct check (status={:?}): {:?}",
-                                                receipt.status,
-                                                receipt.transaction_hash
-                                            ),
-                                        );
-                                        // The tx WAS mined. Use the receipt and exit the loop.
-                                        // Setting last_ditch_sent prevents the outer
-                                        // deadline arm from re-firing on the same
-                                        // instant we break out.
+                                        runner_log(worker_id, &stage_label, format!("Receipt found via direct check (status={:?}): {:?}", receipt.status, receipt.transaction_hash));
                                         #[allow(unused_assignments)]
-                                        {
-                                            last_ditch_sent = true;
-                                        }
+                                        { last_ditch_sent = true; }
                                         break (Some(Ok(Some(receipt))), confirmation_start.elapsed());
                                     },
-                                    Ok(Ok(None)) => {
-                                        runner_log(
-                                            worker_id,
-                                            &stage_label,
-                                            "Direct receipt check returned None (tx not mined). Giving up.",
-                                        );
-                                    },
-                                    Ok(Err(e)) => {
-                                        runner_log(
-                                            worker_id,
-                                            &stage_label,
-                                            format!("Direct receipt check failed: {e}. Giving up."),
-                                        );
-                                    },
-                                    Err(_) => {
-                                        runner_log(
-                                            worker_id,
-                                            &stage_label,
-                                            "Direct receipt check timed out after 10s. Giving up.",
-                                        );
-                                    },
+                                    Ok(Ok(None)) => runner_log(worker_id, &stage_label, "Direct receipt check returned None (tx not mined). Giving up."),
+                                    Ok(Err(e)) => runner_log(worker_id, &stage_label, format!("Direct receipt check failed: {e}. Giving up.")),
+                                    Err(_) => runner_log(worker_id, &stage_label, "Direct receipt check timed out after 10s. Giving up."),
                                 }
                             } else {
                                 runner_log(
                                     worker_id,
                                     &stage_label,
-                                    format!(
-                                        "Confirmation timeout approaching, sending last-ditch tx with {}x gas ({}; max affordable {})",
-                                        if emergency_gas >= target_gas { "2" } else { "reduced" },
-                                        format_eth_amount(emergency_gas.as_u128() as f64 / 1e18),
-                                        format_eth_amount(max_gas.as_u128() as f64 / 1e18)
-                                    ),
+                                    format!("Confirmation timeout, sending last-ditch tx with {}x gas", if emergency_gas >= target_gas { "2" } else { "reduced" }),
                                 );
-                                let tx = TransactionRequest::pay(next, forward)
-                                    .gas(21_000)
-                                    .gas_price(emergency_gas);
+                                let tx = TransactionRequest::pay(next, forward).gas(21_000).gas_price(emergency_gas);
                                 let send_result = proxy_signer.send_transaction(tx, None).await;
                                 match send_result {
                                     Ok(new_pending) => {
                                         rpc_manager.record_success(&current_rpc_url);
                                         pending_tx = Box::pin(new_pending);
                                     }
-                                    Err(e) => {
-                                        runner_log(
-                                            worker_id,
-                                            &stage_label,
-                                            format!("Last-ditch send failed: {e}; proxy key persisted for recovery."),
-                                        );
-                                    }
+                                    Err(e) => runner_log(worker_id, &stage_label, format!("Last-ditch send failed: {e}; flow file persists for recovery.")),
                                 }
                             }
                         }
@@ -1460,16 +1523,9 @@ async fn fund_via_chain(
             }
         };
 
-        let _hop_receipt = match confirm_result {
+        match confirm_result {
             (Some(Ok(receipt_opt)), _) => {
-                // Clean up proxy key file for this hop's sender (proxy[i])
-                // The key file for proxy[i] was persisted in the previous iteration
-                // or before Sender->P1. We don't have the exact filename here,
-                // but the recovery dir sweep will handle orphaned keys.
                 if let Some(receipt) = &receipt_opt {
-                    // Validate the receipt's `to` matches the expected `next` address.
-                    // A mismatch means the receipt is for a different tx, or the
-                    // node returned a stale/wrong receipt — both are serious.
                     if let Some(receipt_to) = receipt.to {
                         if receipt_to != next {
                             warn!(
@@ -1478,7 +1534,6 @@ async fn fund_via_chain(
                             );
                         }
                     }
-                    // Validate the receipt's `from` matches the proxy that sent it.
                     if receipt.from != proxy.address() {
                         warn!(
                             "[WK{worker_id}] {stage_label} receipt.from {:?} != proxy {:?}. tx={:?}",
@@ -1492,20 +1547,13 @@ async fn fund_via_chain(
                         &stage_label,
                         format!("Confirmed: {:?}", receipt.transaction_hash),
                     );
-                } else {
-                    runner_log(
-                        worker_id,
-                        &stage_label,
-                        "Confirmed: Ok(None) - tx may not have been mined",
-                    );
                 }
-                receipt_opt
             },
             (Some(Err(e)), _) => {
                 runner_log(
                     worker_id,
                     &stage_label,
-                    format!("{hop_wait_label} confirmation failed: {e:#}. Proxy key persisted for recovery."),
+                    format!("{hop_wait_label} confirmation failed: {e:#}. Flow file persists for recovery."),
                 );
                 anyhow::bail!("{hop_wait_label} confirmation failed: {e:#}");
             },
@@ -1513,16 +1561,14 @@ async fn fund_via_chain(
                 runner_log(
                     worker_id,
                     &stage_label,
-                    format!(
-                        "Timed out waiting for {hop_wait_label} after last-ditch. Proxy key persisted for recovery."
-                    ),
+                    format!("Timed out waiting for {hop_wait_label}. Flow file persists for recovery."),
                 );
                 anyhow::bail!(
                     "Timed out waiting for {hop_wait_label} confirmation after {}",
                     format_compact_duration(elapsed)
                 );
             },
-        };
+        }
 
         if i == hop_count - 1 {
             recipient_tx_hash = Some(hop_tx_hash);
@@ -1533,25 +1579,16 @@ async fn fund_via_chain(
 
     let recipient_tx_hash = recipient_tx_hash.context("Missing recipient tx hash")?;
 
-    // ── Target balance verification (delta-based) ──
-    // target_balance_before was captured BEFORE the hop loop fired (above),
-    // so the delta here correctly measures what the target actually received.
+    // ── Target balance verification ──
     let (provider_verify, _) =
         create_provider(rpc_manager, http_client).context("No healthy RPC for target balance verification")?;
     let target_balance_after = provider_verify.get_balance(target, None).await?;
-
-    // Expected delta: the last hop forward amount.
-    // The target should have received exactly `remaining` (which equals `forward` from the last hop).
     let actual_delta = target_balance_after.saturating_sub(target_balance_before);
     let expected_delta = remaining;
-    let delivery_ok = actual_delta >= expected_delta.saturating_sub(U256::from(1_000_000_000u64)); // allow 1 gwei dust
+    let delivery_ok = actual_delta >= expected_delta.saturating_sub(U256::from(1_000_000_000u64));
     let shortfall = expected_delta.saturating_sub(actual_delta);
 
     if !delivery_ok {
-        // Target did not receive enough — possible causes:
-        // 1. Last hop tx failed but we reported success
-        // 2. Concurrent tx drained the target
-        // 3. RPC returned stale balance
         warn!(
             "[WK{worker_id}] Target {:?} received less than expected. Expected ~{} ETH, got +{} ETH (shortfall {} ETH). tx={:?}",
             target,
@@ -1578,18 +1615,20 @@ async fn fund_via_chain(
     // ── Final summary ──
     let (provider_final, _) = create_provider(rpc_manager, http_client).context("No healthy RPC for final balance")?;
     let sender_balance_after = provider_final.get_balance(sender_address, None).await?;
-    let fee_wei = sender_balance
+    let fee_wei = match sender_balance
         .checked_sub(sender_balance_after)
         .and_then(|spent| spent.checked_sub(remaining))
-        .context("Failed to compute total fee from balance delta")?;
+    {
+        Some(fee) => fee,
+        None => {
+            warn!("[WK{worker_id}] Could not compute fee from balance delta (balance may have changed due to reorg)");
+            U256::zero()
+        },
+    };
     let duration = format_compact_duration(flow_start.elapsed());
 
-    // Validate sender wasn't drained unexpectedly
-    let sender_balance_before = sender_balance;
-    let sender_spent_total = sender_balance_before.saturating_sub(sender_balance_after);
-    let sender_spent_expected = seed + gas_21k_cost; // initial tx + gas
-    // Sender should have spent approximately seed + gas for sender tx
-    // (subsequent hops come from proxies, not sender)
+    let sender_spent_total = sender_balance.saturating_sub(sender_balance_after);
+    let sender_spent_expected = seed + gas_21k_cost;
     if sender_spent_total > sender_spent_expected + gas_21k_cost {
         warn!(
             "[WK{worker_id}] Sender {:?} spent {} ETH but expected ~{} ETH. Possible unexpected drain.",
@@ -1612,6 +1651,13 @@ async fn fund_via_chain(
             duration
         ),
     );
+
+    // ── All hops confirmed — remove the flow file ──
+    if let Some(fname) = flow_filename {
+        if let Some(rc) = recovery {
+            remove_flow_file(&rc.dir, &fname);
+        }
+    }
 
     Ok(())
 }
@@ -1689,10 +1735,10 @@ fn generate_dry_run_plan(
     max_hops: usize,
     max_targets: Option<usize>,
     rng: &mut StdRng,
-) -> Vec<PlannedFund> {
+) -> Result<Vec<PlannedFund>> {
     let selected = select_targets_to_fund(targets, max_targets);
     if senders.is_empty() || selected.is_empty() {
-        return vec![];
+        return Ok(vec![]);
     }
 
     let max_per = compute_max_per_sender(selected.len(), senders.len());
@@ -1701,7 +1747,7 @@ fn generate_dry_run_plan(
 
     for target in &selected {
         let amount: U256 = parse_units(rng.gen_range(min_target..=max_target), "ether")
-            .expect("parse_units for dry-run target amount")
+            .with_context(|| format!("Invalid target amount in range [{min_target}, {max_target}]"))?
             .into();
         let hops = rng.gen_range(min_hops..=max_hops);
         let idx = pick_sender(senders, &use_counts, max_per, rng);
@@ -1715,7 +1761,7 @@ fn generate_dry_run_plan(
         });
         use_counts[idx] += 1;
     }
-    plan
+    Ok(plan)
 }
 
 /// Pure, deterministic gas price (mgwei) selector given a network sample + bounds + RNG.
@@ -1812,6 +1858,7 @@ impl Funder {
         chain_id: u64,
         max_targets: Option<usize>,
         recovery: Option<RecoveryContext>,
+        proxy_ctx: Option<Arc<ProxyContext>>,
     ) -> Self {
         Self {
             manager,
@@ -1822,6 +1869,7 @@ impl Funder {
             chain_id,
             max_targets,
             recovery: recovery.map(Arc::new),
+            proxy_ctx,
         }
     }
 
@@ -1894,14 +1942,29 @@ impl Funder {
             args.min_worker_interval_secs,
             args.max_worker_interval_secs
         );
-        ensure!(
-            args.max_hops > 0,
-            "--max-hops must be at least 1 (got 0)"
-        );
+        ensure!(args.max_hops > 0, "--max-hops must be at least 1 (got 0)");
         ensure!(
             args.min_target > 0.0,
             "--min-target must be positive (got {})",
             args.min_target
+        );
+        ensure!(
+            args.min_target.is_finite() && args.max_target.is_finite(),
+            "--min-target / --max-target must be finite numbers (got {}, {})",
+            args.min_target,
+            args.max_target
+        );
+        ensure!(
+            args.min_balance.is_finite() && args.max_balance.is_finite(),
+            "--min-balance / --max-balance must be finite numbers (got {}, {})",
+            args.min_balance,
+            args.max_balance
+        );
+        ensure!(
+            args.min_gwei.is_finite() && args.max_gwei.is_finite(),
+            "--min-gwei / --max-gwei must be finite numbers (got {}, {})",
+            args.min_gwei,
+            args.max_gwei
         );
         ensure!(
             args.min_balance >= args.max_balance,
@@ -1968,6 +2031,7 @@ impl Funder {
             durations: vec![],
         }));
         let mut handles = Vec::new();
+        let cancel = Arc::new(AtomicBool::new(false));
 
         for (worker_idx, mut queue) in worker_queues.into_iter().enumerate() {
             let manager = Arc::clone(&self.manager);
@@ -1991,12 +2055,19 @@ impl Funder {
             let recovery = self.recovery.clone();
             let min_worker_interval_secs = args.min_worker_interval_secs;
             let max_worker_interval_secs = args.max_worker_interval_secs;
+            let proxy_ctx = self.proxy_ctx.clone();
+            let cancel = Arc::clone(&cancel);
 
             handles.push(tokio::spawn(async move {
                 let worker_start = std::time::Instant::now();
 
                 let mut rng = StdRng::from_entropy();
                 while let Some((target_idx, target)) = queue.pop_front() {
+                    // Check cancel flag (set when another worker panicked)
+                    if cancel.load(Ordering::SeqCst) {
+                        runner_log(worker_id, "Funder", "Cancelled by sibling worker failure");
+                        break;
+                    }
                     // Spread delay BEFORE sender selection so the queue isn't
                     // blocked while waiting for the logical launch window.
                     if delays[target_idx] > 0 {
@@ -2024,6 +2095,7 @@ impl Funder {
                     let hops = rng.gen_range(min_h..=max_h);
 
                     let recovery_ref = recovery.as_deref();
+                    let proxy_ref = proxy_ctx.as_deref();
                     let result = fund_via_chain(
                         &rpc_manager,
                         &http_client,
@@ -2040,6 +2112,7 @@ impl Funder {
                         max_g,
                         chain_id,
                         recovery_ref,
+                        proxy_ref,
                         &mut rng,
                     )
                     .await;
@@ -2076,7 +2149,10 @@ impl Funder {
         }
 
         for h in handles {
-            h.await.context("worker task panicked")?;
+            if let Err(e) = h.await {
+                warn!("Worker task panicked: {e}. Cancelling remaining workers.");
+                cancel.store(true, Ordering::SeqCst);
+            }
         }
 
         let final_state = state.lock().await;
@@ -2191,7 +2267,7 @@ impl Funder {
             max_hops,
             max_targets,
             &mut rng,
-        );
+        )?;
         for pf in &plan {
             println!(
                 "[DRY] Fund {:?} ({:.4} ETH) from sender idx {} via {} hops (target {:.4} ETH)",
@@ -2301,15 +2377,11 @@ impl Funder {
                 };
                 let address = wallet.address();
                 // Wrap balance query with a timeout to prevent hanging on slow RPC
-                let balance = match tokio::time::timeout(
-                    Duration::from_secs(30),
-                    prov.get_balance(address, None),
-                )
-                .await
+                let balance = match tokio::time::timeout(Duration::from_secs(30), prov.get_balance(address, None)).await
                 {
                     Ok(Ok(b)) => b.as_u128() as f64 / 1e18,
-                    Ok(Err(_)) => {
-                        warn!("Wallet {idx}: balance query failed, skipping");
+                    Ok(Err(e)) => {
+                        warn!("Wallet {idx}: balance query failed: {e}");
                         return None;
                     },
                     Err(_) => {
@@ -2398,6 +2470,10 @@ struct Args {
     /// Dry-run: print plan but don't send txs
     #[arg(long)]
     dry_run: bool,
+
+    /// Disable egress proxy routing (RPC calls go direct)
+    #[arg(long)]
+    no_proxy: bool,
 
     /// Spread funding evenly over N hours (no real-time delay, just logical spread)
     #[arg(long)]
@@ -2490,6 +2566,35 @@ async fn main() -> Result<()> {
     };
     let rpc_manager = Arc::new(RpcManager::new(config.chain_id, &rpc_urls));
     let http_client = reqwest::Client::new();
+
+    // ── Load egress proxy pool (unless disabled) ──
+    let proxy_ctx: Option<ProxyContext> = if args.no_proxy {
+        println!("Egress proxies disabled by --no-proxy");
+        None
+    } else {
+        let proxies = ProxyManager::load_proxies().unwrap_or_else(|_| {
+            warn!("Failed to load proxies from config; continuing without proxies");
+            vec![]
+        });
+        if proxies.is_empty() {
+            println!("No egress proxies configured; RPC calls will go direct.");
+            None
+        } else {
+            println!("Loaded {} egress proxy/ies for RPC routing.", proxies.len());
+            Some(ProxyContext {
+                pool: Arc::new(RwLock::new(proxies)),
+                health: Arc::new(ProxyHealthManager::new(3, 5)),
+                rate_limiter: Arc::new(ProxyRateLimiter::new(10)),
+            })
+        }
+    };
+
+    // ── Probe all RPC endpoints before any work ──
+    let probe = probe_rpc_endpoints(&rpc_manager, &http_client, config.chain_id, 10, proxy_ctx.as_ref()).await?;
+
+    if probe.healthy == 0 {
+        anyhow::bail!("All {} RPC endpoint(s) are unhealthy. Cannot proceed.", probe.total);
+    }
 
     // Initial provider from a healthy RPC
     let (provider, _) = create_provider(&rpc_manager, &http_client)?;
@@ -2601,6 +2706,7 @@ async fn main() -> Result<()> {
         config.chain_id,
         args.max_targets,
         recovery_ctx,
+        proxy_ctx.map(Arc::new),
     );
 
     let result = funder.run(&args).await;
@@ -2964,7 +3070,7 @@ mod tests {
         let senders = vec![dummy_wallet(0, 1.0), dummy_wallet(1, 1.0)];
         let targets = vec![dummy_wallet(2, 0.01), dummy_wallet(3, 0.01), dummy_wallet(4, 0.01)];
         let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng);
+        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng).unwrap();
         assert_eq!(plan.len(), 3);
     }
 
@@ -2973,7 +3079,7 @@ mod tests {
         let senders = vec![dummy_wallet(0, 1.0)];
         let targets = vec![dummy_wallet(1, 0.01), dummy_wallet(2, 0.01)];
         let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, Some(1), &mut rng);
+        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, Some(1), &mut rng).unwrap();
         assert_eq!(plan.len(), 1);
     }
 
@@ -2982,7 +3088,7 @@ mod tests {
         let senders: Vec<WalletInfo> = vec![];
         let targets = vec![dummy_wallet(0, 0.01)];
         let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng);
+        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng).unwrap();
         assert!(plan.is_empty());
     }
 
@@ -2991,7 +3097,7 @@ mod tests {
         let senders = vec![dummy_wallet(0, 1.0)];
         let targets: Vec<WalletInfo> = vec![];
         let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng);
+        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng).unwrap();
         assert!(plan.is_empty());
     }
 
@@ -3000,7 +3106,7 @@ mod tests {
         let senders = vec![dummy_wallet(0, 1.0)];
         let targets = vec![dummy_wallet(1, 0.01), dummy_wallet(2, 0.01)];
         let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng);
+        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng).unwrap();
         for pf in &plan {
             assert!(pf.hops >= 3 && pf.hops <= 5);
         }
@@ -3011,7 +3117,7 @@ mod tests {
         let senders = vec![dummy_wallet(0, 1.0)];
         let targets = vec![dummy_wallet(1, 0.01)];
         let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng);
+        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng).unwrap();
         assert_eq!(plan.len(), 1);
         let amount_eth = plan[0].amount.as_u128() as f64 / 1e18;
         assert!((0.02..=0.04).contains(&amount_eth));
@@ -3022,7 +3128,7 @@ mod tests {
         let senders = vec![dummy_wallet(0, 1.0)];
         let targets = vec![dummy_wallet(1, 0.01), dummy_wallet(2, 0.01)];
         let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 4, 4, None, &mut rng);
+        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 4, 4, None, &mut rng).unwrap();
         for pf in &plan {
             assert_eq!(pf.hops, 4);
         }
@@ -3323,6 +3429,7 @@ mod tests {
             1,
             None,
             None,
+            None,
         );
         let wallets = vec![dummy_wallet(0, 0.8), dummy_wallet(1, 0.005), dummy_wallet(2, 1.5)];
         let (senders, targets, available, max_per) = funder.prepare_funding_sets(&wallets, 0.5, 0.010);
@@ -3395,6 +3502,7 @@ mod tests {
             1,
             None,
             None,
+            None,
         );
         let senders = vec![dummy_wallet(0, 1.0)];
         let targets = vec![dummy_wallet(1, 0.005)];
@@ -3427,6 +3535,7 @@ mod tests {
             reqwest::Client::new(),
             "password".into(),
             1,
+            None,
             None,
             None,
         );
@@ -4223,7 +4332,7 @@ mod tests {
         let one_hop_gas = U256::from(21_000u64) * gas;
         let forward = U256::from(20_000_000_000_000_000u64); // 0.02 ETH
         let proxy_balance = forward + one_hop_gas; // funded with 1 extra hop
-        // Replacement for 2x last-ditch:
+                                                   // Replacement for 2x last-ditch:
         let target_2x = forward + (gas + gas) * U256::from(21_000u64);
         let max_gas = max_affordable_gas_price(proxy_balance, forward);
         // Headroom = 1_hop_gas, so max_gas = gas (the original price).
@@ -4308,2107 +4417,538 @@ mod tests {
     // ──────────────────────────────────────────────────────────────────────────
     // Recovery infrastructure tests
     // ──────────────────────────────────────────────────────────────────────────
+    // Flow-seed architecture tests
+    // ──────────────────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_encrypt_decrypt_proxy_key_roundtrip() {
-        let temp_dir = std::env::temp_dir().join("testnet-fund-encrypt-roundtrip");
-        let _ = std::fs::create_dir_all(&temp_dir);
-        let key_path = temp_dir.join("proxy-test.json");
-
-        let private_key = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
-        let encrypted = encrypt_proxy_key(private_key, "test_password", 11155111).unwrap();
-        std::fs::write(&key_path, &encrypted).unwrap();
-
-        let decrypted = decrypt_proxy_key_file(&key_path, "test_password").unwrap();
-        assert_eq!(decrypted, private_key);
-
-        let _ = std::fs::remove_file(&key_path);
-        let _ = std::fs::remove_dir(&temp_dir);
+    fn test_derive_proxy_key_deterministic() {
+        let mut seed = [0u8; 32];
+        seed[0] = 0xAB;
+        seed[31] = 0xCD;
+        let a = derive_proxy_key_bytes(&seed, 0);
+        let b = derive_proxy_key_bytes(&seed, 0);
+        assert_eq!(a, b, "same seed+index should produce same key");
     }
 
     #[test]
-    fn test_encrypt_proxy_key_format_matches_wallet_json() {
-        let private_key = "deadbeef";
-        let encrypted = encrypt_proxy_key(private_key, "pw", 1).unwrap();
-        let json: serde_json::Value = serde_json::from_str(&encrypted).unwrap();
-        assert!(json.get("encrypted").is_some());
-        let enc = json.get("encrypted").unwrap();
-        assert!(enc.get("ciphertext").is_some());
-        assert!(enc.get("iv").is_some());
-        assert!(enc.get("salt").is_some());
-        assert!(enc.get("tag").is_some());
-        assert_eq!(json.get("encryption_type").unwrap().as_str().unwrap(), "aes-256-gcm");
-        assert_eq!(json.get("chain_id").unwrap().as_u64().unwrap(), 1);
+    fn test_derive_proxy_key_different_per_index() {
+        let mut seed = [0u8; 32];
+        seed[0] = 0xAB;
+        let a = derive_proxy_key_bytes(&seed, 0);
+        let b = derive_proxy_key_bytes(&seed, 1);
+        assert_ne!(a, b, "different index should produce different key");
     }
 
     #[test]
-    fn test_decrypt_proxy_key_wrong_password_fails() {
-        let temp_dir = std::env::temp_dir().join("testnet-fund-wrong-pw");
-        let _ = std::fs::create_dir_all(&temp_dir);
-        let key_path = temp_dir.join("proxy-wrong.json");
-
-        let private_key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        let encrypted = encrypt_proxy_key(private_key, "correct", 1).unwrap();
-        std::fs::write(&key_path, &encrypted).unwrap();
-
-        let result = decrypt_proxy_key_file(&key_path, "wrong");
-        assert!(result.is_err(), "decryption with wrong password should fail");
-
-        let _ = std::fs::remove_file(&key_path);
-        let _ = std::fs::remove_dir(&temp_dir);
+    fn test_derive_proxy_key_different_per_seed() {
+        let mut s1 = [0u8; 32];
+        let mut s2 = [0u8; 32];
+        s1[0] = 0xAB;
+        s2[0] = 0xCD;
+        let a = derive_proxy_key_bytes(&s1, 0);
+        let b = derive_proxy_key_bytes(&s2, 0);
+        assert_ne!(a, b, "different seed should produce different key");
     }
 
     #[test]
-    fn test_recovery_journal_entry_serialization() {
-        let entry = RecoveryJournalEntry {
-            hop_index: 0,
+    fn test_derive_proxy_key_produces_valid_secp256k1_key() {
+        let mut seed = [0u8; 32];
+        for i in 0..100 {
+            seed[i % 32] = i as u8;
+            let key = derive_proxy_key_bytes(&seed, i);
+            let hex_key = hex::encode(key);
+            let wallet_result = hex_key.parse::<LocalWallet>();
+            assert!(wallet_result.is_ok(), "key[{i}] should be valid: {hex_key}");
+        }
+    }
+
+    #[test]
+    fn test_derive_proxy_wallet_address() {
+        let mut seed = [0u8; 32];
+        seed[0] = 0x42;
+        let wallet = derive_proxy_wallet(&seed, 3, 11155111).unwrap();
+        assert_eq!(wallet.chain_id(), 11155111);
+        assert_ne!(wallet.address(), Address::zero());
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_flow_seed_roundtrip() {
+        let mut seed = [0u8; 32];
+        seed[0] = 0xAA;
+        seed[31] = 0xBB;
+        let (ct, iv, salt, tag) = encrypt_flow_seed(&seed, "test_password").unwrap();
+        let entry = FlowEntry {
+            ciphertext: ct,
+            iv,
+            salt,
+            tag,
             hop_count: 5,
-            tx_hash: "0xabc".to_string(),
-            from_addr: "0x111".to_string(),
-            to_addr: "0x222".to_string(),
-            value_wei: "1000000000000000000".to_string(),
-            gas_price_wei: "1500000000".to_string(),
-            nonce: 42,
             chain_id: 11155111,
-            recovery_address: "0x333".to_string(),
-            timestamp: "2026-06-17T00:00:00Z".to_string(),
+            timestamp: "2026-06-19T00:00:00Z".to_string(),
         };
-        let json = serde_json::to_string(&entry).unwrap();
-        let parsed: RecoveryJournalEntry = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.hop_index, 0);
-        assert_eq!(parsed.hop_count, 5);
-        assert_eq!(parsed.chain_id, 11155111);
-        assert_eq!(parsed.nonce, 42);
+        let decrypted = decrypt_flow_seed(&entry, "test_password").unwrap();
+        assert_eq!(decrypted, seed);
     }
 
     #[test]
-    fn test_persist_proxy_and_journal_writes_files() {
-        let temp_dir = std::env::temp_dir().join("testnet-fund-persist");
-        let _ = std::fs::create_dir_all(&temp_dir);
-        std::env::set_var("WALLET_PASSWORD", "pw");
-
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let recovery = RecoveryContext {
-            dir: temp_dir.to_string_lossy().to_string(),
-            password: "pw".to_string(),
-            recovery_address: Address::from_low_u64_be(99),
-            chain_id: 1,
-            shutdown_requested: shutdown,
-        };
-
-        let from = Address::from_low_u64_be(1);
-        let to = Address::from_low_u64_be(2);
-        let key_filename = persist_proxy_and_journal(
-            &recovery,
-            0,
-            3,
-            "deadbeef",
-            from,
-            to,
-            U256::from(1_000_000_000_000_000_000u64),
-            U256::from(1_500_000_000u64),
-            5,
-        )
-        .unwrap();
-
-        // Verify key file was created
-        let key_path = temp_dir.join(&key_filename);
-        assert!(key_path.exists(), "proxy key file should exist");
-        let decrypted = decrypt_proxy_key_file(&key_path, "pw").unwrap();
-        assert_eq!(decrypted, "deadbeef");
-
-        // Verify journal was created with one entry
-        let journal_path = temp_dir.join("journal.jsonl");
-        assert!(journal_path.exists(), "journal should exist");
-        let content = std::fs::read_to_string(&journal_path).unwrap();
-        assert!(content.contains("\"hop_index\":0"));
-        assert!(content.contains("\"hop_count\":3"));
-
-        let _ = std::fs::remove_file(&key_path);
-        let _ = std::fs::remove_file(&journal_path);
-        let _ = std::fs::remove_dir(&temp_dir);
-    }
-
-    #[test]
-    fn test_recovery_context_shutdown_flag_works() {
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let recovery = RecoveryContext {
-            dir: "/tmp".to_string(),
-            password: "pw".to_string(),
-            recovery_address: Address::zero(),
-            chain_id: 1,
-            shutdown_requested: Arc::clone(&shutdown),
-        };
-        assert!(!recovery.shutdown_requested.load(Ordering::SeqCst));
-        recovery.shutdown_requested.store(true, Ordering::SeqCst);
-        assert!(recovery.shutdown_requested.load(Ordering::SeqCst));
-    }
-
-    #[test]
-    fn test_uuid_simple_generates_unique_filenames() {
-        let a = uuid_simple(0);
-        let b = uuid_simple(0);
-        assert!(a.starts_with("0-"));
-        assert!(b.starts_with("0-"));
-        assert_ne!(a, b, "UUID should be random");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Encryption edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_encrypt_proxy_key_unicode_password() {
-        let private_key = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-        let unicode_pw = "пароль密码🔐";
-        let encrypted = encrypt_proxy_key(private_key, unicode_pw, 1).unwrap();
-        let json: serde_json::Value = serde_json::from_str(&encrypted).unwrap();
-        assert!(json.get("encrypted").is_some(), "unicode password should still produce valid JSON");
-    }
-
-    #[test]
-    fn test_encrypt_proxy_key_special_chars_password() {
-        let private_key = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
-        let special_pw = "p@$$w0rd!#%&*()_+-={}[]|:;<>?,./~`";
-        let encrypted = encrypt_proxy_key(private_key, special_pw, 1).unwrap();
-        // Should produce valid JSON
-        let json: serde_json::Value = serde_json::from_str(&encrypted).unwrap();
-        assert!(json.get("encrypted").is_some());
-    }
-
-    #[test]
-    fn test_encrypt_proxy_key_very_long_password() {
-        let private_key = "cafebabecafebabecafebabecafebabecafebabecafebabecafebabecafebabe";
-        let long_pw = "x".repeat(1000);
-        let encrypted = encrypt_proxy_key(private_key, &long_pw, 1).unwrap();
-        let json: serde_json::Value = serde_json::from_str(&encrypted).unwrap();
-        assert!(json.get("encrypted").is_some());
-    }
-
-    #[test]
-    fn test_encrypt_proxy_key_short_password_still_works() {
-        let private_key = "1234567812345678123456781234567812345678123456781234567812345678";
-        let short_pw = "a";
-        let encrypted = encrypt_proxy_key(private_key, short_pw, 1).unwrap();
-        let json: serde_json::Value = serde_json::from_str(&encrypted).unwrap();
-        assert!(json.get("encrypted").is_some());
-    }
-
-    #[test]
-    fn test_encrypt_proxy_key_salt_iv_are_unique_per_call() {
-        let private_key = "abc";
-        let e1 = encrypt_proxy_key(private_key, "pw", 1).unwrap();
-        let e2 = encrypt_proxy_key(private_key, "pw", 1).unwrap();
-        let j1: serde_json::Value = serde_json::from_str(&e1).unwrap();
-        let j2: serde_json::Value = serde_json::from_str(&e2).unwrap();
-        let s1 = j1.get("encrypted").unwrap().get("salt").unwrap().as_str().unwrap();
-        let s2 = j2.get("encrypted").unwrap().get("salt").unwrap().as_str().unwrap();
-        let iv1 = j1.get("encrypted").unwrap().get("iv").unwrap().as_str().unwrap();
-        let iv2 = j2.get("encrypted").unwrap().get("iv").unwrap().as_str().unwrap();
-        assert_ne!(s1, s2, "salt should be unique per call");
-        assert_ne!(iv1, iv2, "iv should be unique per call");
-    }
-
-    #[test]
-    fn test_encrypt_proxy_key_stores_correct_chain_id() {
-        let e1 = encrypt_proxy_key("aaa", "pw", 1).unwrap();
-        let e111 = encrypt_proxy_key("aaa", "pw", 11155111).unwrap();
-        let j1: serde_json::Value = serde_json::from_str(&e1).unwrap();
-        let j111: serde_json::Value = serde_json::from_str(&e111).unwrap();
-        assert_eq!(j1.get("chain_id").unwrap().as_u64().unwrap(), 1);
-        assert_eq!(j111.get("chain_id").unwrap().as_u64().unwrap(), 11155111);
-    }
-
-    #[test]
-    fn test_decrypt_proxy_key_truncated_ciphertext_fails() {
-        let temp_dir = std::env::temp_dir().join("testnet-fund-truncated");
-        let _ = std::fs::create_dir_all(&temp_dir);
-        let key_path = temp_dir.join("truncated.json");
-        // Write a valid-looking but truncated JSON
-        let bad = serde_json::json!({
-            "encrypted": {
-                "ciphertext": "dead",
-                "iv": "00112233445566778899aabb",
-                "salt": "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
-                "tag": "00112233445566778899aabbccddeeff"
-            },
-            "encryption_type": "aes-256-gcm",
-            "chain_id": 1
-        });
-        std::fs::write(&key_path, bad.to_string()).unwrap();
-        let result = decrypt_proxy_key_file(&key_path, "any_password");
-        assert!(result.is_err(), "truncated ciphertext should fail");
-        let _ = std::fs::remove_file(&key_path);
-        let _ = std::fs::remove_dir(&temp_dir);
-    }
-
-    #[test]
-    fn test_decrypt_proxy_key_missing_ciphertext_field_fails() {
-        let temp_dir = std::env::temp_dir().join("testnet-fund-missing-ct");
-        let _ = std::fs::create_dir_all(&temp_dir);
-        let key_path = temp_dir.join("missing.json");
-        let bad = serde_json::json!({
-            "encrypted": {
-                "iv": "00",
-                "salt": "00",
-                "tag": "00"
-            }
-        });
-        std::fs::write(&key_path, bad.to_string()).unwrap();
-        let result = decrypt_proxy_key_file(&key_path, "pw");
-        assert!(result.is_err(), "missing ciphertext should fail");
-        let _ = std::fs::remove_file(&key_path);
-        let _ = std::fs::remove_dir(&temp_dir);
-    }
-
-    #[test]
-    fn test_decrypt_proxy_key_nonexistent_file_fails() {
-        let result = decrypt_proxy_key_file(Path::new("/nonexistent/proxy-test.json"), "pw");
-        assert!(result.is_err(), "non-existent file should fail");
-    }
-
-    #[test]
-    fn test_decrypt_proxy_key_corrupted_json_fails() {
-        let temp_dir = std::env::temp_dir().join("testnet-fund-corrupt");
-        let _ = std::fs::create_dir_all(&temp_dir);
-        let key_path = temp_dir.join("corrupt.json");
-        std::fs::write(&key_path, "not json at all {{{ broken").unwrap();
-        let result = decrypt_proxy_key_file(&key_path, "pw");
-        assert!(result.is_err(), "corrupted JSON should fail");
-        let _ = std::fs::remove_file(&key_path);
-        let _ = std::fs::remove_dir(&temp_dir);
-    }
-
-    #[test]
-    fn test_encrypt_decrypt_proxy_key_different_chain_ids_still_compatible() {
-        // Different chain_id in metadata should not affect encryption (scrypt+salt+iv is pw-derived)
-        let temp_dir = std::env::temp_dir().join("testnet-fund-chainid-compat");
-        let _ = std::fs::create_dir_all(&temp_dir);
-        let key_path = temp_dir.join("chainid.json");
-
-        let private_key = "9999999999999999999999999999999999999999999999999999999999999999";
-        let encrypted = encrypt_proxy_key(private_key, "test", 1).unwrap();
-        // Mutate chain_id and verify decrypt still works
-        let mut json: serde_json::Value = serde_json::from_str(&encrypted).unwrap();
-        json["chain_id"] = serde_json::json!(999);
-        std::fs::write(&key_path, json.to_string()).unwrap();
-
-        let decrypted = decrypt_proxy_key_file(&key_path, "test").unwrap();
-        assert_eq!(decrypted, private_key, "decrypt should ignore chain_id in metadata");
-        let _ = std::fs::remove_file(&key_path);
-        let _ = std::fs::remove_dir(&temp_dir);
-    }
-
-    #[test]
-    fn test_encrypt_proxy_key_salt_is_32_bytes_hex() {
-        let e = encrypt_proxy_key("aaa", "pw", 1).unwrap();
-        let j: serde_json::Value = serde_json::from_str(&e).unwrap();
-        let salt = j.get("encrypted").unwrap().get("salt").unwrap().as_str().unwrap();
-        assert_eq!(salt.len(), 64, "salt should be 32 bytes hex-encoded (64 chars)");
-    }
-
-    #[test]
-    fn test_encrypt_proxy_key_iv_is_12_bytes_hex() {
-        let e = encrypt_proxy_key("aaa", "pw", 1).unwrap();
-        let j: serde_json::Value = serde_json::from_str(&e).unwrap();
-        let iv = j.get("encrypted").unwrap().get("iv").unwrap().as_str().unwrap();
-        assert_eq!(iv.len(), 24, "iv should be 12 bytes hex-encoded (24 chars)");
-    }
-
-    #[test]
-    fn test_encrypt_proxy_key_tag_is_16_bytes_hex() {
-        let e = encrypt_proxy_key("aaa", "pw", 1).unwrap();
-        let j: serde_json::Value = serde_json::from_str(&e).unwrap();
-        let tag = j.get("encrypted").unwrap().get("tag").unwrap().as_str().unwrap();
-        assert_eq!(tag.len(), 32, "tag should be 16 bytes hex-encoded (32 chars)");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Recovery journal edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_recovery_journal_entry_unicode_addresses() {
-        // Address can be the result of {:?} formatting which uses lowercase hex
-        let entry = RecoveryJournalEntry {
-            hop_index: 0,
+    fn test_decrypt_flow_seed_wrong_password_fails() {
+        let mut seed = [0u8; 32];
+        seed[0] = 0xAA;
+        let (ct, iv, salt, tag) = encrypt_flow_seed(&seed, "correct").unwrap();
+        let entry = FlowEntry {
+            ciphertext: ct,
+            iv,
+            salt,
+            tag,
             hop_count: 3,
-            tx_hash: "0x0000000000000000000000000000000000000000000000000000000000000001".to_string(),
-            from_addr: "0x0000000000000000000000000000000000000001".to_string(),
-            to_addr: "0x0000000000000000000000000000000000000002".to_string(),
-            value_wei: "0".to_string(),
-            gas_price_wei: "0".to_string(),
-            nonce: 0,
             chain_id: 1,
-            recovery_address: "0x0000000000000000000000000000000000000099".to_string(),
-            timestamp: "2026-06-17T00:00:00.000Z".to_string(),
+            timestamp: String::new(),
         };
-        let json = serde_json::to_string(&entry).unwrap();
-        let parsed: RecoveryJournalEntry = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.from_addr, "0x0000000000000000000000000000000000000001");
+        let result = decrypt_flow_seed(&entry, "wrong");
+        assert!(result.is_err(), "wrong password should fail decryption");
     }
 
     #[test]
-    fn test_recovery_journal_entry_zero_values() {
-        let entry = RecoveryJournalEntry {
-            hop_index: 0,
+    fn test_encrypt_flow_seed_produces_32_byte_salt() {
+        let seed = [0u8; 32];
+        let (_, _, salt, _) = encrypt_flow_seed(&seed, "pw").unwrap();
+        let salt_bytes = hex::decode(&salt).unwrap();
+        assert_eq!(salt_bytes.len(), 32);
+    }
+
+    #[test]
+    fn test_encrypt_flow_seed_produces_12_byte_iv() {
+        let seed = [0u8; 32];
+        let (_, iv, _, _) = encrypt_flow_seed(&seed, "pw").unwrap();
+        let iv_bytes = hex::decode(&iv).unwrap();
+        assert_eq!(iv_bytes.len(), 12);
+    }
+
+    #[test]
+    fn test_encrypt_flow_seed_produces_16_byte_tag() {
+        let seed = [0u8; 32];
+        let (_, _, _, tag) = encrypt_flow_seed(&seed, "pw").unwrap();
+        let tag_bytes = hex::decode(&tag).unwrap();
+        assert_eq!(tag_bytes.len(), 16);
+    }
+
+    #[test]
+    fn test_encrypt_flow_seed_generates_unique_salt_per_call() {
+        let seed = [0u8; 32];
+        let (_, _, s1, _) = encrypt_flow_seed(&seed, "pw").unwrap();
+        let (_, _, s2, _) = encrypt_flow_seed(&seed, "pw").unwrap();
+        assert_ne!(s1, s2, "salt should be unique per call");
+    }
+
+    #[test]
+    fn test_encrypt_flow_seed_unicode_password() {
+        let seed = [0u8; 32];
+        let result = encrypt_flow_seed(&seed, "пароль密码🔐");
+        assert!(result.is_ok(), "unicode passwords should work");
+    }
+
+    #[test]
+    fn test_flow_entry_serialization_roundtrip() {
+        let entry = FlowEntry {
+            ciphertext: "abc123".to_string(),
+            iv: "def456".to_string(),
+            salt: "789abc".to_string(),
+            tag: "def789".to_string(),
+            hop_count: 7,
+            chain_id: 11155111,
+            timestamp: "2026-06-19T12:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        let parsed: FlowEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.ciphertext, "abc123");
+        assert_eq!(parsed.hop_count, 7);
+        assert_eq!(parsed.chain_id, 11155111);
+    }
+
+    #[test]
+    fn test_flow_entry_zero_values() {
+        let entry = FlowEntry {
+            ciphertext: String::new(),
+            iv: String::new(),
+            salt: String::new(),
+            tag: String::new(),
             hop_count: 0,
-            tx_hash: String::new(),
-            from_addr: String::new(),
-            to_addr: String::new(),
-            value_wei: "0".to_string(),
-            gas_price_wei: "0".to_string(),
-            nonce: 0,
             chain_id: 0,
-            recovery_address: String::new(),
             timestamp: String::new(),
         };
         let json = serde_json::to_string(&entry).unwrap();
-        let parsed: RecoveryJournalEntry = serde_json::from_str(&json).unwrap();
+        let parsed: FlowEntry = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.hop_count, 0);
-        assert_eq!(parsed.tx_hash, "");
     }
 
     #[test]
-    fn test_recovery_journal_entry_large_values() {
-        let entry = RecoveryJournalEntry {
-            hop_index: usize::MAX,
-            hop_count: usize::MAX,
-            tx_hash: "0x".to_string() + &"f".repeat(64),
-            from_addr: "0x".to_string() + &"f".repeat(40),
-            to_addr: "0x".to_string() + &"a".repeat(40),
-            value_wei: "999999999999999999999999999999999".to_string(),
-            gas_price_wei: "999999999999".to_string(),
-            nonce: u64::MAX,
-            chain_id: u64::MAX,
-            recovery_address: "0x".to_string() + &"1".repeat(40),
-            timestamp: "2099-12-31T23:59:59.999Z".to_string(),
-        };
-        let json = serde_json::to_string(&entry).unwrap();
-        let parsed: RecoveryJournalEntry = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.hop_index, usize::MAX);
-        assert_eq!(parsed.nonce, u64::MAX);
-        assert_eq!(parsed.chain_id, u64::MAX);
-    }
-
-    #[test]
-    fn test_persist_proxy_and_journal_appends_multiple_entries() {
-        let temp_dir = std::env::temp_dir().join("testnet-fund-multiple-entries");
+    fn test_write_flow_file_creates_file() {
+        let temp_dir = std::env::temp_dir().join("testnet-fund-flow-file");
         let _ = std::fs::create_dir_all(&temp_dir);
 
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let recovery = RecoveryContext {
-            dir: temp_dir.to_string_lossy().to_string(),
-            password: "pw".to_string(),
-            recovery_address: Address::from_low_u64_be(99),
+        let entry = FlowEntry {
+            ciphertext: "ct".to_string(),
+            iv: "iv".to_string(),
+            salt: "salt".to_string(),
+            tag: "tag".to_string(),
+            hop_count: 3,
             chain_id: 1,
-            shutdown_requested: shutdown,
+            timestamp: "now".to_string(),
         };
+        let fname = write_flow_file(&temp_dir.to_string_lossy(), &entry).unwrap();
+        assert!(fname.starts_with("flow_"), "filename should start with flow_");
+        assert!(fname.ends_with(".json"));
+
+        let file_path = temp_dir.join(&fname);
+        assert!(file_path.exists(), "flow file should exist");
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        let parsed: FlowEntry = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed.hop_count, 3);
+
+        let _ = std::fs::remove_file(&file_path);
+        let _ = std::fs::remove_dir(&temp_dir);
+    }
+
+    #[test]
+    fn test_remove_flow_file_removes_file() {
+        let temp_dir = std::env::temp_dir().join("testnet-fund-remove-flow");
+        let _ = std::fs::create_dir_all(&temp_dir);
+
+        let test_path = temp_dir.join("flow_test_remove.json");
+        std::fs::write(&test_path, "{}").unwrap();
+        assert!(test_path.exists());
+
+        remove_flow_file(&temp_dir.to_string_lossy(), "flow_test_remove.json");
+        assert!(!test_path.exists(), "file should be removed");
+
+        let _ = std::fs::remove_dir(&temp_dir);
+    }
+
+    #[test]
+    fn test_remove_flow_file_nonexistent_does_not_panic() {
+        let temp_dir = std::env::temp_dir().join("testnet-fund-remove-nonexistent");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        // Should not panic
+        remove_flow_file(&temp_dir.to_string_lossy(), "flow_nonexistent.json");
+        let _ = std::fs::remove_dir(&temp_dir);
+    }
+
+    #[test]
+    fn test_read_flow_files_empty_directory() {
+        let temp_dir = std::env::temp_dir().join("testnet-fund-read-empty");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let files = read_flow_files(&temp_dir.to_string_lossy()).unwrap();
+        assert!(files.is_empty(), "empty dir should return empty list");
+        let _ = std::fs::remove_dir(&temp_dir);
+    }
+
+    #[test]
+    fn test_read_flow_files_skips_non_flow_files() {
+        let temp_dir = std::env::temp_dir().join("testnet-fund-read-skips");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        std::fs::write(temp_dir.join("not_a_flow.txt"), "{}").unwrap();
+        std::fs::write(temp_dir.join("random.json"), "{}").unwrap();
+        std::fs::write(temp_dir.join("proxy-0-abc.json"), "{}").unwrap();
+        let files = read_flow_files(&temp_dir.to_string_lossy()).unwrap();
+        assert!(files.is_empty(), "non-flow files should be skipped");
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_read_flow_files_parses_valid_entries() {
+        let temp_dir = std::env::temp_dir().join("testnet-fund-read-valid");
+        let _ = std::fs::create_dir_all(&temp_dir);
+
+        let entry = FlowEntry {
+            ciphertext: "ct".to_string(),
+            iv: "iv".to_string(),
+            salt: "salt".to_string(),
+            tag: "tag".to_string(),
+            hop_count: 5,
+            chain_id: 1,
+            timestamp: "ts1".to_string(),
+        };
+        let _ = write_flow_file(&temp_dir.to_string_lossy(), &entry);
+
+        let files = read_flow_files(&temp_dir.to_string_lossy()).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].1.hop_count, 5);
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_read_flow_files_multiple_entries() {
+        let temp_dir = std::env::temp_dir().join("testnet-fund-read-multi");
+        let _ = std::fs::create_dir_all(&temp_dir);
 
         for i in 0..5 {
-            let _ = persist_proxy_and_journal(
-                &recovery,
-                i,
-                5,
-                &format!("key_{i}"),
-                Address::from_low_u64_be(i as u64),
-                Address::from_low_u64_be((i + 1) as u64),
-                U256::from(1_000_000_000_000_000_000u64),
-                U256::from(1_500_000_000u64),
-                i as u64,
-            )
-            .unwrap();
-        }
-
-        let journal_path = temp_dir.join("journal.jsonl");
-        let content = std::fs::read_to_string(&journal_path).unwrap();
-        let line_count = content.lines().filter(|l| !l.trim().is_empty()).count();
-        assert_eq!(line_count, 5, "journal should have 5 entries");
-
-        // Verify each line is valid JSON
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if !trimmed.is_empty() {
-                let _: RecoveryJournalEntry = serde_json::from_str(trimmed).unwrap();
-            }
-        }
-
-        let _ = std::fs::remove_dir_all(&temp_dir);
-    }
-
-    #[test]
-    fn test_persist_proxy_and_journal_creates_directory() {
-        // The caller is expected to create the dir; we test that the function
-        // works when the dir already exists
-        let temp_base = std::env::temp_dir().join("testnet-fund-nested-dirs");
-        let nested = temp_base.join("a").join("b").join("c");
-        let _ = std::fs::remove_dir_all(&temp_base);
-        let _ = std::fs::create_dir_all(&nested);
-
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let recovery = RecoveryContext {
-            dir: nested.to_string_lossy().to_string(),
-            password: "pw".to_string(),
-            recovery_address: Address::zero(),
-            chain_id: 1,
-            shutdown_requested: shutdown,
-        };
-
-        let result = persist_proxy_and_journal(
-            &recovery,
-            0,
-            1,
-            "key",
-            Address::from_low_u64_be(1),
-            Address::from_low_u64_be(2),
-            U256::from(1000u64),
-            U256::from(1u64),
-            0,
-        );
-        assert!(result.is_ok());
-        assert!(nested.join("journal.jsonl").exists(), "journal should be created");
-        let _ = std::fs::remove_dir_all(&temp_base);
-    }
-
-    #[test]
-    fn test_persist_proxy_and_journal_key_filename_format() {
-        let temp_dir = std::env::temp_dir().join("testnet-fund-filename-format");
-        let _ = std::fs::create_dir_all(&temp_dir);
-
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let recovery = RecoveryContext {
-            dir: temp_dir.to_string_lossy().to_string(),
-            password: "pw".to_string(),
-            recovery_address: Address::zero(),
-            chain_id: 1,
-            shutdown_requested: shutdown,
-        };
-
-        let key_filename = persist_proxy_and_journal(
-            &recovery,
-            3,
-            5,
-            "k",
-            Address::from_low_u64_be(1),
-            Address::from_low_u64_be(2),
-            U256::from(100u64),
-            U256::from(1u64),
-            0,
-        )
-        .unwrap();
-        assert!(key_filename.starts_with("proxy-3-"), "filename should start with proxy-<hop_index>-");
-        assert!(key_filename.ends_with(".json"), "filename should end with .json");
-        let _ = std::fs::remove_dir_all(&temp_dir);
-    }
-
-    #[test]
-    fn test_cleanup_proxy_and_journal_removes_file() {
-        let temp_dir = std::env::temp_dir().join("testnet-fund-cleanup");
-        let _ = std::fs::create_dir_all(&temp_dir);
-        let key_path = temp_dir.join("proxy-test.json");
-        std::fs::write(&key_path, "{}").unwrap();
-        assert!(key_path.exists());
-
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let recovery = RecoveryContext {
-            dir: temp_dir.to_string_lossy().to_string(),
-            password: "pw".to_string(),
-            recovery_address: Address::zero(),
-            chain_id: 1,
-            shutdown_requested: shutdown,
-        };
-
-        cleanup_proxy_and_journal(&recovery, "proxy-test.json", 0);
-        assert!(!key_path.exists(), "key file should be removed after cleanup");
-        let _ = std::fs::remove_dir_all(&temp_dir);
-    }
-
-    #[test]
-    fn test_cleanup_proxy_and_journal_nonexistent_file_does_not_panic() {
-        let temp_dir = std::env::temp_dir().join("testnet-fund-cleanup-noop");
-        let _ = std::fs::create_dir_all(&temp_dir);
-
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let recovery = RecoveryContext {
-            dir: temp_dir.to_string_lossy().to_string(),
-            password: "pw".to_string(),
-            recovery_address: Address::zero(),
-            chain_id: 1,
-            shutdown_requested: shutdown,
-        };
-
-        // Should not panic when file doesn't exist
-        cleanup_proxy_and_journal(&recovery, "proxy-nonexistent.json", 0);
-        let _ = std::fs::remove_dir_all(&temp_dir);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Gas bump math edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn gas_bump_with_max_u256_does_not_overflow_with_saturating() {
-        // 12% bump on near-max U256 using saturating arithmetic
-        let gas = U256::MAX - U256::from(1000u64);
-        let bump_amount = gas / U256::from(100) * U256::from(12);
-        let bumped = gas.saturating_add(bump_amount);
-        // saturating_add caps at U256::MAX
-        assert!(bumped >= gas);
-        assert!(bumped <= U256::MAX);
-    }
-
-    #[test]
-    fn gas_bump_percentage_is_exactly_12() {
-        let gas = U256::from(1_000_000u64);
-        let bumped = gas + gas / U256::from(100) * U256::from(12);
-        // 1_000_000 * 1.12 = 1_120_000
-        assert_eq!(bumped, U256::from(1_120_000u64));
-    }
-
-    #[test]
-    fn gas_bump_doubles_roughly() {
-        // 2x of base = 100% bump. 12% bump gives 1.12x.
-        let gas = U256::from(1_000_000_000u64);
-        let bumped = gas + gas / U256::from(100) * U256::from(12);
-        // Bump is +12% of original = 120_000_000
-        let increase = bumped - gas;
-        assert_eq!(increase, U256::from(120_000_000u64));
-    }
-
-    #[test]
-    fn last_ditch_gas_is_exactly_2x() {
-        let gas = U256::from(3_000_000_000u64);
-        let last_ditch = gas + gas;
-        assert_eq!(last_ditch, U256::from(6_000_000_000u64));
-    }
-
-    #[test]
-    fn timeout_constants_match_spec() {
-        // 60s timeout, 10s heartbeat per the reliability spec
-        assert_eq!(CONFIRMATION_TIMEOUT_SECS, 60);
-        assert_eq!(CONFIRMATION_HEARTBEAT_SECS, 10);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Seed and forward amount math
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_calculate_seed_amount_one_hop() {
-        let target = parse_units(1u64, "ether").unwrap().into();
-        let gas = U256::from(20_000_000_000u64); // 20 gwei
-        // 1 hop: gas_21k = 21_000 * 20_000_000_000 = 4.2e14
-        // new formula: seed = target + gas_21k * (1+2) + gas_21k = 1.0 + 0.00168
-        let seed = calculate_seed_amount(target, gas, 1);
-        let seed_eth = seed.as_u128() as f64 / 1e18;
-        // gas_21k = 4.2e14 wei = 0.00042 ETH
-        // seed = 1.0 + 0.00042 * 4 = 1.0 + 0.00168 = 1.00168
-        assert!((seed_eth - 1.00168).abs() < 1e-4, "expected ~1.00168 ETH, got {seed_eth}");
-    }
-
-    #[test]
-    fn test_calculate_seed_amount_ten_hops() {
-        let target = parse_units(1u64, "ether").unwrap().into();
-        let gas = U256::from(1_000_000_000u64); // 1 gwei
-        let seed_3 = calculate_seed_amount(target, gas, 3);
-        let seed_10 = calculate_seed_amount(target, gas, 10);
-        // More hops = more gas overhead
-        assert!(seed_10 > seed_3, "10 hops should need more seed than 3 hops");
-    }
-
-    #[test]
-    fn test_calculate_seed_amount_gas_22_gwei() {
-        let target = U256::from(1_000_000_000_000_000_000u64); // 1 ETH
-        let gas = U256::from(22_000_000_000u64); // 22 gwei
-        let seed = calculate_seed_amount(target, gas, 5);
-        // 5 hops: gas_21k = 21_000 * 22e9 = 4.62e14 wei = 0.000462 ETH
-        // new formula: target + gas_21k * (5+2) + gas_21k = 1 + 0.000462*8 = 1.003696
-        let expected = 1.0 + (21_000.0 * 22.0 * 1e9 * 8.0) / 1e18;
-        let actual = seed.as_u128() as f64 / 1e18;
-        assert!((actual - expected).abs() < 1e-6, "expected {expected}, got {actual}");
-    }
-
-    #[test]
-    fn test_calculate_forward_amount_normal_case() {
-        let remaining = parse_units(1u64, "ether").unwrap().into();
-        let gas = U256::from(20_000_000_000u64);
-        let hop_cost = U256::from(21_000u64) * gas;
-        let forward = calculate_forward_amount(remaining, gas);
-        assert_eq!(forward, remaining - hop_cost);
-    }
-
-    #[test]
-    fn test_calculate_forward_amount_zero_remaining() {
-        let forward = calculate_forward_amount(U256::zero(), U256::from(1_000_000_000u64));
-        assert_eq!(forward, U256::zero());
-    }
-
-    #[test]
-    fn test_calculate_forward_amount_barely_enough() {
-        // remaining = 21_000 * gas, forward should be 0
-        let gas = U256::from(1_000_000_000u64);
-        let remaining = U256::from(21_000u64) * gas;
-        let forward = calculate_forward_amount(remaining, gas);
-        assert_eq!(forward, U256::zero());
-    }
-
-    #[test]
-    fn test_calculate_forward_amount_one_wei_remaining() {
-        let gas = U256::from(1_000_000_000u64);
-        let remaining = U256::from(21_000u64) * gas + U256::from(1u64);
-        let forward = calculate_forward_amount(remaining, gas);
-        assert_eq!(forward, U256::from(1u64));
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Hop address resolution
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_get_next_hop_address_single_hop() {
-        let target: Address = Address::from_low_u64_be(99);
-        let proxies = vec![Address::from_low_u64_be(1)];
-        // 1 hop: i=0 -> target
-        assert_eq!(get_next_hop_address(0, 1, target, &proxies), target);
-    }
-
-    #[test]
-    fn test_get_next_hop_address_two_hops() {
-        let target: Address = Address::from_low_u64_be(99);
-        let proxies = vec![Address::from_low_u64_be(1), Address::from_low_u64_be(2)];
-        // 2 hops: i=0 -> proxies[1] = 2, i=1 -> target
-        assert_eq!(get_next_hop_address(0, 2, target, &proxies), Address::from_low_u64_be(2));
-        assert_eq!(get_next_hop_address(1, 2, target, &proxies), target);
-    }
-
-    #[test]
-    fn test_get_next_hop_address_middle_hop() {
-        let target: Address = Address::from_low_u64_be(99);
-        let proxies = vec![
-            Address::from_low_u64_be(1),
-            Address::from_low_u64_be(2),
-            Address::from_low_u64_be(3),
-            Address::from_low_u64_be(4),
-            Address::from_low_u64_be(5),
-        ];
-        // 5 hops: i=0 -> proxies[1]=2, i=1 -> proxies[2]=3, i=2 -> proxies[3]=4, i=3 -> proxies[4]=5, i=4 -> target
-        assert_eq!(get_next_hop_address(0, 5, target, &proxies), Address::from_low_u64_be(2));
-        assert_eq!(get_next_hop_address(1, 5, target, &proxies), Address::from_low_u64_be(3));
-        assert_eq!(get_next_hop_address(2, 5, target, &proxies), Address::from_low_u64_be(4));
-        assert_eq!(get_next_hop_address(3, 5, target, &proxies), Address::from_low_u64_be(5));
-        assert_eq!(get_next_hop_address(4, 5, target, &proxies), target);
-    }
-
-    #[test]
-    fn test_format_hop_label_two_hops() {
-        assert_eq!(format_hop_label(0, 2), "P2");
-        assert_eq!(format_hop_label(1, 2), "target");
-    }
-
-    #[test]
-    fn test_format_hop_label_three_hops() {
-        assert_eq!(format_hop_label(0, 3), "P2");
-        assert_eq!(format_hop_label(1, 3), "P3");
-        assert_eq!(format_hop_label(2, 3), "target");
-    }
-
-    #[test]
-    fn test_format_hop_label_seven_hops() {
-        for i in 0..6 {
-            assert_eq!(format_hop_label(i, 7), format!("P{}", i + 2));
-        }
-        assert_eq!(format_hop_label(6, 7), "target");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Gas price selector edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_choose_gas_price_mgwei_min_equals_max() {
-        let mut rng = StdRng::seed_from_u64(42);
-        // When network=0 and min==max, the result should be that value
-        // (no 90% network floor interference)
-        for _ in 0..20 {
-            let chosen = choose_gas_price_mgwei(0, 3_000, 3_000, &mut rng);
-            assert_eq!(chosen, 3_000, "min==max with network=0 should always return that value");
-        }
-    }
-
-    #[test]
-    fn test_choose_gas_price_mgwei_network_zero_uses_min() {
-        let mut rng = StdRng::seed_from_u64(42);
-        // network=0 -> 90% floor = 0, ceiling = max_gwei
-        let chosen = choose_gas_price_mgwei(0, 1_000, 5_000, &mut rng);
-        assert!((1_000..=5_000).contains(&chosen), "should be in [min, max]={}", chosen);
-    }
-
-    #[test]
-    fn test_choose_gas_price_mgwei_network_one_uses_min() {
-        let mut rng = StdRng::seed_from_u64(42);
-        // network=1 -> 90% = 0, ceiling = 11
-        let chosen = choose_gas_price_mgwei(1, 1_000, 5_000, &mut rng);
-        assert!((1_000..=5_000).contains(&chosen));
-    }
-
-    #[test]
-    fn test_choose_gas_price_mgwei_never_exceeds_100_000() {
-        let mut rng = StdRng::seed_from_u64(42);
-        for network in [10_000u64, 50_000, 100_000, 500_000, 1_000_000, 10_000_000] {
-            for _ in 0..10 {
-                let chosen = choose_gas_price_mgwei(network, 1, 200_000, &mut rng);
-                assert!(chosen <= 100_000, "chosen={} for network={}", chosen, network);
-            }
-        }
-    }
-
-    #[test]
-    fn test_choose_gas_price_mgwei_floor_floor_clamps_to_min() {
-        let mut rng = StdRng::seed_from_u64(42);
-        // network=100 -> 90%=90, min=1000, so floor=1000
-        let chosen = choose_gas_price_mgwei(100, 1_000, 5_000, &mut rng);
-        assert!(chosen >= 1_000);
-    }
-
-    #[test]
-    fn test_choose_gas_price_mgwei_returns_values_in_range() {
-        let mut rng = StdRng::seed_from_u64(42);
-        let mut results = std::collections::HashSet::new();
-        for _ in 0..100 {
-            let chosen = choose_gas_price_mgwei(2_000, 1_000, 10_000, &mut rng);
-            assert!((1_000..=10_000).contains(&chosen));
-            results.insert(chosen);
-        }
-        // Should generate some variety
-        assert!(results.len() > 10, "should generate varied results, got {}", results.len());
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // SenderState stress / concurrent logic
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_sender_state_sequential_locks_and_unlocks() {
-        let senders = vec![dummy_wallet(0, 1.0), dummy_wallet(1, 1.0), dummy_wallet(2, 1.0)];
-        let mut state = SenderState {
-            use_counts: vec![0; 3],
-            locked_senders: HashSet::new(),
-            funded: 0,
-            failed: 0,
-            durations: vec![],
-        };
-        let mut rng = StdRng::seed_from_u64(42);
-
-        // Lock 1, 2, 3 in sequence
-        let p1 = state.try_pick_and_lock(&senders, 1, &mut rng).unwrap();
-        let p2 = state.try_pick_and_lock(&senders, 1, &mut rng).unwrap();
-        let p3 = state.try_pick_and_lock(&senders, 1, &mut rng).unwrap();
-        assert_eq!(state.use_counts.iter().sum::<usize>(), 3);
-        assert!(state.locked_senders.contains(&p1));
-        assert!(state.locked_senders.contains(&p2));
-        assert!(state.locked_senders.contains(&p3));
-
-        // All at limit and locked
-        assert!(state.try_pick_and_lock(&senders, 1, &mut rng).is_none());
-
-        // Unlock 1
-        state.unlock(p1);
-        assert!(!state.locked_senders.contains(&p1));
-
-        // But p1 is still at use_count=1 == limit, so still cannot pick
-        assert!(state.try_pick_and_lock(&senders, 1, &mut rng).is_none());
-    }
-
-    #[test]
-    fn test_sender_state_use_count_remains_after_unlock() {
-        let senders = vec![dummy_wallet(0, 1.0)];
-        let mut state = SenderState {
-            use_counts: vec![0],
-            locked_senders: HashSet::new(),
-            funded: 0,
-            failed: 0,
-            durations: vec![],
-        };
-        let mut rng = StdRng::seed_from_u64(42);
-
-        let p = state.try_pick_and_lock(&senders, 5, &mut rng).unwrap();
-        assert_eq!(state.use_counts[0], 1);
-        state.unlock(p);
-        // After unlock, use_count is still 1
-        assert_eq!(state.use_counts[0], 1);
-        // Can pick again because limit is 5
-        let p2 = state.try_pick_and_lock(&senders, 5, &mut rng).unwrap();
-        assert_eq!(state.use_counts[0], 2);
-        assert_eq!(p, p2, "same sender should be picked when only one available");
-    }
-
-    #[test]
-    fn test_sender_state_stress_many_iterations() {
-        let senders: Vec<WalletInfo> = (0..10)
-            .map(|i| dummy_wallet(i, 1.0))
-            .collect();
-        let mut state = SenderState {
-            use_counts: vec![0; 10],
-            locked_senders: HashSet::new(),
-            funded: 0,
-            failed: 0,
-            durations: vec![],
-        };
-        let mut rng = StdRng::seed_from_u64(42);
-
-        // 50 iterations: pick, use, unlock
-        for _ in 0..50 {
-            let p = state.try_pick_and_lock(&senders, 100, &mut rng);
-            if let Some(idx) = p {
-                state.unlock(idx);
-            }
-        }
-        let total_uses: usize = state.use_counts.iter().sum();
-        assert_eq!(total_uses, 50);
-    }
-
-    #[test]
-    fn test_sender_state_distribution_fair_within_limit() {
-        // 5 targets, 2 senders -> ceil(5/2) = 3 per sender
-        let senders = vec![dummy_wallet(0, 1.0), dummy_wallet(1, 1.0)];
-        let max_per = compute_max_per_sender(5, 2);
-        assert_eq!(max_per, 3);
-
-        // Run multiple trials to handle randomness
-        let mut diffs_below_2 = 0;
-        for trial in 0..50 {
-            let mut state = SenderState {
-                use_counts: vec![0; 2],
-                locked_senders: HashSet::new(),
-                funded: 0,
-                failed: 0,
-                durations: vec![],
+            let entry = FlowEntry {
+                ciphertext: format!("ct{i}"),
+                iv: format!("iv{i}"),
+                salt: format!("salt{i}"),
+                tag: format!("tag{i}"),
+                hop_count: i,
+                chain_id: 1,
+                timestamp: format!("ts{i}"),
             };
-            let mut rng = StdRng::seed_from_u64(trial);
-
-            for _ in 0..5 {
-                let p = state.try_pick_and_lock(&senders, max_per, &mut rng);
-                assert!(p.is_some(), "trial {trial} should always have an available sender");
-                state.unlock(p.unwrap());
-            }
-            // Total should always be 5
-            let total: usize = state.use_counts.iter().sum();
-            assert_eq!(total, 5, "trial {trial} should have 5 total uses");
-            // Difference between senders should be at most 1 (fair distribution)
-            let diff = (state.use_counts[0] as i64 - state.use_counts[1] as i64).abs();
-            assert!(diff <= 1, "trial {trial} diff should be <= 1, got {diff}");
-            if diff < 2 {
-                diffs_below_2 += 1;
-            }
+            let _ = write_flow_file(&temp_dir.to_string_lossy(), &entry);
         }
-        // Most trials should have fair distribution
-        assert!(diffs_below_2 > 40, "expected most trials to be fair, got {diffs_below_2}/50");
-    }
 
-    #[test]
-    fn test_sender_state_failed_target_doesnt_increment_funded() {
-        let mut state = SenderState {
-            use_counts: vec![0],
-            locked_senders: HashSet::new(),
-            funded: 0,
-            failed: 1,
-            durations: vec![],
-        };
-        // Failed is tracked separately from funded
-        assert_eq!(state.failed, 1);
-        assert_eq!(state.funded, 0);
-        state.funded += 1;
-        assert_eq!(state.funded, 1);
-        assert_eq!(state.failed, 1);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // distribute_round_robin edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_distribute_round_robin_zero_items() {
-        let queues = distribute_round_robin::<i32>(vec![], 5);
-        for queue in &queues {
-            assert!(queue.is_empty());
-        }
-        assert_eq!(queues.len(), 5);
-    }
-
-    #[test]
-    fn test_distribute_round_robin_single_worker() {
-        let queues = distribute_round_robin((0..10).collect::<Vec<_>>(), 1);
-        assert_eq!(queues.len(), 1);
-        let flattened: Vec<usize> = queues[0].iter().cloned().collect();
-        assert_eq!(flattened, (0..10).collect::<Vec<_>>());
-    }
-
-    #[test]
-    fn test_distribute_round_robin_even_split() {
-        let queues = distribute_round_robin((0..100).collect::<Vec<_>>(), 4);
-        let total: usize = queues.iter().map(|q| q.len()).sum();
-        assert_eq!(total, 100);
-        // Should be 25 each
-        for q in &queues {
-            assert_eq!(q.len(), 25);
-        }
-    }
-
-    #[test]
-    fn test_distribute_round_robin_uneven_split() {
-        // 10 items / 3 workers = 3, 3, 4 (or similar)
-        let queues = distribute_round_robin((0..10).collect::<Vec<_>>(), 3);
-        let total: usize = queues.iter().map(|q| q.len()).sum();
-        assert_eq!(total, 10);
-    }
-
-    #[test]
-    fn test_distribute_round_robin_more_workers_than_items() {
-        let queues = distribute_round_robin(vec![1, 2, 3], 10);
-        let total: usize = queues.iter().map(|q| q.len()).sum();
-        assert_eq!(total, 3);
-    }
-
-    #[test]
-    fn test_distribute_round_robin_preserves_order() {
-        let queues = distribute_round_robin((0..9).collect::<Vec<_>>(), 3);
-        // Round-robin: item i goes to worker i % 3
-        // Worker 0: indices 0, 3, 6
-        // Worker 1: indices 1, 4, 7
-        // Worker 2: indices 2, 5, 8
-        assert_eq!(queues[0].iter().cloned().collect::<Vec<_>>(), vec![0, 3, 6]);
-        assert_eq!(queues[1].iter().cloned().collect::<Vec<_>>(), vec![1, 4, 7]);
-        assert_eq!(queues[2].iter().cloned().collect::<Vec<_>>(), vec![2, 5, 8]);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // should_retry_proxy_send_error more patterns
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn retry_filter_connection_refused() {
-        let err = anyhow::anyhow!("connection refused");
-        assert!(should_retry_proxy_send_error(&err));
-    }
-
-    #[test]
-    fn retry_filter_network_error() {
-        let err = anyhow::anyhow!("network error: timeout");
-        assert!(should_retry_proxy_send_error(&err));
-    }
-
-    #[test]
-    fn retry_filter_service_unavailable() {
-        let err = anyhow::anyhow!("503 Service Unavailable");
-        assert!(should_retry_proxy_send_error(&err));
-    }
-
-    #[test]
-    fn retry_filter_rate_limited_message() {
-        let err = anyhow::anyhow!("rate limited, try again later");
-        assert!(should_retry_proxy_send_error(&err));
-    }
-
-    #[test]
-    fn retry_filter_temporary_failure() {
-        let err = anyhow::anyhow!("temporary failure in name resolution");
-        assert!(should_retry_proxy_send_error(&err));
-    }
-
-    #[test]
-    fn retry_filter_revert_is_not_retryable() {
-        let err = anyhow::anyhow!("execution reverted: insufficient balance");
-        assert!(!should_retry_proxy_send_error(&err));
-    }
-
-    #[test]
-    fn retry_filter_gas_estimate_failed_is_not_retryable() {
-        let err = anyhow::anyhow!("gas required exceeds allowance");
-        assert!(!should_retry_proxy_send_error(&err));
-    }
-
-    #[test]
-    fn retry_filter_replacement_underpriced_is_not_retryable() {
-        let err = anyhow::anyhow!("replacement transaction underpriced");
-        assert!(!should_retry_proxy_send_error(&err));
-    }
-
-    #[test]
-    fn retry_filter_lowercase_pattern_matching() {
-        // Patterns should be case-insensitive (lowercased internally)
-        let err = anyhow::anyhow!("TIMEOUT while sending tx");
-        assert!(should_retry_proxy_send_error(&err));
-    }
-
-    #[test]
-    fn retry_filter_mixed_case_pattern_matching() {
-        let err = anyhow::anyhow!("Service UNAVAILABLE");
-        assert!(should_retry_proxy_send_error(&err));
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // should_skip_confirmation edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_should_skip_confirmation_yes_and_dry_run() {
-        assert!(should_skip_confirmation(true, true));
-    }
-
-    #[test]
-    fn test_should_skip_confirmation_false_yes() {
-        assert!(!should_skip_confirmation(false, false));
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // confirm_funding edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_confirm_funding_with_whitespace() {
-        let input = b"  y  \n";
-        let result = confirm_funding(3, 1, &input[..]).unwrap();
-        assert!(result, "trim should handle surrounding whitespace");
-    }
-
-    #[test]
-    fn test_confirm_funding_uppercase_y() {
-        let input = b"Y\n";
-        let result = confirm_funding(3, 1, &input[..]).unwrap();
-        assert!(result);
-    }
-
-    #[test]
-    fn test_confirm_funding_word_yes() {
-        // Only "y" should be accepted, not "yes"
-        let input = b"yes\n";
-        let result = confirm_funding(3, 1, &input[..]).unwrap();
-        assert!(!result, "should require exact 'y', not 'yes'");
-    }
-
-    #[test]
-    fn test_confirm_funding_zero_targets() {
-        let input = b"n\n";
-        let result = confirm_funding(0, 1, &input[..]).unwrap();
-        assert!(!result);
-    }
-
-    #[test]
-    fn test_confirm_funding_carriage_return() {
-        let input = b"y\r\n";
-        let result = confirm_funding(3, 1, &input[..]).unwrap();
-        assert!(result);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // format_funding_prompt
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_format_funding_prompt_contains_counts() {
-        let prompt = format_funding_prompt(10, 3);
-        assert!(prompt.contains("10"));
-        assert!(prompt.contains("3"));
-        assert!(prompt.contains("y/N"));
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // format_eth_amount edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_format_eth_amount_very_small() {
-        let formatted = format_eth_amount(0.000001);
-        assert!(formatted.starts_with("0."));
-    }
-
-    #[test]
-    fn test_format_eth_amount_zero() {
-        let formatted = format_eth_amount(0.0);
-        assert_eq!(formatted, "0");
-    }
-
-    #[test]
-    fn test_format_eth_amount_decimal_only() {
-        let formatted = format_eth_amount(0.5);
-        assert_eq!(formatted, "0.5");
-    }
-
-    #[test]
-    fn test_format_eth_amount_large() {
-        let formatted = format_eth_amount(1000.5);
-        // Should keep meaningful digits
-        assert!(formatted.contains("1000"));
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // format_compact_duration
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_format_compact_duration_zero() {
-        assert_eq!(format_compact_duration(Duration::from_secs(0)), "0s");
-    }
-
-    #[test]
-    fn test_format_compact_duration_seconds() {
-        assert_eq!(format_compact_duration(Duration::from_secs(30)), "30s");
-    }
-
-    #[test]
-    fn test_format_compact_duration_minutes() {
-        assert_eq!(format_compact_duration(Duration::from_secs(60)), "1m 0s");
-        assert_eq!(format_compact_duration(Duration::from_secs(90)), "1m 30s");
-    }
-
-    #[test]
-    fn test_format_compact_duration_hours() {
-        assert_eq!(format_compact_duration(Duration::from_secs(3600)), "1h 0m 0s");
-        assert_eq!(format_compact_duration(Duration::from_secs(3660)), "1h 1m 0s");
-    }
-
-    #[test]
-    fn test_format_compact_duration_complex() {
-        let d = format_compact_duration(Duration::from_secs(7325)); // 2h 2m 5s
-        assert_eq!(d, "2h 2m 5s");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // format_worker_rest
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_format_worker_rest_zero_zero() {
-        assert_eq!(format_worker_rest(0, 0), "none");
-    }
-
-    #[test]
-    fn test_format_worker_rest_min_equals_max() {
-        assert_eq!(format_worker_rest(30, 30), "30s");
-    }
-
-    #[test]
-    fn test_format_worker_rest_range() {
-        assert_eq!(format_worker_rest(15, 30), "15-30s");
-    }
-
-    #[test]
-    fn test_format_worker_rest_min_larger() {
-        // Edge case: min > max shouldn't happen due to ensure! in orchestrate
-        // but we test the format
-        assert_eq!(format_worker_rest(60, 30), "60-30s");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // choose_worker_rest_secs
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_choose_worker_rest_secs_zero_max() {
-        let mut rng = StdRng::seed_from_u64(42);
-        for _ in 0..20 {
-            let secs = choose_worker_rest_secs(10, 0, &mut rng);
-            assert_eq!(secs, 0, "max=0 should always return 0");
-        }
-    }
-
-    #[test]
-    fn test_choose_worker_rest_secs_in_range() {
-        let mut rng = StdRng::seed_from_u64(42);
-        for _ in 0..100 {
-            let secs = choose_worker_rest_secs(5, 10, &mut rng);
-            assert!((5..=10).contains(&secs), "secs={secs} out of [5, 10]");
-        }
-    }
-
-    #[test]
-    fn test_choose_worker_rest_secs_single_value() {
-        let mut rng = StdRng::seed_from_u64(42);
-        for _ in 0..20 {
-            let secs = choose_worker_rest_secs(7, 7, &mut rng);
-            assert_eq!(secs, 7);
-        }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // worker_tag
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_worker_tag_format() {
-        assert_eq!(worker_tag(1), "WK001");
-        assert_eq!(worker_tag(99), "WK099");
-        assert_eq!(worker_tag(100), "WK100");
-    }
-
-    #[test]
-    fn test_worker_tag_padding() {
-        assert_eq!(worker_tag(5), "WK005");
-        assert_eq!(worker_tag(10), "WK010");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // prepare_funding_sets edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_prepare_funding_sets_empty_wallets() {
-        let funder = Funder::new(
-            Arc::new(core_logic::WalletManager::new().unwrap()),
-            Provider::new(Http::new(reqwest::Url::parse("http://localhost").unwrap())),
-            dummy_rpc_manager(&["http://localhost"]),
-            reqwest::Client::new(),
-            "pw".into(),
-            1,
-            None,
-            None,
-        );
-        let (senders, targets, available, max_per) = funder.prepare_funding_sets(&[], 0.5, 0.01);
-        assert_eq!(senders.len(), 0);
-        assert_eq!(targets.len(), 0);
-        assert_eq!(available, 0);
-        assert_eq!(max_per, 0);
-    }
-
-    #[test]
-    fn test_prepare_funding_sets_all_targets_no_senders() {
-        let funder = Funder::new(
-            Arc::new(core_logic::WalletManager::new().unwrap()),
-            Provider::new(Http::new(reqwest::Url::parse("http://localhost").unwrap())),
-            dummy_rpc_manager(&["http://localhost"]),
-            reqwest::Client::new(),
-            "pw".into(),
-            1,
-            Some(5),
-            None,
-        );
-        let wallets = vec![dummy_wallet(0, 0.001), dummy_wallet(1, 0.005)];
-        let (senders, targets, available, max_per) = funder.prepare_funding_sets(&wallets, 0.5, 0.01);
-        assert_eq!(senders.len(), 0);
-        assert_eq!(targets.len(), 2);
-        assert_eq!(available, 2);
-        assert_eq!(max_per, 0, "max_per should be 0 when no senders");
-    }
-
-    #[test]
-    fn test_prepare_funding_sets_max_targets_caps() {
-        let funder = Funder::new(
-            Arc::new(core_logic::WalletManager::new().unwrap()),
-            Provider::new(Http::new(reqwest::Url::parse("http://localhost").unwrap())),
-            dummy_rpc_manager(&["http://localhost"]),
-            reqwest::Client::new(),
-            "pw".into(),
-            1,
-            Some(2), // cap at 2
-            None,
-        );
-        let wallets = vec![
-            dummy_wallet(0, 0.005),
-            dummy_wallet(1, 0.008),
-            dummy_wallet(2, 0.003),
-            dummy_wallet(3, 0.001),
-            dummy_wallet(4, 1.0), // sender
-        ];
-        let (_senders, targets, available, _max_per) = funder.prepare_funding_sets(&wallets, 0.5, 0.01);
-        assert_eq!(targets.len(), 4);
-        assert_eq!(available, 2, "max_targets should cap available to 2");
-    }
-
-    #[test]
-    fn test_prepare_funding_sets_max_targets_none() {
-        let funder = Funder::new(
-            Arc::new(core_logic::WalletManager::new().unwrap()),
-            Provider::new(Http::new(reqwest::Url::parse("http://localhost").unwrap())),
-            dummy_rpc_manager(&["http://localhost"]),
-            reqwest::Client::new(),
-            "pw".into(),
-            1,
-            None, // no cap
-            None,
-        );
-        let wallets = vec![dummy_wallet(0, 0.001), dummy_wallet(1, 0.002)];
-        let (_senders, _targets, available, _max_per) = funder.prepare_funding_sets(&wallets, 0.5, 0.01);
-        assert_eq!(available, 2);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // filter_senders / filter_targets edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_filter_senders_exact_match() {
-        let wallets = vec![dummy_wallet(0, 1.0), dummy_wallet(1, 1.5)];
-        // min_balance = 1.0 -> wallet 0 has exactly 1.0
-        let senders = filter_senders(&wallets, 1.0);
-        assert_eq!(senders.len(), 2);
-    }
-
-    #[test]
-    fn test_filter_senders_boundary() {
-        let wallets = vec![dummy_wallet(0, 0.99999), dummy_wallet(1, 1.0)];
-        let senders = filter_senders(&wallets, 1.0);
-        assert_eq!(senders.len(), 1);
-        assert_eq!(senders[0].idx, 1);
-    }
-
-    #[test]
-    fn test_filter_targets_zero_max() {
-        let wallets = vec![dummy_wallet(0, 0.0), dummy_wallet(1, 0.0001)];
-        let targets = filter_targets(&wallets, 0.0);
-        assert_eq!(targets.len(), 1, "only wallet with exactly 0.0 matches max=0.0");
-    }
-
-    #[test]
-    fn test_filter_targets_exact_match() {
-        let wallets = vec![dummy_wallet(0, 0.01), dummy_wallet(1, 0.02)];
-        // max_balance = 0.01 -> wallet 0 has exactly 0.01
-        let targets = filter_targets(&wallets, 0.01);
-        assert_eq!(targets.len(), 1);
-        assert_eq!(targets[0].idx, 0);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // compute_max_per_sender edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_compute_max_per_sender_zero_available() {
-        assert_eq!(compute_max_per_sender(0, 5), 0);
-    }
-
-    #[test]
-    fn test_compute_max_per_sender_one_sender() {
-        // 10 targets, 1 sender -> 10
-        assert_eq!(compute_max_per_sender(10, 1), 10);
-    }
-
-    #[test]
-    fn test_compute_max_per_sender_3_targets_2_senders() {
-        // ceil(3/2) = 2
-        assert_eq!(compute_max_per_sender(3, 2), 2);
-    }
-
-    #[test]
-    fn test_compute_max_per_sender_5_targets_2_senders() {
-        // ceil(5/2) = 3
-        assert_eq!(compute_max_per_sender(5, 2), 3);
-    }
-
-    #[test]
-    fn test_compute_max_per_sender_1_target_5_senders() {
-        // ceil(1/5) = 1
-        assert_eq!(compute_max_per_sender(1, 5), 1);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // select_targets_to_fund edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_select_targets_to_fund_zero_cap() {
-        let targets = vec![dummy_wallet(0, 0.01), dummy_wallet(1, 0.02)];
-        let selected = select_targets_to_fund(&targets, Some(0));
-        assert!(selected.is_empty());
-    }
-
-    #[test]
-    fn test_select_targets_to_fund_cap_equals_count() {
-        let targets = vec![dummy_wallet(0, 0.01), dummy_wallet(1, 0.02)];
-        let selected = select_targets_to_fund(&targets, Some(2));
-        assert_eq!(selected.len(), 2);
-    }
-
-    #[test]
-    fn test_select_targets_to_fund_cap_larger_than_count() {
-        let targets = vec![dummy_wallet(0, 0.01)];
-        let selected = select_targets_to_fund(&targets, Some(10));
-        assert_eq!(selected.len(), 1);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // generate_dry_run_plan more cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_generate_dry_run_plan_single_sender_many_targets() {
-        let senders = vec![dummy_wallet(0, 100.0)];
-        let targets: Vec<WalletInfo> = (1..20).map(|i| dummy_wallet(i, 0.005)).collect();
-        let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng);
-        assert_eq!(plan.len(), 19);
-        // All targets should be assigned to sender 0
-        for pf in &plan {
-            assert_eq!(pf.sender_idx, 0);
-        }
-    }
-
-    #[test]
-    fn test_generate_dry_run_plan_honors_max_targets_zero() {
-        let senders = vec![dummy_wallet(0, 1.0)];
-        let targets = vec![dummy_wallet(1, 0.01), dummy_wallet(2, 0.01)];
-        let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, Some(0), &mut rng);
-        assert_eq!(plan.len(), 0);
-    }
-
-    #[test]
-    fn test_generate_dry_run_plan_min_equals_max_target() {
-        let senders = vec![dummy_wallet(0, 1.0)];
-        let targets = vec![dummy_wallet(1, 0.01)];
-        let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.025, 0.025, 3, 3, None, &mut rng);
-        assert_eq!(plan.len(), 1);
-        let amount_eth = plan[0].amount.as_u128() as f64 / 1e18;
-        assert!((amount_eth - 0.025).abs() < 1e-9, "amount should be exactly 0.025");
-    }
-
-    #[test]
-    fn test_generate_dry_run_plan_min_equals_max_hops() {
-        let senders = vec![dummy_wallet(0, 1.0)];
-        let targets = vec![dummy_wallet(1, 0.01), dummy_wallet(2, 0.01)];
-        let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 4, 4, None, &mut rng);
-        for pf in &plan {
-            assert_eq!(pf.hops, 4, "all plans should have exactly 4 hops");
-        }
-    }
-
-    #[test]
-    fn test_generate_dry_run_plan_target_balance_preserved() {
-        let senders = vec![dummy_wallet(0, 1.0)];
-        let targets = vec![dummy_wallet(1, 0.12345)];
-        let mut rng = StdRng::seed_from_u64(42);
-        let plan = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng);
-        assert_eq!(plan[0].target_balance_eth, 0.12345);
-    }
-
-    #[test]
-    fn test_generate_dry_run_plan_deterministic_with_seed() {
-        let senders = vec![dummy_wallet(0, 1.0), dummy_wallet(1, 1.0)];
-        let targets = vec![dummy_wallet(2, 0.01), dummy_wallet(3, 0.01), dummy_wallet(4, 0.01)];
-
-        let mut rng1 = StdRng::seed_from_u64(999);
-        let plan1 = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng1);
-
-        let mut rng2 = StdRng::seed_from_u64(999);
-        let plan2 = generate_dry_run_plan(&senders, &targets, 0.02, 0.04, 3, 5, None, &mut rng2);
-
-        assert_eq!(plan1.len(), plan2.len());
-        for (a, b) in plan1.iter().zip(plan2.iter()) {
-            assert_eq!(a.amount, b.amount, "amounts should match with same seed");
-            assert_eq!(a.hops, b.hops, "hops should match with same seed");
-            assert_eq!(a.sender_idx, b.sender_idx, "sender should match with same seed");
-        }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // await_confirmation_with_progress more edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[tokio::test]
-    async fn test_await_confirmation_with_progress_heartbeat_minimum_clamped() {
-        // Heartbeat < 1s should be clamped to 1s
-        let future = std::future::pending::<std::result::Result<(), std::io::Error>>();
-        let result = await_confirmation_with_progress(
-            1,
-            "Funder",
-            "test",
-            future,
-            Duration::from_millis(50), // very short
-            Duration::from_millis(10), // sub-second heartbeat
-        )
-        .await;
-        // Should timeout (not panic on heartbeat clamping)
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_await_confirmation_with_progress_long_running() {
-        // Future that completes after 100ms, with 60s timeout
-        let future = async {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            Ok::<_, std::io::Error>(42u32)
-        };
-        let result = await_confirmation_with_progress(
-            1,
-            "Funder",
-            "test",
-            future,
-            Duration::from_secs(60),
-            Duration::from_secs(1),
-        )
-        .await
-        .unwrap();
-        assert_eq!(result, 42);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Dummy helper for recovery tests
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_dummy_wallet_creates_valid_address() {
-        let w = dummy_wallet(42, 1.5);
-        assert_eq!(w.idx, 42);
-        assert_eq!(w.balance_eth, 1.5);
-        assert_eq!(w.address, Address::from_low_u64_be(42));
-    }
-
-    #[test]
-    fn test_dummy_wallet_zero_idx() {
-        let w = dummy_wallet(0, 0.0);
-        assert_eq!(w.idx, 0);
-        assert_eq!(w.balance_eth, 0.0);
-    }
-
-    #[test]
-    fn test_dummy_wallet_large_idx() {
-        let w = dummy_wallet(usize::MAX, f64::MAX);
-        assert_eq!(w.idx, usize::MAX);
-        // f64::MAX will lose precision when stored in u64 but balance field is f64
-        assert_eq!(w.balance_eth, f64::MAX);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // JSON log shape (verify structure)
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_json_log_structure_minimal() {
-        // Verify the expected JSON structure
-        let data = serde_json::json!({
-            "funded": 5,
-            "failed": 1,
-            "total_duration_secs": 120.5,
-            "summary": {
-                "total_wallets": 10,
-                "senders_count": 4,
-                "targets_count": 6,
-                "assigned": 6
-            },
-            "timestamp": "2026-06-17T00:00:00Z"
-        });
-        let json = serde_json::to_string_pretty(&data).unwrap();
-        assert!(json.contains("\"funded\": 5"));
-        assert!(json.contains("\"failed\": 1"));
-        assert!(json.contains("\"summary\""));
-        assert!(json.contains("\"timestamp\""));
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Dry-run balance sufficiency tests
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_dry_run_balance_check_sufficient() {
-        // Sender has plenty, no warnings expected
-        let funder = Funder::new(
-            Arc::new(core_logic::WalletManager::new().unwrap()),
-            Provider::new(Http::new(reqwest::Url::parse("http://localhost").unwrap())),
-            dummy_rpc_manager(&["http://localhost"]),
-            reqwest::Client::new(),
-            "pw".into(),
-            1,
-            None,
-            None,
-        );
-        let senders = vec![dummy_wallet(0, 10.0)]; // 10 ETH, more than enough
-        let targets = vec![dummy_wallet(1, 0.005), dummy_wallet(2, 0.005)];
-        // Should not panic
-        let result = funder.execute_dry_run(&senders, &targets, 0.02, 0.04, 3, 5, None);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_dry_run_balance_check_insufficient() {
-        // Sender has very little — should warn
-        let funder = Funder::new(
-            Arc::new(core_logic::WalletManager::new().unwrap()),
-            Provider::new(Http::new(reqwest::Url::parse("http://localhost").unwrap())),
-            dummy_rpc_manager(&["http://localhost"]),
-            reqwest::Client::new(),
-            "pw".into(),
-            1,
-            None,
-            None,
-        );
-        let senders = vec![dummy_wallet(0, 0.001)]; // 0.001 ETH — too little
-        let targets = vec![dummy_wallet(1, 0.005)];
-        let result = funder.execute_dry_run(&senders, &targets, 0.02, 0.04, 5, 7, None);
-        assert!(result.is_ok());
-        // The function should print warnings (we can't easily assert stdout here, but it shouldn't panic)
-    }
-
-    #[test]
-    fn test_dry_run_balance_check_multiple_senders() {
-        // Multiple senders with mixed balance adequacy
-        let funder = Funder::new(
-            Arc::new(core_logic::WalletManager::new().unwrap()),
-            Provider::new(Http::new(reqwest::Url::parse("http://localhost").unwrap())),
-            dummy_rpc_manager(&["http://localhost"]),
-            reqwest::Client::new(),
-            "pw".into(),
-            1,
-            None,
-            None,
-        );
-        let senders = vec![
-            dummy_wallet(0, 10.0),   // sufficient
-            dummy_wallet(1, 0.001),  // insufficient
-        ];
-        let targets: Vec<WalletInfo> = (2..10).map(|i| dummy_wallet(i, 0.005)).collect();
-        let result = funder.execute_dry_run(&senders, &targets, 0.02, 0.04, 3, 5, None);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_dry_run_balance_check_empty_targets() {
-        let funder = Funder::new(
-            Arc::new(core_logic::WalletManager::new().unwrap()),
-            Provider::new(Http::new(reqwest::Url::parse("http://localhost").unwrap())),
-            dummy_rpc_manager(&["http://localhost"]),
-            reqwest::Client::new(),
-            "pw".into(),
-            1,
-            None,
-            None,
-        );
-        let senders = vec![dummy_wallet(0, 1.0)];
-        let targets: Vec<WalletInfo> = vec![];
-        let result = funder.execute_dry_run(&senders, &targets, 0.02, 0.04, 3, 5, None);
-        assert!(result.is_ok());
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Recovery nonce handling tests
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_sweep_amount_deducts_gas_correctly() {
-        // 1 ETH balance, 1 gwei gas = 21_000 * 1e9 = 21_000 gwei = 0.000021 ETH
-        let balance = U256::from(1_000_000_000_000_000_000u64); // 1 ETH
-        let gas_price = U256::from(1_000_000_000u64); // 1 gwei
-        let gas_cost = U256::from(21_000u64) * gas_price;
-        let sweep = balance.saturating_sub(gas_cost);
-        // Expected: 1.0 - 0.000021 = 0.999979
-        let sweep_eth = sweep.as_u128() as f64 / 1e18;
-        assert!((sweep_eth - 0.999979).abs() < 1e-6);
-    }
-
-    #[test]
-    fn test_sweep_amount_handles_zero_balance() {
-        let balance = U256::zero();
-        let gas_price = U256::from(1_000_000_000u64);
-        let gas_cost = U256::from(21_000u64) * gas_price;
-        let sweep = balance.saturating_sub(gas_cost);
-        assert_eq!(sweep, U256::zero());
-    }
-
-    #[test]
-    fn test_sweep_amount_handles_balance_below_gas() {
-        // 0.00001 ETH balance, gas cost = 0.000021 ETH -> sweep = 0
-        let balance = U256::from(10_000_000_000_000u64); // 0.00001 ETH
-        let gas_price = U256::from(1_000_000_000u64);
-        let gas_cost = U256::from(21_000u64) * gas_price;
-        let sweep = balance.saturating_sub(gas_cost);
-        assert_eq!(sweep, U256::zero(), "should be 0 when balance < gas");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Per-call timeout for load_wallets
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_load_wallet_balance_query_timeout_constant() {
-        // Verify the timeout duration is set as expected
-        // (we use 30s in the implementation; verify it's reasonable)
-        const EXPECTED_TIMEOUT_SECS: u64 = 30;
-        // This is a compile-time assertion via the literal in the code
-        // (no runtime check needed since 30s is hardcoded in the function)
-        const _: () = assert!(EXPECTED_TIMEOUT_SECS > 0);
-        const _: () = assert!(EXPECTED_TIMEOUT_SECS <= 120, "timeout should not be excessive");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Delivery verification (target balance delta) tests
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_delivery_delta_calculation_correct() {
-        // After funding, target should have +X ETH (where X = remaining)
-        // If actual delta >= expected - 1 gwei dust, OK
-        let expected = U256::from(1_000_000_000_000_000_000u64); // 1 ETH
-        let actual = U256::from(999_999_999_999_999_999u64); // 0.99999... ETH
-        let dust_tolerance = U256::from(1_000_000_000u64); // 1 gwei
-        let delivery_ok = actual >= expected.saturating_sub(dust_tolerance);
-        assert!(delivery_ok, "delivery within 1 gwei dust should be OK");
-    }
-
-    #[test]
-    fn test_delivery_delta_shortfall_detected() {
-        // Actual delta way below expected
-        let expected = U256::from(1_000_000_000_000_000_000u64);
-        let actual = U256::from(500_000_000_000_000_000u64); // 0.5 ETH (way short)
-        let dust_tolerance = U256::from(1_000_000_000u64);
-        let delivery_ok = actual >= expected.saturating_sub(dust_tolerance);
-        assert!(!delivery_ok, "shortfall should be detected");
-        let shortfall = expected.saturating_sub(actual);
-        let shortfall_eth = shortfall.as_u128() as f64 / 1e18;
-        assert!((shortfall_eth - 0.5).abs() < 1e-9);
-    }
-
-    #[test]
-    fn test_delivery_delta_exact_match() {
-        let expected = U256::from(1_000_000_000_000_000_000u64);
-        let actual = U256::from(1_000_000_000_000_000_000u64);
-        let dust_tolerance = U256::from(1_000_000_000u64);
-        let delivery_ok = actual >= expected.saturating_sub(dust_tolerance);
-        assert!(delivery_ok);
-    }
-
-    #[test]
-    fn test_delivery_delta_concurrent_tx_drains_target() {
-        // Simulating a concurrent tx that drains the target
-        // after our funding: actual_delta could be negative
-        let expected = U256::from(1_000_000_000_000_000_000u64);
-        let actual = U256::zero(); // target drained after our tx
-        let dust_tolerance = U256::from(1_000_000_000u64);
-        let delivery_ok = actual >= expected.saturating_sub(dust_tolerance);
-        assert!(!delivery_ok);
-    }
-
-    #[test]
-    fn test_delivery_delta_target_also_received_other_funds() {
-        // Target gets our funding PLUS concurrent funding
-        // actual_delta > expected should still be considered OK
-        let expected = U256::from(1_000_000_000_000_000_000u64);
-        let actual = U256::from(2_000_000_000_000_000_000u64);
-        let dust_tolerance = U256::from(1_000_000_000u64);
-        let delivery_ok = actual >= expected.saturating_sub(dust_tolerance);
-        assert!(delivery_ok);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Sender balance integrity tests
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_sender_spent_within_expected_range() {
-        // Sender should spend approximately seed + 21k*gas
-        let sender_before = U256::from(1_000_000_000_000_000_000u64); // 1 ETH
-        let gas_price = U256::from(1_000_000_000u64); // 1 gwei
-        let seed = U256::from(100_000_000_000_000_000u64); // 0.1 ETH
-        let gas_21k = U256::from(21_000u64) * gas_price;
-        let expected_spent = seed + gas_21k;
-        let sender_after = sender_before.saturating_sub(expected_spent);
-        let actual_spent = sender_before.saturating_sub(sender_after);
-        assert_eq!(actual_spent, expected_spent, "spent should match expected");
-    }
-
-    #[test]
-    fn test_sender_spent_anomaly_detection() {
-        // If sender spent way more than expected, that's a bug
-        let sender_before = U256::from(1_000_000_000_000_000_000u64);
-        let gas_price = U256::from(1_000_000_000u64);
-        let seed = U256::from(100_000_000_000_000_000u64);
-        let gas_21k = U256::from(21_000u64) * gas_price;
-        let expected_spent = seed + gas_21k;
-        // Simulate anomaly: spent 2x expected (e.g., bug in code)
-        let simulated_spent = expected_spent * U256::from(2);
-        let sender_after = sender_before.saturating_sub(simulated_spent);
-        let actual_spent = sender_before.saturating_sub(sender_after);
-        let threshold = expected_spent + gas_21k; // 1 tx gas tolerance
-        assert!(actual_spent > threshold, "anomaly should be detected");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Final integration assertions for delivery verification logic
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_target_balance_delta_with_zero_balance_before() {
-        // Target had 0 before, now has X
-        let before = U256::zero();
-        let after = U256::from(1_000_000_000_000_000_000u64); // 1 ETH
-        let actual_delta = after.saturating_sub(before);
-        assert_eq!(actual_delta, after);
-    }
-
-    #[test]
-    fn test_target_balance_delta_with_prior_balance() {
-        // Target had 0.1 ETH, now has 1.1 ETH (received our 1 ETH)
-        let before = U256::from(100_000_000_000_000_000u64); // 0.1 ETH
-        let after = U256::from(1_100_000_000_000_000_000u64); // 1.1 ETH
-        let actual_delta = after.saturating_sub(before);
-        assert_eq!(actual_delta, U256::from(1_000_000_000_000_000_000u64));
-    }
-
-    #[test]
-    fn test_target_balance_delta_underflow_safe() {
-        // If somehow before > after (shouldn't happen normally), saturate
-        let before = U256::from(1_000_000_000_000_000_000u64);
-        let after = U256::from(500_000_000_000_000_000u64);
-        let actual_delta = after.saturating_sub(before);
-        assert_eq!(actual_delta, U256::zero(), "saturating_sub should not underflow");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Input validation tests (H2 audit fix)
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_validation_min_target_le_max_target() {
-        // This is just a unit test for the validation logic
-        let min = 0.02;
-        let max = 0.04;
-        assert!(min <= max, "min <= max should be valid");
-    }
-
-    #[test]
-    fn test_validation_min_hops_le_max_hops() {
-        let min = 3;
-        let max = 5;
-        assert!(min <= max);
-    }
-
-    #[test]
-    fn test_validation_min_gwei_le_max_gwei() {
-        let min = 1.2;
-        let max = 1.5;
-        assert!(min <= max);
-    }
-
-    #[test]
-    fn test_validation_min_balance_ge_max_balance() {
-        // senders have balance >= min_balance, targets have balance <= max_balance
-        // So min_balance should be >= max_balance (no overlap)
-        let min = 0.5;
-        let max = 0.01;
-        assert!(min >= max);
-    }
-
-    #[test]
-    fn test_validation_max_hops_positive() {
-        let max_hops = 5usize;
-        assert!(max_hops > 0, "max_hops must be at least 1");
-    }
-
-    #[test]
-    fn test_validation_min_target_positive() {
-        let min_target = 0.02;
-        assert!(min_target > 0.0, "min_target must be positive");
-    }
-
-    #[test]
-    fn test_seed_uses_max_gwei_for_safety() {
-        // Seed should be calculated using max_gwei to cover worst case
-        // during multi-hop flow
-        let target = U256::from(100_000_000_000_000_000u64); // 0.1 ETH
-        let max_gas_price_wei = U256::from(1_500_000_000u64); // 1.5 gwei (max)
-        let min_gas_price_wei = U256::from(1_200_000_000u64); // 1.2 gwei (min)
-
-        let seed_using_max = calculate_seed_amount(target, max_gas_price_wei, 5);
-        let seed_using_min = calculate_seed_amount(target, min_gas_price_wei, 5);
-
-        assert!(
-            seed_using_max > seed_using_min,
-            "seed with max gas should be larger than seed with min gas"
-        );
-    }
-
-    #[test]
-    fn test_seed_covers_max_gas_for_all_hops() {
-        // Even if all hops use max_gas, the seed should cover all gas costs
-        let target = U256::from(100_000_000_000_000_000u64); // 0.1 ETH
-        let max_gas = U256::from(1_500_000_000u64); // 1.5 gwei
-        let hop_count = 7usize;
-        let seed = calculate_seed_amount(target, max_gas, hop_count);
-        let gas_21k = U256::from(21_000u64) * max_gas;
-        let total_hop_gas = gas_21k * U256::from(hop_count as u64);
-        // seed = target + (hop_count+2) * gas_21k
-        // So gas covered for (hop_count+2) hops
-        assert!(seed >= target + total_hop_gas);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // MAX_SEND_ATTEMPTS test (L5 audit fix)
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_max_send_attempts_constant_exists() {
-        // Verify the constant is bounded to a reasonable value
-        // (this is a compile-time guarantee since the const is in the fn body,
-        // but we test the behavior via should_retry_proxy_send_error)
-        let err = anyhow::anyhow!("connection refused");
-        assert!(should_retry_proxy_send_error(&err));
-    }
-
-    #[test]
-    fn test_max_send_attempts_logic() {
-        // Simulate: with MAX_SEND_ATTEMPTS=5, after 5 retryable errors we should bail
-        const MAX_SEND_ATTEMPTS: usize = 5;
-        let mut send_attempt = 0usize;
-        let mut last_err: Option<String> = None;
-
-        // Loop simulating retry logic
-        loop {
-            let retryable = true; // simulate retryable error
-            if !retryable {
-                break;
-            }
-            if last_err.is_some() {
-                send_attempt += 1;
-            }
-            last_err = Some(format!("err_{send_attempt}"));
-            if send_attempt + 1 >= MAX_SEND_ATTEMPTS {
-                break;
-            }
-        }
-        assert_eq!(send_attempt, MAX_SEND_ATTEMPTS - 1);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Shutdown warning tests (H3 audit fix)
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_shutdown_flag_propagates_to_workers() {
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let rc = RecoveryContext {
-            dir: "/tmp".to_string(),
-            password: "pw".to_string(),
-            recovery_address: Address::zero(),
-            chain_id: 1,
-            shutdown_requested: Arc::clone(&shutdown),
-        };
-        assert!(!rc.shutdown_requested.load(Ordering::SeqCst));
-        rc.shutdown_requested.store(true, Ordering::SeqCst);
-        // All worker clones of this Arc should see the same value
-        assert!(rc.shutdown_requested.load(Ordering::SeqCst));
-    }
-
-    #[test]
-    fn test_shutdown_flag_can_be_toggled() {
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let s2 = Arc::clone(&shutdown);
-        shutdown.store(true, Ordering::SeqCst);
-        assert!(s2.load(Ordering::SeqCst));
-        shutdown.store(false, Ordering::SeqCst);
-        assert!(!s2.load(Ordering::SeqCst));
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Per-call timeout for load_wallets
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[tokio::test]
-    async fn test_timeout_wraps_slow_operations() {
-        // Simulate a slow operation that should be timed out
-        let result = tokio::time::timeout(
-            Duration::from_millis(50),
-            tokio::time::sleep(Duration::from_secs(5)),
-        )
-        .await;
-        assert!(result.is_err(), "should timeout before 5s elapses");
-    }
-
-    #[tokio::test]
-    async fn test_timeout_allows_fast_operations() {
-        // Simulate a fast operation that should complete in time
-        let result = tokio::time::timeout(
-            Duration::from_secs(5),
-            tokio::time::sleep(Duration::from_millis(10)),
-        )
-        .await;
-        assert!(result.is_ok(), "should complete before timeout");
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Gas bump math
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn gas_bump_12_percent_compound_over_5_iterations() {
-        // After 5 heartbeats with 12% bump, gas is multiplied by 1.12^5
-        let mut gas = U256::from(1_000_000_000u64); // 1 gwei
-        for _ in 0..5 {
-            gas = gas + gas / U256::from(100) * U256::from(12);
-        }
-        // 1.12^5 = 1.7623416...
-        // So 1 gwei * 1.7623 = 1.7623 gwei = 1_762_341_634 wei (approximate)
-        let expected_min = U256::from(1_762_000_000u64);
-        let expected_max = U256::from(1_763_000_000u64);
-        assert!(
-            gas >= expected_min && gas <= expected_max,
-            "5x 12% bumps should give ~1.76 gwei, got {gas}"
-        );
-    }
-
-    #[test]
-    fn last_ditch_gas_2x_within_u256() {
-        // 2x of 50 gwei should be 100 gwei, well within U256
-        let gas = U256::from(50_000_000_000u64);
-        let doubled = gas + gas;
-        assert_eq!(doubled, U256::from(100_000_000_000u64));
-        assert!(doubled < U256::MAX);
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Persistence edge cases
-    // ──────────────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_persist_proxy_journal_handles_existing_file() {
-        // Calling persist twice should append, not overwrite
-        let temp_dir = std::env::temp_dir().join("testnet-fund-append-mode");
-        let _ = std::fs::create_dir_all(&temp_dir);
-
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let recovery = RecoveryContext {
-            dir: temp_dir.to_string_lossy().to_string(),
-            password: "pw".to_string(),
-            recovery_address: Address::zero(),
-            chain_id: 1,
-            shutdown_requested: Arc::clone(&shutdown),
-        };
-
-        persist_proxy_and_journal(
-            &recovery,
-            0,
-            1,
-            "k1",
-            Address::from_low_u64_be(1),
-            Address::from_low_u64_be(2),
-            U256::from(1u64),
-            U256::from(1u64),
-            0,
-        )
-        .unwrap();
-
-        let journal_path = temp_dir.join("journal.jsonl");
-        let size_after_first = std::fs::metadata(&journal_path).unwrap().len();
-
-        persist_proxy_and_journal(
-            &recovery,
-            1,
-            2,
-            "k2",
-            Address::from_low_u64_be(3),
-            Address::from_low_u64_be(4),
-            U256::from(2u64),
-            U256::from(1u64),
-            1,
-        )
-        .unwrap();
-
-        let size_after_second = std::fs::metadata(&journal_path).unwrap().len();
-        assert!(size_after_second > size_after_first, "journal should grow");
-
-        let content = std::fs::read_to_string(&journal_path).unwrap();
-        let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
-        assert_eq!(lines.len(), 2);
+        let files = read_flow_files(&temp_dir.to_string_lossy()).unwrap();
+        assert_eq!(files.len(), 5);
 
         let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_read_flow_files_skips_invalid_json() {
+        let temp_dir = std::env::temp_dir().join("testnet-fund-read-invalid");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        std::fs::write(temp_dir.join("flow_bad.json"), "not valid json {{{").unwrap();
+        let files = read_flow_files(&temp_dir.to_string_lossy()).unwrap();
+        assert!(files.is_empty(), "invalid JSON files should be skipped");
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_decrypt_flow_seed_invalid_hex_fails() {
+        let entry = FlowEntry {
+            ciphertext: "zz".to_string(), // invalid hex
+            iv: "00".to_string(),
+            salt: "00".to_string(),
+            tag: "00".to_string(),
+            hop_count: 1,
+            chain_id: 1,
+            timestamp: String::new(),
+        };
+        let result = decrypt_flow_seed(&entry, "pw");
+        assert!(result.is_err(), "invalid hex should fail");
+    }
+
+    #[test]
+    fn test_derive_proxy_key_does_not_produce_zero_key() {
+        let seed = [0u8; 32];
+        for i in 0..50 {
+            let key = derive_proxy_key_bytes(&seed, i);
+            assert_ne!(key, [0u8; 32], "key[{i}] should not be all zeros");
+        }
+    }
+
+    #[test]
+    fn test_derive_proxy_key_32_hops_all_distinct() {
+        let mut seed = [0u8; 32];
+        seed[0] = 0xDE;
+        let mut seen = std::collections::HashSet::new();
+        for i in 0..32 {
+            let key = derive_proxy_key_bytes(&seed, i);
+            assert!(seen.insert(key), "key[{i}] should be unique");
+        }
+    }
+
+    #[test]
+    fn test_flow_file_write_is_atomic() {
+        // Verify the temp->rename pattern works
+        let temp_dir = std::env::temp_dir().join("testnet-fund-atomic-write");
+        let _ = std::fs::create_dir_all(&temp_dir);
+
+        // Write should not leave temp files behind
+        let entry = FlowEntry {
+            ciphertext: "ct".to_string(),
+            iv: "iv".to_string(),
+            salt: "salt".to_string(),
+            tag: "tag".to_string(),
+            hop_count: 1,
+            chain_id: 1,
+            timestamp: "t".to_string(),
+        };
+        let fname = write_flow_file(&temp_dir.to_string_lossy(), &entry).unwrap();
+
+        // Check no .tmp files left
+        let has_tmp = std::fs::read_dir(&temp_dir)
+            .unwrap()
+            .any(|e| e.unwrap().file_name().to_string_lossy().starts_with(".tmp_"));
+        assert!(!has_tmp, "no temp files should remain after write");
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_uuid_fast_generates_unique_values() {
+        let a = uuid_fast();
+        let b = uuid_fast();
+        assert_eq!(a.len(), 16, "uuid_fast should be 16 hex chars (8 bytes)");
+        assert_ne!(a, b, "two calls should produce different values");
+    }
+
+    #[test]
+    fn test_uuid_fast_is_valid_hex() {
+        let id = uuid_fast();
+        assert!(hex::decode(&id).is_ok(), "uuid_fast output should be valid hex");
+    }
+
+    #[test]
+    fn test_recover_flow_integration() {
+        // End-to-end: create a flow file → read it back → decrypt → derive proxy keys → verify addresses
+        let temp_dir = std::env::temp_dir().join("testnet-fund-recover-integration");
+        let _ = std::fs::create_dir_all(&temp_dir);
+
+        // 1. Create a known flow_seed
+        let mut flow_seed = [0u8; 32];
+        flow_seed[0] = 0xAA;
+        flow_seed[15] = 0xBB;
+        flow_seed[31] = 0xCC;
+
+        // 2. Encrypt it and write a flow file
+        let (ct, iv, salt, tag) = encrypt_flow_seed(&flow_seed, "recover_pw").unwrap();
+        let flow_entry = FlowEntry {
+            ciphertext: ct,
+            iv,
+            salt,
+            tag,
+            hop_count: 3,
+            chain_id: 11155111,
+            timestamp: "test".to_string(),
+        };
+        let dir_str = temp_dir.to_string_lossy().to_string();
+        let fname = write_flow_file(&dir_str, &flow_entry).unwrap();
+        assert!(std::fs::exists(temp_dir.join(&fname)).unwrap_or(false));
+
+        // 3. Read it back (as recovery would)
+        let files = read_flow_files(&dir_str).unwrap();
+        assert_eq!(files.len(), 1);
+
+        // 4. Decrypt the flow_seed
+        let decrypted_seed = decrypt_flow_seed(&files[0].1, "recover_pw").unwrap();
+        assert_eq!(decrypted_seed, flow_seed, "decrypted seed should match original");
+
+        // 5. Derive all proxy keys from the decrypted seed
+        for i in 0..3 {
+            let wallet = derive_proxy_wallet(&decrypted_seed, i, 11155111).unwrap();
+            assert_eq!(wallet.chain_id(), 11155111);
+            assert_ne!(
+                wallet.address(),
+                Address::zero(),
+                "proxy {i} address should not be zero"
+            );
+
+            // Verify the same seed+index always produces the same address
+            let wallet2 = derive_proxy_wallet(&decrypted_seed, i, 11155111).unwrap();
+            assert_eq!(
+                wallet.address(),
+                wallet2.address(),
+                "proxy {i} address should be deterministic"
+            );
+
+            // Verify different indices produce different addresses
+            if i > 0 {
+                let prev = derive_proxy_wallet(&decrypted_seed, i - 1, 11155111).unwrap();
+                assert_ne!(
+                    wallet.address(),
+                    prev.address(),
+                    "proxy {i} should differ from proxy {}",
+                    i - 1
+                );
+            }
+        }
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_decrypt_flow_seed_corrupted_ciphertext_fails() {
+        let entry = FlowEntry {
+            ciphertext: "deadbeef".to_string(), // valid hex but garbage ciphertext
+            iv: "00112233445566778899aabb".to_string(),
+            salt: "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff".to_string(),
+            tag: "00112233445566778899aabbccddeeff".to_string(),
+            hop_count: 1,
+            chain_id: 1,
+            timestamp: String::new(),
+        };
+        let result = decrypt_flow_seed(&entry, "pw");
+        assert!(result.is_err(), "corrupted ciphertext should fail decryption");
+    }
+
+    #[test]
+    fn test_decrypt_flow_seed_short_ciphertext_fails() {
+        let entry = FlowEntry {
+            ciphertext: "ab".to_string(), // too short
+            iv: "00".repeat(12),
+            salt: "00".repeat(32),
+            tag: "00".repeat(16),
+            hop_count: 1,
+            chain_id: 1,
+            timestamp: String::new(),
+        };
+        let result = decrypt_flow_seed(&entry, "pw");
+        assert!(result.is_err(), "short ciphertext should fail");
+    }
+
+    #[test]
+    fn test_flow_entry_serialization_with_all_fields() {
+        let entry = FlowEntry {
+            ciphertext: "ct123".to_string(),
+            iv: "iv456".to_string(),
+            salt: "salt789".to_string(),
+            tag: "tag000".to_string(),
+            hop_count: 10,
+            chain_id: 11155111,
+            timestamp: "2026-06-19T12:34:56.789Z".to_string(),
+        };
+        let json = serde_json::to_string_pretty(&entry).unwrap();
+        let parsed: FlowEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.hop_count, 10);
+        assert_eq!(parsed.chain_id, 11155111);
+        assert_eq!(parsed.timestamp, "2026-06-19T12:34:56.789Z");
+    }
+
+    #[test]
+    fn test_derive_proxy_wallet_10_hops_all_valid() {
+        let mut seed = [0u8; 32];
+        // Use a non-zero seed
+        for b in 0..32 {
+            seed[b] = b as u8;
+        }
+        let mut seen = std::collections::HashSet::new();
+        for i in 0..10 {
+            let wallet = derive_proxy_wallet(&seed, i, 1).unwrap();
+            assert!(seen.insert(wallet.address()), "proxy {i} address should be unique");
+        }
+        assert_eq!(seen.len(), 10);
+    }
+
+    #[test]
+    fn test_probe_summary_basic() {
+        let summary = ProbeSummary { total: 5, healthy: 3 };
+        assert_eq!(summary.total, 5);
+        assert_eq!(summary.healthy, 3);
+    }
+
+    #[test]
+    fn test_probe_summary_zero_healthy() {
+        let summary = ProbeSummary { total: 2, healthy: 0 };
+        assert_eq!(summary.healthy, 0);
+    }
+
+    /// Verify `probe_rpc_endpoints` handles an invalid URL gracefully
+    /// (marks it unhealthy via record_failure, no panic).
+    #[tokio::test]
+    async fn test_probe_rpc_endpoints_invalid_url() {
+        let rpc_manager = Arc::new(RpcManager::new(1, &["not-a-valid-url://".to_string()]));
+        let http_client = reqwest::Client::new();
+        let result = probe_rpc_endpoints(&rpc_manager, &http_client, 1, 3, None).await;
+        assert!(result.is_ok(), "probe should not fail on invalid URL");
+        let summary = result.unwrap();
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.healthy, 0, "invalid URL should be marked unhealthy");
+    }
+
+    #[test]
+    fn test_probe_summary_display_after_zero_rpcs() {
+        // Edge case: ProbeSummary { total: 0, healthy: 0 } shouldn't crash
+        let summary = ProbeSummary { total: 0, healthy: 0 };
+        assert_eq!(summary.total, 0);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -6515,12 +5055,7 @@ mod tests {
         let actual_delta_eth = 0.0;
         let tx_hash = "0xa7483bc8...";
         let phrase = if delivery_ok { "received" } else { "MUST have received" };
-        let log = format!(
-            "Address 0x... {} {} ETH, tx: {}",
-            phrase,
-            actual_delta_eth,
-            tx_hash
-        );
+        let log = format!("Address 0x... {} {} ETH, tx: {}", phrase, actual_delta_eth, tx_hash);
         assert!(log.contains("MUST have received"));
     }
 
@@ -6548,7 +5083,10 @@ mod tests {
         let delta = after_funded.saturating_sub(before);
         let expected = U256::from(259_165_000_000_000_000u64);
         let dust = U256::from(1_000_000_000u64);
-        assert!(delta >= expected.saturating_sub(dust), "delta should reflect actual delivery");
+        assert!(
+            delta >= expected.saturating_sub(dust),
+            "delta should reflect actual delivery"
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────────
