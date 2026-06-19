@@ -1,0 +1,10 @@
+{
+  "chain_id": 11155111,
+  "encrypted": {
+    "ciphertext": "af048f30de19176f3a1e5b32203a6a398171dbe18ccf98f095df90d77ff313f30b336a039852d844256633ec8373b6cd04ad733689dd1bdb769b754c222e72eb",
+    "iv": "9636aaf293a9078abaf5bbeb",
+    "salt": "ff0ddf228e05f3600aa796bfb28280722086c567eea3bee78d894542ea697279",
+    "tag": "6d397c3a0890163dd95d98866538a0f6"
+  },
+  "encryption_type": "aes-256-gcm"
+}

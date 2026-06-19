@@ -24,11 +24,12 @@
 
 use crate::config::{SepoliaConfig, TaskLimits};
 use crate::task::{
-    AaveUsdcFaucetTask, AaveUsdtFaucetTask, AaveWbtcFaucetTask, AddLiquidityCplusTask, AddLiquidityTplusTask, BridgeBackCplusTask, BridgeBackTplusTask,
-    BridgeCplusTask, BridgeTplusTask, MintUsdcPlusTask, MintUsdtPlusTask, ReceiveCplusTask, ReceiveTplusTask,
-    RedeemUsdcPlusTask, RedeemUsdtPlusTask, RemoveLiquidityCplusTask, RemoveLiquidityTplusTask,
-    AddLiquiditySplusTask, AddLiquidityScplusTask, SendRandomUsdcPlusTask, SendRandomUsdtPlusTask, SepoliaCheckBalanceTask,
-    SepoliaTask, StakeUsdcPlusTask, StakeUsdtPlusTask, TaskContext, UnstakeCplusTask, UnstakeTplusTask,
+    AaveUsdcFaucetTask, AaveUsdtFaucetTask, AaveWbtcFaucetTask, AddLiquidityCplusTask, AddLiquidityScplusTask,
+    AddLiquiditySplusTask, AddLiquidityTplusTask, BridgeBackCplusTask, BridgeBackTplusTask, BridgeCplusTask,
+    BridgeTplusTask, MintUsdcPlusTask, MintUsdtPlusTask, ReceiveCplusTask, ReceiveTplusTask, RedeemUsdcPlusTask,
+    RedeemUsdtPlusTask, RemoveLiquidityCplusTask, RemoveLiquidityTplusTask, SendRandomUsdcPlusTask,
+    SendRandomUsdtPlusTask, SepoliaCheckBalanceTask, SepoliaTask, StakeUsdcPlusTask, StakeUsdtPlusTask, TaskContext,
+    UnstakeCplusTask, UnstakeTplusTask,
 };
 use crate::utils::gas::GasManager;
 
@@ -1340,7 +1341,12 @@ mod tests {
 
         let pct = wallet_usage_pct(&counts, &limits);
         let expected_pct = 5.0 / (ALL_TASK_NAMES.len() - 1) as f64 * 100.0;
-        assert!((pct - expected_pct).abs() < 0.5, "expected ~{:.1}%, got {}", expected_pct, pct);
+        assert!(
+            (pct - expected_pct).abs() < 0.5,
+            "expected ~{:.1}%, got {}",
+            expected_pct,
+            pct
+        );
     }
 
     #[test]
@@ -1423,7 +1429,12 @@ mod tests {
         let counts = HashMap::new();
         let limits = HashMap::new();
         let remaining = get_remaining_tasks(&counts, &limits);
-        assert_eq!(remaining.len(), ALL_TASK_NAMES.len(), "All {} tasks should be pending", ALL_TASK_NAMES.len());
+        assert_eq!(
+            remaining.len(),
+            ALL_TASK_NAMES.len(),
+            "All {} tasks should be pending",
+            ALL_TASK_NAMES.len()
+        );
         for expected in ALL_TASK_NAMES {
             assert!(remaining.contains(expected), "Missing: {}", expected);
         }
@@ -1452,7 +1463,11 @@ mod tests {
 
         let remaining = get_remaining_tasks(&counts, &limits);
         assert!(!remaining.contains(&"01_checkBalance")); // limit=0, 0 < 0 = false
-        assert_eq!(remaining.len(), ALL_TASK_NAMES.len() - 1, "Only checkBalance should be excluded");
+        assert_eq!(
+            remaining.len(),
+            ALL_TASK_NAMES.len() - 1,
+            "Only checkBalance should be excluded"
+        );
     }
 
     // ---- ALL_TASK_NAMES format ----
@@ -1568,7 +1583,12 @@ mod tests {
         assert_eq!(counts.len(), 5);
 
         let pending = get_remaining_tasks(&counts, &limits);
-        assert_eq!(pending.len(), ALL_TASK_NAMES.len() - 5, "{} tasks should be pending", ALL_TASK_NAMES.len() - 5);
+        assert_eq!(
+            pending.len(),
+            ALL_TASK_NAMES.len() - 5,
+            "{} tasks should be pending",
+            ALL_TASK_NAMES.len() - 5
+        );
 
         // None of the pending tasks should be in completed
         for task in &pending {
@@ -1592,7 +1612,12 @@ mod tests {
 
         // Pending should still include the task
         let pending = get_remaining_tasks(&counts, &limits);
-        assert_eq!(pending.len(), ALL_TASK_NAMES.len(), "All {} tasks should still be pending", ALL_TASK_NAMES.len());
+        assert_eq!(
+            pending.len(),
+            ALL_TASK_NAMES.len(),
+            "All {} tasks should still be pending",
+            ALL_TASK_NAMES.len()
+        );
     }
 
     #[tokio::test]
@@ -1756,7 +1781,12 @@ mod tests {
             .iter()
             .filter(|t| **t != "01_checkBalance" && **t != "02_mintUsdtPlus" && **t != "03_mintUsdcPlus")
             .collect();
-        assert_eq!(remaining_tasks.len(), ALL_TASK_NAMES.len() - 3, "{} remaining tasks expected", ALL_TASK_NAMES.len() - 3);
+        assert_eq!(
+            remaining_tasks.len(),
+            ALL_TASK_NAMES.len() - 3,
+            "{} remaining tasks expected",
+            ALL_TASK_NAMES.len() - 3
+        );
 
         for task in &remaining_tasks {
             db.log_task_result("WK", wallet, task, true, "ok", 0).await.unwrap();
@@ -1796,7 +1826,13 @@ mod tests {
         // ---- Verify total completions ----
         let counts_total = db.get_completed_counts(wallet, &date).await.unwrap();
         let total: usize = counts_total.values().sum();
-        assert_eq!(total, ALL_TASK_NAMES.len() + 7, "Total completions = 5 + 3 + 2 + ({} x 1) = {}", ALL_TASK_NAMES.len() - 3, ALL_TASK_NAMES.len() + 7);
+        assert_eq!(
+            total,
+            ALL_TASK_NAMES.len() + 7,
+            "Total completions = 5 + 3 + 2 + ({} x 1) = {}",
+            ALL_TASK_NAMES.len() - 3,
+            ALL_TASK_NAMES.len() + 7
+        );
     }
 
     #[tokio::test]
@@ -2876,7 +2912,12 @@ mod tests {
     #[test]
     fn test_all_tasks_have_no_duplicate_names() {
         let tasks = all_tasks();
-        assert_eq!(tasks.len(), ALL_TASK_NAMES.len(), "Must have exactly {} tasks", ALL_TASK_NAMES.len());
+        assert_eq!(
+            tasks.len(),
+            ALL_TASK_NAMES.len(),
+            "Must have exactly {} tasks",
+            ALL_TASK_NAMES.len()
+        );
 
         let mut names = std::collections::HashSet::new();
         for t in &tasks {

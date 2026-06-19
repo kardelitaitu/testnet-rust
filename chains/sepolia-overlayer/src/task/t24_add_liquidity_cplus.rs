@@ -126,10 +126,7 @@ impl SepoliaTask for AddLiquidityCplusTask {
         Ok(TaskResult {
             success,
             message: if success {
-                format!(
-                    "Deposited {} C+ into pool {} (tx: {:?})",
-                    whole_cplus, POOL_ID, tx_hash
-                )
+                format!("Deposited {} C+ into pool {} (tx: {:?})", whole_cplus, POOL_ID, tx_hash)
             } else {
                 format!(
                     "Failed to deposit C+ into pool {} - receipt not confirmed (tx: {:?})",

@@ -93,10 +93,7 @@ impl SepoliaTask for RemoveLiquidityCplusTask {
         Ok(TaskResult {
             success,
             message: if success {
-                format!(
-                    "Withdrew {} C+ from pool {} (tx: {:?})",
-                    whole_cplus, POOL_ID, tx_hash
-                )
+                format!("Withdrew {} C+ from pool {} (tx: {:?})", whole_cplus, POOL_ID, tx_hash)
             } else {
                 format!(
                     "Failed to withdraw C+ from pool {} - receipt not confirmed (tx: {:?})",

@@ -77,7 +77,7 @@ impl SepoliaTask for AddLiquidityTplusTask {
         if whole_tplus == 0 {
             return Ok(TaskResult {
                 success: false,
-                message:                "1% of T+ balance rounds to 0, nothing to deposit".to_string(),
+                message: "1% of T+ balance rounds to 0, nothing to deposit".to_string(),
             });
         }
 
@@ -126,10 +126,7 @@ impl SepoliaTask for AddLiquidityTplusTask {
         Ok(TaskResult {
             success,
             message: if success {
-                format!(
-                    "Deposited {} T+ into pool {} (tx: {:?})",
-                    whole_tplus, POOL_ID, tx_hash
-                )
+                format!("Deposited {} T+ into pool {} (tx: {:?})", whole_tplus, POOL_ID, tx_hash)
             } else {
                 format!(
                     "Failed to deposit T+ into pool {} - receipt not confirmed (tx: {:?})",
