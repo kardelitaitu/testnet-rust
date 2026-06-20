@@ -1513,11 +1513,12 @@ mod tests {
 
     /// Helper: create an in-memory DB.
     async fn setup_test_db() -> Arc<DatabaseManager> {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = Box::new(tempfile::tempdir().unwrap());
         let db_path = dir.path().join("test.db");
         let db = DatabaseManager::new(db_path.to_str().unwrap())
             .await
             .expect("Failed to create test database");
+        Box::leak(dir); // keep dir alive for entire test process (avoid SQLITE_CANTOPEN on concurrent access)
         Arc::new(db)
     }
 
